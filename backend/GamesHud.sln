@@ -1,0 +1,36 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{E588A42B-6519-43BC-90CB-A00732DD68C7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GamesHud.Api", "src\GamesHud.Api\GamesHud.Api.csproj", "{1DCDEA1E-850E-405B-84B9-AE37375B1119}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0E961F64-6653-4F02-8189-882E1D1325F6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GamesHud.Api.Tests", "tests\GamesHud.Api.Tests\GamesHud.Api.Tests.csproj", "{0B69CF0C-0FA6-456B-894A-62063CFFFE85}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1DCDEA1E-850E-405B-84B9-AE37375B1119}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1DCDEA1E-850E-405B-84B9-AE37375B1119}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1DCDEA1E-850E-405B-84B9-AE37375B1119}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1DCDEA1E-850E-405B-84B9-AE37375B1119}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0B69CF0C-0FA6-456B-894A-62063CFFFE85}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0B69CF0C-0FA6-456B-894A-62063CFFFE85}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0B69CF0C-0FA6-456B-894A-62063CFFFE85}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0B69CF0C-0FA6-456B-894A-62063CFFFE85}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{1DCDEA1E-850E-405B-84B9-AE37375B1119} = {E588A42B-6519-43BC-90CB-A00732DD68C7}
+		{0B69CF0C-0FA6-456B-894A-62063CFFFE85} = {0E961F64-6653-4F02-8189-882E1D1325F6}
+	EndGlobalSection
+EndGlobal

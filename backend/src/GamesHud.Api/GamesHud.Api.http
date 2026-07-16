@@ -1,0 +1,6 @@
+@GamesHud.Api_HostAddress = http://localhost:5258
+
+GET {{GamesHud.Api_HostAddress}}/health
+Accept: application/json
+
+###
