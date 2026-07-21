@@ -1,57 +1,73 @@
 # GamesHud
 
-GamesHud is a modern web platform for managing Docker containers, game servers and infrastructure through a clean and extensible interface.
+GamesHud is a web platform for managing Docker containers, game servers and infrastructure through a generic Docker Core and future optional plugins.
 
-The project focuses on providing a generic Docker management core while allowing specialized features through independent plugins.
+The project is in early development. The current focus is a safe Docker management foundation with explicit manual lifecycle actions.
 
 ---
 
 ## Current Status
 
-🚧 Early development
+Implemented:
 
-Current implementation:
-
-- Project foundation
-- Backend (.NET 8)
-- Frontend (React + Vite)
-- Test project
-- Documentation
-- Docker container listing through the Docker Engine API
+- .NET 8 backend API
+- React + Vite + TypeScript frontend
+- xUnit test project
+- Repository documentation and architecture rules
+- `GET /health`
+- `GET /api/containers`
+- `GET /api/containers/{containerId}`
+- `GET /api/containers/{containerId}/logs`
+- `POST /api/containers/{containerId}/start`
+- `POST /api/containers/{containerId}/stop`
+- `POST /api/containers/{containerId}/restart`
+- Frontend container list
+- Frontend container details view
+- Recent logs snapshot view
+- Manual frontend start, stop and restart actions in the details view
+- Configurable Docker endpoint
+- Configurable frontend API URL
 
 Planned:
 
-- Dashboard
-- Container management
-- Logs
 - Metrics
-- Plugin system
-- Game server administration
+- Deployment foundation
+- Authentication and authorization
+- Plugin foundation
+- Game-specific plugins
+
+Not implemented yet:
+
+- Real-time log streaming
+- Metrics
+- Authentication
+- Authorization
+- Plugins
 
 ---
 
 ## Technology Stack
 
-Backend
+Backend:
 
 - .NET 8
 - ASP.NET Core Web API
 - Docker.DotNet
 
-Frontend
+Frontend:
 
 - React
 - Vite
 - TypeScript
 
-Testing
+Testing:
 
 - xUnit
 
-Infrastructure
+Infrastructure:
 
 - Docker
-- Linux
+- Linux-compatible deployment target
 
 ---
 
@@ -59,67 +75,69 @@ Infrastructure
 
 ```text
 GamesHud/
-├── backend/
-├── frontend/
-├── docs/
-├── ARCHITECTURE.md
-└── README.md
+|-- backend/
+|-- frontend/
+|-- docs/
+|-- AI_RULES.md
+|-- ARCHITECTURE.md
+|-- README.md
+`-- ROADMAP.md
 ```
+
+The repository may live in any directory. Commands and documentation should use paths relative to the repository root.
 
 ---
 
-## Local Development
+## Quick Start
 
-Backend
+Backend:
 
 ```bash
 cd backend
-
 dotnet restore
 dotnet build
 dotnet test
-
-dotnet run --project src/GamesHud.Api
+dotnet run --project src/GamesHud.Api/GamesHud.Api.csproj
 ```
 
-The Docker connection is configured through:
-
-```json
-{
-  "Docker": {
-    "Endpoint": ""
-  }
-}
-```
-
-The endpoint can be overwritten with the `Docker__Endpoint` environment variable.
-When the value is empty, the backend uses the Docker client default for the local machine.
-For future Linux VPS usage, the expected value is:
-
-```text
-unix:///var/run/docker.sock
-```
-
-Frontend
+Frontend:
 
 ```bash
 cd frontend
-
 npm install
 npm run dev
 ```
 
-Create a local `.env` from `frontend/.env.example` and set:
+Build frontend:
+
+```bash
+cd frontend
+npm run build
+```
+
+---
+
+## Configuration
+
+Backend Docker endpoint:
+
+- `Docker__Endpoint`
+
+When this value is empty or unset, Docker.DotNet uses its default local Docker client behavior. Use environment-specific values locally or in deployment, but do not commit personal paths, production endpoints, credentials or local secret files.
+
+Frontend API base URL:
+
+- `VITE_API_BASE_URL`
+
+For local development, create `frontend/.env` from `frontend/.env.example` and set the API base URL, for example:
 
 ```text
 VITE_API_BASE_URL=http://localhost:5258
 ```
 
-Build
+Local `.env` files are ignored by git and must not be committed.
 
-```bash
-npm run build
-```
+---
 
 ## API
 
@@ -135,42 +153,81 @@ Containers:
 GET /api/containers
 ```
 
-The containers endpoint returns all containers, including stopped containers, with:
+Container details:
 
-- `id`
-- `name`
-- `image`
-- `state`
-- `status`
+```text
+GET /api/containers/{containerId}
+```
 
-If Docker is unavailable, the API returns a friendly error response without exposing stack traces.
+`containerId` may be a full container ID, abbreviated ID or container name when Docker Engine accepts it.
+
+Recent logs:
+
+```text
+GET /api/containers/{containerId}/logs
+GET /api/containers/{containerId}/logs?tail=200&timestamps=true
+```
+
+Log query parameters:
+
+- `tail`: recent line count. Default `200`, minimum `1`, maximum `2000`.
+- `timestamps`: include Docker timestamps. Default `true`.
+
+Logs are returned as a bounded snapshot, not as a stream.
+
+Lifecycle actions:
+
+```text
+POST /api/containers/{containerId}/start
+POST /api/containers/{containerId}/stop
+POST /api/containers/{containerId}/stop?timeoutSeconds=10
+POST /api/containers/{containerId}/restart
+POST /api/containers/{containerId}/restart?timeoutSeconds=10
+```
+
+Lifecycle actions are explicit manual operations only. `timeoutSeconds` applies to stop and restart, defaults to `10`, and must be between `1` and `120`.
+
+If Docker is unavailable, `/health` should still work and Docker-dependent endpoints return friendly service-unavailable responses without stack traces.
+
+---
 
 ## Security Notes
 
-Access to the Docker socket is highly sensitive because it can allow control over the host.
-Only the backend should access the Docker Engine endpoint.
-The frontend must communicate with the backend API and must never receive Docker socket paths, certificates, credentials, or production endpoints.
+Access to the Docker socket is high privilege because it can allow control over the host.
+Only the backend may access Docker Engine.
+The frontend must call the GamesHud API and must never access Docker directly.
+
+Public API contracts must not expose:
+
+- Container environment variables
+- Secrets
+- Tokens
+- Private keys
+- Raw Docker inspect payloads
+- Docker socket details
+- Production endpoints
+
+Mount sources can reveal host paths and should be treated as operationally sensitive information for a future authenticated admin panel.
+
+Lifecycle actions are limited to start, stop and restart. There are no batch actions, automatic scheduled actions, remove, kill, exec, recreate, rename or update operations.
 
 ---
 
 ## Documentation
 
-Project architecture:
-
-- ARCHITECTURE.md
-
-Development guide:
-
-- docs/development.md
+- [Architecture](ARCHITECTURE.md)
+- [AI Rules](AI_RULES.md)
+- [Roadmap](ROADMAP.md)
+- [Development Guide](docs/development.md)
+- [API Guidelines](docs/api-guidelines.md)
+- [Frontend Guidelines](docs/frontend-guidelines.md)
 
 ---
 
 ## Design Principles
 
-GamesHud follows a few core principles:
-
 - Generic Docker Core
-- Plugin-based architecture
+- Plugin-ready architecture
 - Clear separation of responsibilities
 - Production-oriented development
 - Simplicity before abstraction

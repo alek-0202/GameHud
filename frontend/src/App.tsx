@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchContainers } from './api/containers'
+import { ContainerDetails } from './components/ContainerDetails'
 import { ContainerList } from './components/ContainerList'
 import type { Container } from './types/container'
 import './App.css'
@@ -8,6 +9,8 @@ function App() {
   const [containers, setContainers] = useState<Container[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [selectedContainerId, setSelectedContainerId] = useState<string | null>(null)
+  const [containersRefreshToken, setContainersRefreshToken] = useState(0)
 
   useEffect(() => {
     const abortController = new AbortController()
@@ -38,7 +41,7 @@ function App() {
     return () => {
       abortController.abort()
     }
-  }, [])
+  }, [containersRefreshToken])
 
   return (
     <main className="app-shell">
@@ -47,26 +50,39 @@ function App() {
         <p>Docker and game server management panel</p>
       </header>
 
-      <section className="containers-section" aria-labelledby="containers-title">
-        <div className="section-heading">
-          <h2 id="containers-title">Containers</h2>
-          <span>{containers.length} total</span>
-        </div>
+      {selectedContainerId ? (
+        <ContainerDetails
+          containerId={selectedContainerId}
+          onBack={() => {
+            setSelectedContainerId(null)
+            setContainersRefreshToken((value) => value + 1)
+          }}
+        />
+      ) : (
+        <section className="containers-section" aria-labelledby="containers-title">
+          <div className="section-heading">
+            <h2 id="containers-title">Containers</h2>
+            <span>{containers.length} total</span>
+          </div>
 
-        {isLoading && <p className="state-message">Loading containers...</p>}
+          {isLoading && <p className="state-message">Loading containers...</p>}
 
-        {!isLoading && errorMessage && (
-          <p className="state-message state-message-error">{errorMessage}</p>
-        )}
+          {!isLoading && errorMessage && (
+            <p className="state-message state-message-error">{errorMessage}</p>
+          )}
 
-        {!isLoading && !errorMessage && containers.length === 0 && (
-          <p className="state-message">No containers found.</p>
-        )}
+          {!isLoading && !errorMessage && containers.length === 0 && (
+            <p className="state-message">No containers found.</p>
+          )}
 
-        {!isLoading && !errorMessage && containers.length > 0 && (
-          <ContainerList containers={containers} />
-        )}
-      </section>
+          {!isLoading && !errorMessage && containers.length > 0 && (
+            <ContainerList
+              containers={containers}
+              onSelectContainer={setSelectedContainerId}
+            />
+          )}
+        </section>
+      )}
     </main>
   )
 }

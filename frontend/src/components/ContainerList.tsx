@@ -2,13 +2,21 @@ import type { Container } from '../types/container'
 
 interface ContainerListProps {
   containers: Container[]
+  onSelectContainer: (containerId: string) => void
 }
 
-export function ContainerList({ containers }: ContainerListProps) {
+export function ContainerList({ containers, onSelectContainer }: ContainerListProps) {
   return (
     <div className="container-list">
       {containers.map((container) => (
-        <article className="container-card" key={container.id}>
+        <button
+          className="container-card"
+          key={container.id}
+          type="button"
+          onClick={() => {
+            onSelectContainer(container.id)
+          }}
+        >
           <h3>{container.name || container.id}</h3>
           <dl className="container-detail">
             <dt>Name</dt>
@@ -20,7 +28,7 @@ export function ContainerList({ containers }: ContainerListProps) {
             <dt>Status</dt>
             <dd>{container.status || 'Unknown status'}</dd>
           </dl>
-        </article>
+        </button>
       ))}
     </div>
   )
