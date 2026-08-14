@@ -13,10 +13,15 @@ Before modifying files, the AI must read and understand:
 - `README.md`
 - `ARCHITECTURE.md`
 - `AI_RULES.md`
+- `ROADMAP.md`
 - `docs/development.md`
 - `.editorconfig`
 - `.gitignore`
 - Any guideline or documentation directly related to the requested task
+
+For backend changes, also read `docs/api-guidelines.md`.
+For frontend changes, also read `docs/frontend-guidelines.md`.
+For deployment changes, also read `docs/deployment.md`.
 
 The AI must inspect the current repository structure and existing implementation before proposing changes.
 
@@ -254,6 +259,7 @@ Permanent rules should be centralized in guideline files:
 
 - Backend rules: `docs/api-guidelines.md`
 - Frontend rules: `docs/frontend-guidelines.md`
+- Deployment operations: `docs/deployment.md`
 - Development commands: `docs/development.md`
 - Architecture boundaries: `ARCHITECTURE.md`
 - Delivery order: `ROADMAP.md`
@@ -282,6 +288,86 @@ Frontend:
 npm run build
 ```
 
+Docker and deployment configuration:
+
+```bash
+docker compose config
+docker compose build
+```
+
+Run Docker validation only when Docker is available and it is safe to build images. Do not install Docker, reconfigure Docker, connect to the VPS, or deploy remotely as part of validation unless explicitly requested.
+
 Documentation-only tasks do not require build and test when no functional code or runtime configuration was changed. They still require link, path and consistency checks.
 
 If validation cannot be completed, report the exact blocker and avoid claiming success.
+
+---
+
+## 14. VPS Deployment Safety
+
+GamesHud may be deployed to a real Ubuntu VPS for homologation. The VPS is an execution environment, not a code editing environment.
+
+Development flow:
+
+```text
+Local development
+-> automated validation
+-> Git
+-> deployment to VPS
+-> controlled integration testing
+```
+
+Do not implement changes directly on the VPS.
+
+## 15. Protected Production Containers
+
+The VPS may already run production containers such as Palworld and Portainer.
+
+No GamesHud task may:
+
+- Stop, restart, recreate, or modify Palworld.
+- Run `docker compose down` in the Palworld project.
+- Restart the Docker daemon.
+- Restart or shut down the VPS.
+- Modify Palworld volumes, networks, or configuration.
+- Use Palworld as a lifecycle test container.
+- Use Portainer for destructive tests.
+
+Lifecycle testing must use a disposable container created specifically for GamesHud homologation.
+
+## 16. Deployment Foundation Rules
+
+GamesHud deployment must use Docker Compose.
+
+Backend:
+
+- Use a multi-stage .NET Docker build.
+- Keep the runtime image limited to what is needed to run the API.
+- Configure through environment variables.
+- Mount the Docker socket only in the API service.
+
+Frontend:
+
+- Build React/Vite assets in a multi-stage Docker build.
+- Serve static build output through nginx or an equivalent simple static server.
+- Never mount or receive access to the Docker socket.
+
+Compose:
+
+- Publish services only on loopback while authentication does not exist.
+- Prefer a Compose-owned GamesHud network.
+- Do not use Palworld or Portainer networks.
+- Do not create a database or persistent volumes until required by real state.
+- Prefer `docker compose up -d --build` for updates.
+- Do not run `docker compose down` unnecessarily.
+
+## 17. Private Access Rules
+
+Until authentication exists:
+
+- GamesHud must not be published publicly.
+- Do not configure public HTTPS.
+- Do not configure domains.
+- Do not configure Cloudflare.
+- Do not configure a public reverse proxy.
+- Access should use SSH port forwarding.

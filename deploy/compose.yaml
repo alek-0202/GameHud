@@ -1,0 +1,26 @@
+services:
+  gameshud-api:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    image: gameshud-api:local
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      Docker__Endpoint: ${GAMESHUD_DOCKER_ENDPOINT:-unix:///var/run/docker.sock}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    expose:
+      - "8080"
+    restart: unless-stopped
+
+  gameshud-frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    image: gameshud-frontend:local
+    depends_on:
+      - gameshud-api
+    ports:
+      - "127.0.0.1:${GAMESHUD_FRONTEND_PORT:-8088}:80"
+    restart: unless-stopped

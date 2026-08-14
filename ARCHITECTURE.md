@@ -175,6 +175,61 @@ Read-only endpoints must not alter container state. Lifecycle endpoints are expl
 
 ---
 
+## Deployment Architecture
+
+GamesHud is prepared to run through Docker Compose for private VPS homologation. Deployment files are implemented locally and still require Docker/VPS validation before claiming a completed deployment.
+
+```text
+Browser through SSH tunnel
+      |
+      v
+VPS loopback published frontend port
+      |
+      v
+gameshud-frontend container
+nginx static frontend
+      |
+      | /api and /health proxy over Compose network
+      v
+gameshud-api container
+.NET API
+      |
+      | Docker socket mount
+      v
+Docker Engine on VPS
+```
+
+The Compose deployment uses a GamesHud-owned network created by Compose. It must not use Palworld or Portainer networks.
+
+The frontend is published only on VPS loopback while authentication does not exist. The API is not published to the host by default and is reached by the frontend over the internal Compose network.
+
+### Deployment Security Rules
+
+- Only `gameshud-api` may mount the Docker socket.
+- `gameshud-frontend` must never mount the Docker socket.
+- The Docker socket must never be exposed over TCP.
+- GamesHud must not enable Docker remote API.
+- No Docker credentials or host-level secrets may be sent to the frontend.
+- No database or persistent volume is introduced until there is real persistent state.
+
+### VPS Operational Boundaries
+
+The VPS may already host production containers such as Palworld and Portainer.
+
+GamesHud development, deployment, testing, and maintenance must never:
+
+- Stop, restart, recreate, or modify Palworld.
+- Run `docker compose down` in the Palworld project.
+- Restart the Docker daemon.
+- Restart or shut down the VPS.
+- Modify Palworld volumes, networks, or configuration.
+- Use Palworld as a test container.
+- Use Portainer for destructive tests.
+
+Lifecycle homologation must use a disposable container created specifically for GamesHud.
+
+---
+
 ## Development Principles
 
 - Simplicity before abstraction.
@@ -196,4 +251,5 @@ Do not add Repository, Unit of Work, CQRS, Mediator, event bus or full Clean Arc
 - [API Guidelines](docs/api-guidelines.md): backend rules.
 - [Frontend Guidelines](docs/frontend-guidelines.md): frontend rules.
 - [Development Guide](docs/development.md): local setup and commands.
+- [Deployment Guide](docs/deployment.md): private Compose deployment and homologation.
 - [Roadmap](ROADMAP.md): planned delivery order and feature status.

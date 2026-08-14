@@ -1,6 +1,6 @@
 # GamesHud Roadmap
 
-Versions and scope may evolve, but the architectural order should be preserved: generic Docker Core first, operational safeguards next, then authentication, deployment and plugins.
+Versions and scope may evolve, but the architectural order should be preserved: generic Docker Core first, operational safeguards next, private deployment foundation, then authentication, public exposure and plugins.
 
 ---
 
@@ -74,7 +74,25 @@ Status: Completed
 
 ---
 
-## v0.5 - Metrics
+## v0.5 - Deployment Foundation
+
+Status: In progress
+
+- GamesHud API Dockerfile
+- GamesHud frontend Dockerfile
+- nginx static frontend runtime
+- Docker Compose file
+- Example deployment environment file
+- Private loopback publishing while authentication does not exist
+- API-only Docker socket mount
+- Compose-owned GamesHud network
+- Deployment documentation
+- Pending Docker build validation
+- Pending VPS homologation
+
+---
+
+## v0.6 - Metrics
 
 Status: Planned
 
@@ -83,18 +101,6 @@ Status: Planned
 - Disk usage
 - Container CPU and memory
 - Running and stopped container summaries
-
----
-
-## v0.6 - Deployment Foundation
-
-Status: Planned
-
-- GamesHud containerization
-- VPS deployment
-- Reverse proxy decision
-- Environment configuration
-- Restricted Docker socket access
 
 ---
 
@@ -109,7 +115,19 @@ Status: Planned
 
 ---
 
-## v0.8 - Plugin Foundation
+## v0.8 - Public Deployment / HTTPS
+
+Status: Planned
+
+- Public exposure only after authentication
+- Reverse proxy decision
+- HTTPS configuration
+- Domain configuration
+- Production deployment hardening
+
+---
+
+## v0.9 - Plugin Foundation
 
 Status: Planned
 
@@ -119,7 +137,7 @@ Status: Planned
 
 ---
 
-## v0.9 - Palworld Plugin
+## v0.10 - Palworld Plugin
 
 Status: Planned
 

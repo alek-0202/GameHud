@@ -17,9 +17,26 @@ git rev-parse --show-toplevel
 - .NET 8 SDK
 - Node.js
 - npm
-- Docker, when testing Docker-backed endpoints locally
+- Docker, when testing Docker-backed endpoints or validating container builds locally
 
-Do not install SDKs, runtimes or global tools automatically as part of routine development tasks. If a missing tool blocks work, report it clearly.
+Do not install SDKs, runtimes, Docker or global tools automatically as part of routine development tasks. If a missing tool blocks work, report it clearly.
+
+---
+
+## Required Context
+
+Before changing code, read:
+
+- `README.md`
+- `ARCHITECTURE.md`
+- `AI_RULES.md`
+- `ROADMAP.md`
+- `docs/development.md`
+- Task-specific documentation
+
+For backend work, also read `docs/api-guidelines.md`.
+For frontend work, also read `docs/frontend-guidelines.md`.
+For deployment work, also read `docs/deployment.md`.
 
 ---
 
@@ -157,6 +174,48 @@ Local `.env` files must not be committed.
 
 ---
 
+## Docker Compose Validation
+
+When Docker is available and it is safe to build images:
+
+```powershell
+cd deploy
+docker compose config
+docker compose build
+```
+
+Do not deploy automatically. Do not connect to the VPS automatically.
+
+---
+
+## VPS Homologation Model
+
+GamesHud is developed locally, validated automatically, committed to Git, deployed to the VPS, and tested in a controlled way.
+
+The VPS should be treated as an execution and homologation environment, not as a place to edit source code.
+
+Deployment files are local project files until Docker and VPS validation are completed.
+
+---
+
+## Production Container Safety
+
+The VPS may already run Palworld and Portainer.
+
+GamesHud work must never:
+
+- Stop, restart, recreate, or modify Palworld.
+- Run `docker compose down` in the Palworld project.
+- Restart the Docker daemon.
+- Restart or shut down the VPS.
+- Modify Palworld volumes, networks, or configuration.
+- Use Palworld as a test container.
+- Use Portainer for destructive tests.
+
+Use only a disposable test container for lifecycle homologation.
+
+---
+
 ## Validation
 
 Backend validation:
@@ -175,6 +234,14 @@ cd frontend
 npm run build
 ```
 
+Deployment validation when Docker is available:
+
+```powershell
+cd deploy
+docker compose config
+docker compose build
+```
+
 Run lint only when a lint script is configured.
 
 ---
@@ -189,3 +256,4 @@ Run lint only when a lint script is configured.
 - Keep Docker Core read actions separate from manual lifecycle actions.
 - Use [API Guidelines](api-guidelines.md) for backend decisions.
 - Use [Frontend Guidelines](frontend-guidelines.md) for frontend decisions.
+- Use [Deployment Guide](deployment.md) for private deployment and homologation procedures.

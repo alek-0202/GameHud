@@ -2,7 +2,7 @@
 
 GamesHud is a web platform for managing Docker containers, game servers and infrastructure through a generic Docker Core and future optional plugins.
 
-The project is in early development. The current focus is a safe Docker management foundation with explicit manual lifecycle actions.
+The project is in early development. The current focus is a safe Docker management foundation with explicit manual lifecycle actions and a private Docker Compose deployment foundation for homologation.
 
 ---
 
@@ -25,14 +25,22 @@ Implemented:
 - Frontend container details view
 - Recent logs snapshot view
 - Manual frontend start, stop and restart actions in the details view
+- Lifecycle safeguards such as confirmation dialogs and duplicate action prevention
 - Configurable Docker endpoint
 - Configurable frontend API URL
+- Local Docker Compose deployment foundation
+
+Deployment foundation status:
+
+- Dockerfiles and Compose configuration are present locally.
+- VPS deployment has not been claimed as completed.
+- Docker/VPS homologation must still be performed before treating deployment as validated.
 
 Planned:
 
 - Metrics
-- Deployment foundation
 - Authentication and authorization
+- Public deployment after authentication
 - Plugin foundation
 - Game-specific plugins
 
@@ -43,6 +51,16 @@ Not implemented yet:
 - Authentication
 - Authorization
 - Plugins
+
+Development and deployment strategy:
+
+```text
+Local development
+-> automated validation
+-> Git
+-> deployment to VPS
+-> controlled integration testing
+```
 
 ---
 
@@ -59,6 +77,7 @@ Frontend:
 - React
 - Vite
 - TypeScript
+- nginx for containerized static hosting
 
 Testing:
 
@@ -67,6 +86,7 @@ Testing:
 Infrastructure:
 
 - Docker
+- Docker Compose
 - Linux-compatible deployment target
 
 ---
@@ -76,8 +96,9 @@ Infrastructure:
 ```text
 GamesHud/
 |-- backend/
-|-- frontend/
+|-- deploy/
 |-- docs/
+|-- frontend/
 |-- AI_RULES.md
 |-- ARCHITECTURE.md
 |-- README.md
@@ -98,6 +119,12 @@ dotnet restore
 dotnet build
 dotnet test
 dotnet run --project src/GamesHud.Api/GamesHud.Api.csproj
+```
+
+The API runs locally at:
+
+```text
+http://localhost:5258
 ```
 
 Frontend:
@@ -191,6 +218,70 @@ If Docker is unavailable, `/health` should still work and Docker-dependent endpo
 
 ---
 
+## Docker Compose Deployment
+
+The deployment foundation lives in:
+
+```text
+deploy/
+|-- compose.yaml
+`-- .env.example
+```
+
+Container images:
+
+- `gameshud-api:local`
+- `gameshud-frontend:local`
+
+Internal ports:
+
+- API: `8080`
+- Frontend nginx: `80`
+
+Suggested loopback publication:
+
+```text
+127.0.0.1:8088:80
+```
+
+The API is not published to the VPS host by default. The frontend proxies `/api` and `/health` to the API over the private Compose network.
+
+Manual commands:
+
+```bash
+cd deploy
+docker compose build
+docker compose up -d
+docker compose ps
+docker compose logs
+```
+
+For updates:
+
+```bash
+docker compose up -d --build
+```
+
+Do not run remote deploy automatically from development tasks. See [Deployment Guide](docs/deployment.md) for private deployment and homologation details.
+
+## Private Access
+
+Authentication does not exist yet, so GamesHud must not be exposed publicly.
+
+Access the VPS deployment through SSH port forwarding:
+
+```bash
+ssh -L 8088:127.0.0.1:8088 user@your-vps-host
+```
+
+Then open:
+
+```text
+http://localhost:8088
+```
+
+Do not commit real VPS hosts, IPs, users, keys, tokens, passwords or private credentials.
+
 ## Security Notes
 
 Access to the Docker socket is high privilege because it can allow control over the host.
@@ -211,7 +302,13 @@ Mount sources can reveal host paths and should be treated as operationally sensi
 
 Lifecycle actions are limited to start, stop and restart. There are no batch actions, automatic scheduled actions, remove, kill, exec, recreate, rename or update operations.
 
----
+- Only the backend API may access the Docker socket.
+- The frontend must never access the Docker socket.
+- The Docker socket must never be exposed over TCP.
+- GamesHud must not enable Docker remote API.
+- Docker credentials must never be sent to the frontend.
+
+The VPS may already host production containers such as Palworld and Portainer. GamesHud development, deployment, and testing must not stop, restart, recreate, or modify those services.
 
 ## Documentation
 
@@ -219,6 +316,7 @@ Lifecycle actions are limited to start, stop and restart. There are no batch act
 - [AI Rules](AI_RULES.md)
 - [Roadmap](ROADMAP.md)
 - [Development Guide](docs/development.md)
+- [Deployment Guide](docs/deployment.md)
 - [API Guidelines](docs/api-guidelines.md)
 - [Frontend Guidelines](docs/frontend-guidelines.md)
 
