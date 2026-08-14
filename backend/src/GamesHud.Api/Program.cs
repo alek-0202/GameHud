@@ -1,10 +1,15 @@
 using GamesHud.Api.Configuration;
 using GamesHud.Api.Docker.Services;
+using GamesHud.Api.Palworld.Configuration;
+using GamesHud.Api.Palworld.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<DockerOptions>(builder.Configuration.GetSection(DockerOptions.SectionName));
+builder.Services.Configure<PalworldOptions>(builder.Configuration.GetSection(PalworldOptions.SectionName));
 builder.Services.AddScoped<IContainerService, DockerContainerService>();
+builder.Services.AddSingleton<IPalworldConfigFileSystem, PalworldConfigFileSystem>();
+builder.Services.AddScoped<IPalworldConfigService, PalworldConfigService>();
 builder.Services.AddControllers();
 
 if (builder.Environment.IsDevelopment())

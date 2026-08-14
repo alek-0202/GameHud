@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { fetchContainers } from './api/containers'
 import { ContainerDetails } from './components/ContainerDetails'
 import { ContainerList } from './components/ContainerList'
+import { PalworldSettings } from './components/PalworldSettings'
 import type { Container } from './types/container'
 import './App.css'
 
@@ -59,29 +60,33 @@ function App() {
           }}
         />
       ) : (
-        <section className="containers-section" aria-labelledby="containers-title">
-          <div className="section-heading">
-            <h2 id="containers-title">Containers</h2>
-            <span>{containers.length} total</span>
-          </div>
+        <div className="dashboard-sections">
+          <PalworldSettings />
 
-          {isLoading && <p className="state-message">Loading containers...</p>}
+          <section className="containers-section" aria-labelledby="containers-title">
+            <div className="section-heading">
+              <h2 id="containers-title">Containers</h2>
+              <span>{containers.length} total</span>
+            </div>
 
-          {!isLoading && errorMessage && (
-            <p className="state-message state-message-error">{errorMessage}</p>
-          )}
+            {isLoading && <p className="state-message">Loading containers...</p>}
 
-          {!isLoading && !errorMessage && containers.length === 0 && (
-            <p className="state-message">No containers found.</p>
-          )}
+            {!isLoading && errorMessage && (
+              <p className="state-message state-message-error">{errorMessage}</p>
+            )}
 
-          {!isLoading && !errorMessage && containers.length > 0 && (
-            <ContainerList
-              containers={containers}
-              onSelectContainer={setSelectedContainerId}
-            />
-          )}
-        </section>
+            {!isLoading && !errorMessage && containers.length === 0 && (
+              <p className="state-message">No containers found.</p>
+            )}
+
+            {!isLoading && !errorMessage && containers.length > 0 && (
+              <ContainerList
+                containers={containers}
+                onSelectContainer={setSelectedContainerId}
+              />
+            )}
+          </section>
+        </div>
       )}
     </main>
   )

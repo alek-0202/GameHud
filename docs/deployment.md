@@ -8,11 +8,11 @@ The target VPS runs Ubuntu 24.04 LTS and may already host production Docker cont
 
 GamesHud work must never:
 
-- Stop, restart, recreate, or modify Palworld.
+- Stop, restart, recreate, or modify Palworld outside the explicit temporary Palworld config flow.
 - Run `docker compose down` in the Palworld project.
 - Restart the Docker daemon.
 - Restart or shut down the VPS.
-- Modify Palworld volumes, networks, or configuration.
+- Modify Palworld volumes, networks, or configuration outside the configured Palworld settings file.
 - Use Palworld as a test container.
 - Use Portainer for destructive tests.
 
@@ -57,6 +57,8 @@ Use `deploy/.env.example` as the template.
 ```text
 GAMESHUD_FRONTEND_PORT=8088
 GAMESHUD_DOCKER_ENDPOINT=unix:///var/run/docker.sock
+GAMESHUD_PALWORLD_PATH=/path/to/palworld/data
+GAMESHUD_PALWORLD_CONTAINER=palworld-server-example
 ```
 
 Do not commit a real `.env`.
@@ -69,9 +71,37 @@ The API mounts the Docker socket:
 /var/run/docker.sock:/var/run/docker.sock
 ```
 
+For the temporary Palworld config editor, the API also mounts the configured Palworld data directory:
+
+```text
+${GAMESHUD_PALWORLD_PATH}:/managed/palworld
+```
+
+The API receives:
+
+```text
+Palworld__ManagedPath=/managed/palworld
+Palworld__ContainerName=${GAMESHUD_PALWORLD_CONTAINER}
+```
+
 The frontend mounts no Docker socket and receives no Docker credentials.
+The frontend does not receive the Palworld data directory.
 
 No database or persistent application volume is created in this phase.
+
+## Temporary Palworld Config Notes
+
+The Palworld integration is a minimal personal feature, not the planned plugin system.
+
+The target Palworld deployment should keep generated settings disabled when using file-based edits:
+
+```text
+DISABLE_GENERATE_SETTINGS=true
+```
+
+Some Palworld settings require a server restart before they take effect. The GamesHud Save & Restart action stops and starts only the configured Palworld container. Connected players will be disconnected and the server will have temporary downtime.
+
+GamesHud needs write access to the configured Palworld directory. Do not commit real server paths, passwords, container names, IPs, users, keys or secrets.
 
 ## Manual VPS Deployment
 
@@ -135,7 +165,7 @@ When testing is complete, remove only the disposable container:
 docker rm -f gameshud-lifecycle-test
 ```
 
-Do not use Palworld, Portainer, or GamesHud's own containers for lifecycle tests.
+Do not use Palworld, Portainer, or GamesHud's own containers for generic lifecycle tests.
 
 ## Security Notes
 

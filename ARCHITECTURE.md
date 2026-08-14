@@ -63,6 +63,23 @@ Examples of future plugin responsibilities:
 
 Plugins are not implemented yet.
 
+## Temporary Palworld Quick Config
+
+A temporary personal Palworld settings editor exists before the planned plugin system.
+
+This feature is intentionally isolated under Palworld-specific backend and frontend boundaries. It is not part of Docker Core and must not add Palworld rules to `DockerContainerService`.
+
+Current responsibilities:
+
+- Locate `PalWorldSettings.ini` inside the configured managed path.
+- Read and update only supported Palworld settings.
+- Preserve unknown INI settings.
+- Create a backup before writing.
+- Never return plaintext `ServerPassword` or raw INI content.
+- Optionally stop and start only the configured Palworld container after saving.
+
+This temporary integration should migrate into a future plugin when the plugin foundation exists.
+
 ---
 
 ## Backend Boundaries
@@ -141,6 +158,15 @@ Docker access is configured through application configuration, including:
 
 Configuration values are environment-specific and must not be hardcoded in code or permanent documentation.
 
+Temporary Palworld configuration uses environment-specific values:
+
+- `Palworld:ManagedPath`
+- `Palworld__ManagedPath`
+- `Palworld:ContainerName`
+- `Palworld__ContainerName`
+
+The client must never provide filesystem paths.
+
 The Docker socket is high privilege and must be accessible only to the backend process. Frontend code must never access Docker Engine, Docker sockets, credentials or certificates directly.
 
 ---
@@ -172,6 +198,12 @@ Not implemented yet:
 - SignalR or WebSockets
 
 Read-only endpoints must not alter container state. Lifecycle endpoints are explicit manual actions limited to start, stop and restart.
+
+The temporary Palworld config endpoints are separate from Docker Core:
+
+- `GET /api/palworld/config`
+- `PUT /api/palworld/config`
+- `PUT /api/palworld/config?restart=true`
 
 ---
 
@@ -218,11 +250,11 @@ The VPS may already host production containers such as Palworld and Portainer.
 
 GamesHud development, deployment, testing, and maintenance must never:
 
-- Stop, restart, recreate, or modify Palworld.
+- Stop, restart, recreate, or modify Palworld outside the explicit temporary Palworld config flow.
 - Run `docker compose down` in the Palworld project.
 - Restart the Docker daemon.
 - Restart or shut down the VPS.
-- Modify Palworld volumes, networks, or configuration.
+- Modify Palworld volumes, networks, or configuration outside the configured Palworld settings file.
 - Use Palworld as a test container.
 - Use Portainer for destructive tests.
 

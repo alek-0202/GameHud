@@ -89,6 +89,15 @@ Docker may be unavailable during local development. In that case:
 
 The Docker socket is high privilege. Only the backend should access Docker Engine.
 
+Temporary Palworld quick config is configured separately:
+
+- `Palworld:ManagedPath`
+- `Palworld__ManagedPath`
+- `Palworld:ContainerName`
+- `Palworld__ContainerName`
+
+Use local environment variables for local testing. Do not commit real Palworld paths, container names, passwords, tokens or VPS details.
+
 ---
 
 ## Backend Endpoints
@@ -138,6 +147,18 @@ POST http://localhost:5258/api/containers/{containerId}/restart?timeoutSeconds=1
 Lifecycle actions are manual only and must be triggered explicitly. Stop and restart accept `timeoutSeconds`; the default is `10`, the minimum is `1`, and the maximum is `120`.
 
 Start returns a friendly success response when the container is already running. Stop returns a friendly success response when the container is already stopped.
+
+Temporary Palworld config:
+
+```text
+GET http://localhost:5258/api/palworld/config
+PUT http://localhost:5258/api/palworld/config
+PUT http://localhost:5258/api/palworld/config?restart=true
+```
+
+The GET response returns only supported settings and `hasServerPassword`; it must not expose plaintext `ServerPassword`.
+
+When `restart=true`, GamesHud stops and starts only the configured Palworld container. It must not call compose down, Docker daemon restart, remove, kill, recreate or lifecycle actions for any other container.
 
 ---
 
@@ -204,11 +225,11 @@ The VPS may already run Palworld and Portainer.
 
 GamesHud work must never:
 
-- Stop, restart, recreate, or modify Palworld.
+- Stop, restart, recreate, or modify Palworld outside the explicit temporary Palworld config flow.
 - Run `docker compose down` in the Palworld project.
 - Restart the Docker daemon.
 - Restart or shut down the VPS.
-- Modify Palworld volumes, networks, or configuration.
+- Modify Palworld volumes, networks, or configuration outside the configured Palworld settings file.
 - Use Palworld as a test container.
 - Use Portainer for destructive tests.
 

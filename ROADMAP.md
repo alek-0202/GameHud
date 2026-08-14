@@ -150,6 +150,11 @@ Status: Planned
 - Update workflow
 - Backup and restore
 
+Temporary note:
+
+- A minimal personal Palworld settings editor exists before the plugin foundation.
+- It is not the plugin system and should be migrated after v0.9.
+
 ---
 
 ## Deferred

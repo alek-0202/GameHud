@@ -29,6 +29,7 @@ Implemented:
 - Configurable Docker endpoint
 - Configurable frontend API URL
 - Local Docker Compose deployment foundation
+- Temporary personal Palworld settings editor isolated outside Docker Core
 
 Deployment foundation status:
 
@@ -164,6 +165,13 @@ VITE_API_BASE_URL=http://localhost:5258
 
 Local `.env` files are ignored by git and must not be committed.
 
+Temporary Palworld quick config:
+
+- `Palworld__ManagedPath`
+- `Palworld__ContainerName`
+
+The managed path must point to a directory containing `PalWorldSettings.ini`. The container name is the only container targeted by the Palworld Save & Restart flow. Do not commit real VPS paths, server passwords or private container names.
+
 ---
 
 ## API
@@ -216,6 +224,16 @@ Lifecycle actions are explicit manual operations only. `timeoutSeconds` applies 
 
 If Docker is unavailable, `/health` should still work and Docker-dependent endpoints return friendly service-unavailable responses without stack traces.
 
+Temporary Palworld config:
+
+```text
+GET /api/palworld/config
+PUT /api/palworld/config
+PUT /api/palworld/config?restart=true
+```
+
+`GET` returns only supported settings and `hasServerPassword`; it does not return the plaintext server password or raw INI content. Empty or omitted `serverPassword` on `PUT` preserves the current password.
+
 ---
 
 ## Docker Compose Deployment
@@ -245,6 +263,8 @@ Suggested loopback publication:
 ```
 
 The API is not published to the VPS host by default. The frontend proxies `/api` and `/health` to the API over the private Compose network.
+
+For the temporary Palworld config editor, only `gameshud-api` receives the configured Palworld data directory mount. The frontend does not receive the Palworld mount or Docker socket.
 
 Manual commands:
 
@@ -308,7 +328,7 @@ Lifecycle actions are limited to start, stop and restart. There are no batch act
 - GamesHud must not enable Docker remote API.
 - Docker credentials must never be sent to the frontend.
 
-The VPS may already host production containers such as Palworld and Portainer. GamesHud development, deployment, and testing must not stop, restart, recreate, or modify those services.
+The VPS may already host production containers such as Palworld and Portainer. GamesHud development, deployment, and testing must not stop, restart, recreate, or modify those services except through the explicit temporary Palworld Save & Restart feature, which targets only the configured Palworld container.
 
 ## Documentation
 

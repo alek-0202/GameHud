@@ -325,15 +325,17 @@ The VPS may already run production containers such as Palworld and Portainer.
 
 No GamesHud task may:
 
-- Stop, restart, recreate, or modify Palworld.
+- Stop, restart, recreate, or modify Palworld outside the explicit temporary Palworld config flow.
 - Run `docker compose down` in the Palworld project.
 - Restart the Docker daemon.
 - Restart or shut down the VPS.
-- Modify Palworld volumes, networks, or configuration.
+- Modify Palworld volumes, networks, or configuration outside the configured Palworld settings file.
 - Use Palworld as a lifecycle test container.
 - Use Portainer for destructive tests.
 
 Lifecycle testing must use a disposable container created specifically for GamesHud homologation.
+
+The temporary Palworld config flow may edit only `PalWorldSettings.ini` under the configured managed path and may stop/start only the configured Palworld container when the user explicitly chooses Save & Restart. It must not use `docker compose down`, kill, remove, recreate, target other containers, or touch Palworld/Portainer networks.
 
 ## 16. Deployment Foundation Rules
 

@@ -8,8 +8,11 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
       Docker__Endpoint: ${GAMESHUD_DOCKER_ENDPOINT:-unix:///var/run/docker.sock}
+      Palworld__ManagedPath: /managed/palworld
+      Palworld__ContainerName: ${GAMESHUD_PALWORLD_CONTAINER:-palworld-server-example}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ${GAMESHUD_PALWORLD_PATH:-./palworld-data}:/managed/palworld
     expose:
       - "8080"
     restart: unless-stopped
