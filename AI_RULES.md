@@ -373,3 +373,17 @@ Until authentication exists:
 - Do not configure Cloudflare.
 - Do not configure a public reverse proxy.
 - Access should use SSH port forwarding.
+
+## 18. Chat Commands
+
+The chat command `/push` means:
+
+- Inspect `git status -sb` and the current diff.
+- Confirm the working tree changes are related to the current requested scope.
+- Run validations relevant to the changed area when practical.
+- Stage the intended changes.
+- Create a concise commit.
+- Push the local `main` branch to `origin/main`.
+- Do not create a pull request unless explicitly requested.
+
+If unrelated changes, failing validations, missing credentials, or remote push errors are detected, stop and report the blocker instead of forcing the push.

@@ -1,4 +1,5 @@
 import type { Container } from '../types/container'
+import { StatusBadge } from './StatusBadge'
 
 interface ContainerListProps {
   containers: Container[]
@@ -17,17 +18,26 @@ export function ContainerList({ containers, onSelectContainer }: ContainerListPr
             onSelectContainer(container.id)
           }}
         >
-          <h3>{container.name || container.id}</h3>
-          <dl className="container-detail">
-            <dt>Name</dt>
-            <dd>{container.name || 'Unnamed container'}</dd>
-            <dt>Image</dt>
-            <dd>{container.image || 'Unknown image'}</dd>
-            <dt>State</dt>
-            <dd>{container.state || 'Unknown state'}</dd>
-            <dt>Status</dt>
-            <dd>{container.status || 'Unknown status'}</dd>
+          <div className="container-card-main">
+            <div>
+              <span className="section-eyebrow">Container</span>
+              <h3>{container.name || container.id}</h3>
+            </div>
+            <StatusBadge state={container.state || 'Unknown'} />
+          </div>
+
+          <dl className="container-card-meta">
+            <div>
+              <dt>Image</dt>
+              <dd>{container.image || 'Unknown image'}</dd>
+            </div>
+            <div>
+              <dt>Status</dt>
+              <dd>{container.status || 'Unknown status'}</dd>
+            </div>
           </dl>
+
+          <span className="card-link">Open details</span>
         </button>
       ))}
     </div>

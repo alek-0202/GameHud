@@ -3,6 +3,8 @@ import { ApiRequestError, fetchContainerDetails } from '../api/containers'
 import type { ContainerDetails as ContainerDetailsType } from '../types/container'
 import { ContainerLifecycleActions } from './ContainerLifecycleActions'
 import { ContainerLogs } from './ContainerLogs'
+import { SectionHeader } from './SectionHeader'
+import { StatusBadge } from './StatusBadge'
 
 type DetailsState =
   | { status: 'loading' }
@@ -58,7 +60,7 @@ export function ContainerDetails({ containerId, onBack }: ContainerDetailsProps)
   return (
     <section className="container-details-section" aria-label="Container details">
       <button className="secondary-button" type="button" onClick={onBack}>
-        Back
+        Back to dashboard
       </button>
 
       {state.status === 'loading' && <p className="state-message">Loading container details...</p>}
@@ -102,17 +104,18 @@ function ContainerDetailsContent({
     <div className="container-details">
       <header className="details-header">
         <div>
+          <span className="section-eyebrow">Container details</span>
           <h2 id="container-details-title">{container.name || shortId(container.id)}</h2>
           <p>{container.image || 'Unknown image'}</p>
         </div>
         <div className="status-stack">
-          <span>{container.state || 'Unknown state'}</span>
+          <StatusBadge state={container.state || 'Unknown'} />
           <strong>{container.status || 'Unknown status'}</strong>
         </div>
       </header>
 
       <section className="details-block" aria-labelledby="general-title">
-        <h3 id="general-title">General Information</h3>
+        <SectionHeader titleId="general-title" title="General Information" />
         <dl className="details-grid">
           <dt>Container ID</dt>
           <dd>{shortId(container.id)}</dd>
