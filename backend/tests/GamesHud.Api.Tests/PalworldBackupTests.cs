@@ -2,6 +2,7 @@ using System.Formats.Tar;
 using System.IO.Compression;
 using GamesHud.Api.Docker.Contracts;
 using GamesHud.Api.Docker.Services;
+using GamesHud.Api.Operations.Notifications;
 using GamesHud.Api.Palworld.Backups.Services;
 using GamesHud.Api.Palworld.Configuration;
 using GamesHud.Api.Palworld.Services;
@@ -322,8 +323,29 @@ public sealed class PalworldBackupTests
             }),
             restService ?? new RecordingPalworldRestService(),
             containerService ?? new RecordingContainerService(),
+            new RecordingNotificationService(),
             new PalworldBackupScheduleState(),
             NullLogger<PalworldBackupService>.Instance);
+    }
+
+    private sealed class RecordingNotificationService : INotificationService
+    {
+        public NotificationSettingsResponse GetSettings()
+        {
+            return new NotificationSettingsResponse(false, true, true, true, false, 60, null, null);
+        }
+
+        public Task<NotificationSendResult> SendTestAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new NotificationSendResult(true, "sent", DateTimeOffset.UtcNow));
+        }
+
+        public Task<NotificationSendResult> NotifyAsync(
+            NotificationEvent notificationEvent,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new NotificationSendResult(true, "sent", DateTimeOffset.UtcNow));
+        }
     }
 
     private sealed class TemporaryBackupDirectories : IDisposable
@@ -417,6 +439,13 @@ public sealed class PalworldBackupTests
 
             return Task.CompletedTask;
         }
+
+        public Task AnnounceAsync(
+            string message,
+            CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class RecordingContainerService : IContainerService
@@ -459,6 +488,8 @@ public sealed class PalworldBackupTests
             string containerId,
             int tail,
             bool timestamps,
+            string stream,
+            string? search,
             CancellationToken cancellationToken)
         {
             return Task.FromResult<ContainerLogsResponse?>(null);

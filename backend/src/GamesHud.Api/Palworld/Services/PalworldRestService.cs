@@ -87,6 +87,21 @@ public sealed class PalworldRestService : IPalworldRestService
         using var _ = await SendAsync(HttpMethod.Post, "save", cancellationToken);
     }
 
+    public async Task AnnounceAsync(
+        string message,
+        CancellationToken cancellationToken)
+    {
+        using var requestContent = new StringContent(
+            JsonSerializer.Serialize(new PalworldRestAnnounceRequest(message), JsonOptions),
+            Encoding.UTF8,
+            "application/json");
+        using var _ = await SendAsync(
+            HttpMethod.Post,
+            "announce",
+            cancellationToken,
+            requestContent);
+    }
+
     private async Task<TResponse> GetJsonAsync<TResponse>(
         string endpoint,
         CancellationToken cancellationToken)
@@ -113,7 +128,8 @@ public sealed class PalworldRestService : IPalworldRestService
     private async Task<HttpResponseMessage> SendAsync(
         HttpMethod method,
         string endpoint,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        HttpContent? content = null)
     {
         var restOptions = ResolveRestOptions();
         using var timeoutCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -121,6 +137,7 @@ public sealed class PalworldRestService : IPalworldRestService
         using var request = new HttpRequestMessage(method, ResolveEndpoint(restOptions.BaseUrl, endpoint));
 
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        request.Content = content;
         request.Headers.Authorization = new AuthenticationHeaderValue(
             "Basic",
             Convert.ToBase64String(Encoding.UTF8.GetBytes(
@@ -209,6 +226,10 @@ public sealed class PalworldRestService : IPalworldRestService
         string Username,
         string Password,
         int TimeoutSeconds);
+
+    private sealed record PalworldRestAnnounceRequest(
+        [property: JsonPropertyName("message")]
+        string Message);
 
     private sealed record PalworldRestInfoDto(
         string? Version,

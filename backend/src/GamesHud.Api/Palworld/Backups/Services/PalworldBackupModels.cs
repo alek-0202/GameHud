@@ -5,6 +5,7 @@ public static class PalworldBackupTypes
     public const string Manual = "manual";
     public const string Automatic = "automatic";
     public const string PreRestore = "pre-restore";
+    public const string PreUpdate = "pre-update";
 }
 
 public static class PalworldBackupStatuses

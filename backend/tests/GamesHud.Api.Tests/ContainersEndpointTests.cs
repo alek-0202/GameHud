@@ -267,6 +267,32 @@ public class ContainersEndpointTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(200, service.LastRequestedTail);
         Assert.True(service.LastRequestedTimestamps);
+        Assert.Equal("all", service.LastRequestedStream);
+        Assert.Null(service.LastRequestedSearch);
+    }
+
+    [Fact]
+    public async Task GetContainerLogsPassesStreamAndSearchFilters()
+    {
+        var service = new FakeContainerService(
+            Array.Empty<ContainerResponse>(),
+            new Dictionary<string, ContainerDetailsResponse>(),
+            new Dictionary<string, ContainerLogsResponse>
+            {
+                ["abc123"] = new ContainerLogsResponse(
+                    "abc123",
+                    new[] { "warn: line" },
+                    "2026-01-02T03:04:05Z")
+            });
+        await using var factory = CreateFactory(service);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync(
+            "/api/containers/abc123/logs?stream=stderr&search=warn");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("stderr", service.LastRequestedStream);
+        Assert.Equal("warn", service.LastRequestedSearch);
     }
 
     [Fact]
@@ -287,6 +313,29 @@ public class ContainersEndpointTests
         using var client = factory.CreateClient();
 
         using var response = await client.GetAsync("/api/containers/abc123/logs?tail=2001");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetContainerLogsReturnsBadRequestForInvalidStream()
+    {
+        await using var factory = CreateFactory(new FakeContainerService(Array.Empty<ContainerResponse>()));
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/api/containers/abc123/logs?stream=stdin");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetContainerLogsReturnsBadRequestForSearchAboveLimit()
+    {
+        await using var factory = CreateFactory(new FakeContainerService(Array.Empty<ContainerResponse>()));
+        using var client = factory.CreateClient();
+        var longSearch = new string('x', 121);
+
+        using var response = await client.GetAsync($"/api/containers/abc123/logs?search={longSearch}");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -334,7 +383,7 @@ public class ContainersEndpointTests
         using var cancellationTokenSource = new CancellationTokenSource();
 
         await controller.GetContainerDetails(details.Id, cancellationTokenSource.Token);
-        await controller.GetContainerLogs(details.Id, null, null, cancellationTokenSource.Token);
+        await controller.GetContainerLogs(details.Id, null, null, null, null, cancellationTokenSource.Token);
 
         Assert.Equal(cancellationTokenSource.Token, service.LastDetailsCancellationToken);
         Assert.Equal(cancellationTokenSource.Token, service.LastLogsCancellationToken);
@@ -733,6 +782,10 @@ public class ContainersEndpointTests
 
         public bool? LastRequestedTimestamps { get; private set; }
 
+        public string? LastRequestedStream { get; private set; }
+
+        public string? LastRequestedSearch { get; private set; }
+
         public Dictionary<string, ContainerLifecycleActionResponse?> LifecycleResults { get; } = new();
 
         public CancellationToken LastDetailsCancellationToken { get; private set; }
@@ -761,10 +814,14 @@ public class ContainersEndpointTests
             string containerId,
             int tail,
             bool timestamps,
+            string stream,
+            string? search,
             CancellationToken cancellationToken)
         {
             LastRequestedTail = tail;
             LastRequestedTimestamps = timestamps;
+            LastRequestedStream = stream;
+            LastRequestedSearch = search;
             LastLogsCancellationToken = cancellationToken;
 
             return Task.FromResult(_logs.GetValueOrDefault(containerId));
@@ -820,6 +877,8 @@ public class ContainersEndpointTests
             string containerId,
             int tail,
             bool timestamps,
+            string stream,
+            string? search,
             CancellationToken cancellationToken)
         {
             throw CreateException();
@@ -874,6 +933,8 @@ public class ContainersEndpointTests
             string containerId,
             int tail,
             bool timestamps,
+            string stream,
+            string? search,
             CancellationToken cancellationToken)
         {
             throw CreateException();

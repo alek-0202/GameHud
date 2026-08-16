@@ -52,6 +52,7 @@ Backup types:
 - `manual`
 - `automatic`
 - `pre-restore`
+- `pre-update`
 
 ## Create Backup
 

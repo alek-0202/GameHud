@@ -645,6 +645,7 @@ tbody tr:last-child td {
 }
 
 .logs-actions select,
+.logs-actions input,
 .form-field input,
 .form-field select {
   width: 100%;
@@ -667,6 +668,7 @@ tbody tr:last-child td {
 
 .form-field input:focus,
 .form-field select:focus,
+.logs-actions input:focus,
 .logs-actions select:focus {
   border-color: var(--color-accent);
   outline: 2px solid rgb(56 189 248 / 0.24);
@@ -685,6 +687,58 @@ tbody tr:last-child td {
   line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.log-line {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: var(--space-3);
+  min-width: 0;
+  padding: 0.14rem 0;
+}
+
+.log-line-error {
+  color: #fecaca;
+}
+
+.log-line-warning {
+  color: #fde68a;
+}
+
+.log-line-info {
+  color: #bfdbfe;
+}
+
+.log-time,
+.log-stream {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+}
+
+.log-stream {
+  min-width: 4rem;
+  text-transform: uppercase;
+}
+
+.log-stream-stderr {
+  color: var(--color-warning);
+}
+
+.log-message {
+  min-width: 0;
+}
+
+.inline-check-field {
+  align-content: center;
+  grid-auto-flow: column;
+  align-items: center;
+  justify-content: start;
+  min-height: 2.55rem;
+}
+
+.inline-check-field input {
+  width: 1rem;
+  min-height: 1rem;
 }
 
 .backup-summary-grid {
@@ -835,6 +889,26 @@ tbody tr:last-child td {
   overflow-wrap: anywhere;
   color: var(--color-text-primary);
   font-size: 1rem;
+}
+
+.palworld-update-panel {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.palworld-update-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.palworld-update-modal h3 {
+  color: var(--color-text-primary);
+  font-size: 1.12rem;
+}
+
+.palworld-update-modal p {
+  color: var(--color-text-secondary);
 }
 
 .players-list {
@@ -1321,6 +1395,70 @@ tbody tr:last-child td {
   justify-content: flex-end;
 }
 
+.settings-panel-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+}
+
+.notification-grid,
+.scheduler-editor {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.scheduler-editor {
+  align-items: end;
+  grid-template-columns: minmax(12rem, 1fr) minmax(8rem, 0.65fr) auto auto;
+}
+
+.settings-status-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.settings-status-list div {
+  min-width: 0;
+}
+
+.settings-status-list dt {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.settings-status-list dd {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.scheduler-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.scheduler-actions input,
+td > input {
+  min-height: 2.1rem;
+  max-width: 100%;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.scheduler-actions input[type='number'] {
+  width: 5.5rem;
+}
+
 @media (max-width: 1180px) {
   .app-layout {
     grid-template-columns: 14rem minmax(0, 1fr);
@@ -1332,6 +1470,8 @@ tbody tr:last-child td {
 
   .server-overview-grid,
   .metric-chart-grid,
+  .notification-grid,
+  .settings-status-list,
   .settings-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -1376,6 +1516,8 @@ tbody tr:last-child td {
   .server-overview-grid,
   .compact-players-list,
   .metric-chart-grid,
+  .notification-grid,
+  .settings-status-list,
   .settings-grid,
   .settings-grid-limits,
   .settings-grid-server,
@@ -1405,6 +1547,8 @@ tbody tr:last-child td {
   .server-meta,
   .compact-players-list,
   .metric-chart-grid,
+  .notification-grid,
+  .settings-status-list,
   .settings-grid,
   .settings-grid-limits,
   .settings-grid-server,
@@ -1413,7 +1557,8 @@ tbody tr:last-child td {
     grid-template-columns: 1fr;
   }
 
-  .backup-create-form {
+  .backup-create-form,
+  .scheduler-editor {
     grid-template-columns: 1fr;
   }
 
@@ -1434,12 +1579,18 @@ tbody tr:last-child td {
 
   .logs-actions,
   .backup-actions,
+  .palworld-update-actions,
   .settings-category-header,
   .settings-category-actions,
   .modal-actions {
     align-items: stretch;
     flex-direction: column;
     justify-content: flex-start;
+  }
+
+  .log-line {
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
   }
 
   .secondary-button,
@@ -1449,6 +1600,7 @@ tbody tr:last-child td {
   }
 
   .connection-panel,
+  .palworld-update-panel,
   .player-row {
     grid-template-columns: 1fr;
   }

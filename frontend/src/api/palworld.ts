@@ -8,6 +8,8 @@ import type {
   PalworldOverview,
   PalworldPlayers,
   PalworldRestoreBackupResponse,
+  PalworldUpdateResponse,
+  PalworldUpdateStatus,
 } from '../types/palworld'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
@@ -32,6 +34,23 @@ export async function fetchPalworldOverview(signal?: AbortSignal): Promise<Palwo
 
 export async function fetchPalworldPlayers(signal?: AbortSignal): Promise<PalworldPlayers> {
   return fetchJson<PalworldPlayers>('/api/palworld/players', signal)
+}
+
+export async function fetchPalworldUpdateStatus(signal?: AbortSignal): Promise<PalworldUpdateStatus> {
+  return fetchJson<PalworldUpdateStatus>('/api/palworld/update', signal)
+}
+
+export async function applyPalworldUpdate(
+  confirmationText: string,
+  signal?: AbortSignal,
+): Promise<PalworldUpdateResponse> {
+  return fetchJson<PalworldUpdateResponse>('/api/palworld/update', signal, {
+    body: JSON.stringify({ confirmationText }),
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    method: 'POST',
+  })
 }
 
 export function resolvePalworldBackupDownloadUrl(downloadUrl: string | null): string | null {

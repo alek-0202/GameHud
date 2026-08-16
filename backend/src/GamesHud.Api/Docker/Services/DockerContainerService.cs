@@ -65,31 +65,39 @@ public sealed class DockerContainerService : IContainerService
         string containerId,
         int tail,
         bool timestamps,
+        string logStream,
+        string? search,
         CancellationToken cancellationToken)
     {
         try
         {
             using var client = CreateClient();
             var container = await client.Containers.InspectContainerAsync(containerId, cancellationToken);
+            var requestedStream = NormalizeLogStream(logStream);
             var parameters = new ContainerLogsParameters
             {
-                ShowStdout = true,
-                ShowStderr = true,
+                ShowStdout = requestedStream is "all" or "stdout",
+                ShowStderr = requestedStream is "all" or "stderr",
                 Follow = false,
                 Tail = tail.ToString(CultureInfo.InvariantCulture),
                 Timestamps = timestamps
             };
 
-            using var stream = await client.Containers.GetContainerLogsAsync(
+            using var logsStream = await client.Containers.GetContainerLogsAsync(
                 containerId,
                 container.Config?.Tty ?? false,
                 parameters,
                 cancellationToken);
-            var lines = await ReadLogLinesAsync(stream, cancellationToken);
+            var entries = await ReadLogEntriesAsync(
+                logsStream,
+                container.Config?.Tty ?? false,
+                search,
+                cancellationToken);
 
             return new ContainerLogsResponse(
                 container.ID ?? containerId,
-                lines,
+                entries.Select(entry => entry.Message).ToArray(),
+                entries,
                 DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture));
         }
         catch (Exception exception) when (IsContainerNotFound(exception))
@@ -308,11 +316,18 @@ public sealed class DockerContainerService : IContainerService
             || string.Equals(container.State?.Status, "running", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static async Task<IReadOnlyCollection<string>> ReadLogLinesAsync(
+    private static async Task<IReadOnlyCollection<ContainerLogEntryResponse>> ReadLogEntriesAsync(
         MultiplexedStream stream,
+        bool isTty,
+        string? search,
         CancellationToken cancellationToken)
     {
-        using var output = new MemoryStream();
+        var buffers = new Dictionary<string, MemoryStream>(StringComparer.Ordinal)
+        {
+            ["stdout"] = new(),
+            ["stderr"] = new(),
+            ["unknown"] = new()
+        };
         var buffer = new byte[81920];
 
         while (true)
@@ -330,18 +345,25 @@ public sealed class DockerContainerService : IContainerService
 
             if (result.Count > 0)
             {
-                output.Write(buffer, 0, result.Count);
+                var target = isTty ? "unknown" : ResolveLogStream(result.Target);
+                buffers[target].Write(buffer, 0, result.Count);
             }
         }
 
-        if (output.Length == 0)
+        var entries = buffers
+            .Where(pair => pair.Value.Length > 0)
+            .SelectMany(pair => SplitLogLines(Encoding.UTF8.GetString(pair.Value.ToArray()))
+                .Select(line => CreateLogEntry(line, pair.Key)))
+            .ToArray();
+
+        if (string.IsNullOrWhiteSpace(search))
         {
-            return Array.Empty<string>();
+            return entries;
         }
 
-        var text = Encoding.UTF8.GetString(output.ToArray());
-
-        return SplitLogLines(text);
+        return entries
+            .Where(entry => entry.Message.Contains(search.Trim(), StringComparison.OrdinalIgnoreCase))
+            .ToArray();
     }
 
     private static IReadOnlyCollection<string> SplitLogLines(string text)
@@ -363,6 +385,92 @@ public sealed class DockerContainerService : IContainerService
         }
 
         return lines;
+    }
+
+    private static ContainerLogEntryResponse CreateLogEntry(string line, string stream)
+    {
+        var timestamp = TryExtractTimestamp(line, out var message)
+            ? line[..Math.Min(line.Length, 35)].Split(' ', 2)[0]
+            : null;
+
+        return new ContainerLogEntryResponse(
+            message,
+            stream,
+            ResolveLogSeverity(message),
+            timestamp);
+    }
+
+    private static bool TryExtractTimestamp(string line, out string message)
+    {
+        message = line;
+
+        if (line.Length < 21 || line[4] != '-' || line[7] != '-' || line[10] != 'T')
+        {
+            return false;
+        }
+
+        var separatorIndex = line.IndexOf(' ', StringComparison.Ordinal);
+
+        if (separatorIndex <= 0)
+        {
+            return false;
+        }
+
+        var candidate = line[..separatorIndex];
+
+        if (!DateTimeOffset.TryParse(
+            candidate,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal,
+            out _))
+        {
+            return false;
+        }
+
+        message = line[(separatorIndex + 1)..];
+        return true;
+    }
+
+    private static string ResolveLogStream(MultiplexedStream.TargetStream target)
+    {
+        return target switch
+        {
+            MultiplexedStream.TargetStream.StandardOut => "stdout",
+            MultiplexedStream.TargetStream.StandardError => "stderr",
+            _ => "unknown"
+        };
+    }
+
+    private static string ResolveLogSeverity(string message)
+    {
+        if (message.Contains("error", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("fatal", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("exception", StringComparison.OrdinalIgnoreCase))
+        {
+            return "error";
+        }
+
+        if (message.Contains("warn", StringComparison.OrdinalIgnoreCase))
+        {
+            return "warning";
+        }
+
+        if (message.Contains("info", StringComparison.OrdinalIgnoreCase))
+        {
+            return "info";
+        }
+
+        return "default";
+    }
+
+    private static string NormalizeLogStream(string stream)
+    {
+        return stream.Trim().ToLowerInvariant() switch
+        {
+            "stdout" => "stdout",
+            "stderr" => "stderr",
+            _ => "all"
+        };
     }
 
     private static bool IsContainerNotFound(Exception exception)

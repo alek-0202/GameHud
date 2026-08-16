@@ -49,8 +49,18 @@ export interface ContainerNetwork {
 export interface ContainerLogs {
   containerId: string
   lines: string[]
+  entries: ContainerLogEntry[]
   retrievedAt: string
 }
+
+export interface ContainerLogEntry {
+  message: string
+  stream: LogStream
+  severity: 'error' | 'warning' | 'info' | 'default'
+  timestamp: string | null
+}
+
+export type LogStream = 'all' | 'stdout' | 'stderr'
 
 export type ContainerLifecycleAction = 'start' | 'stop' | 'restart'
 
@@ -64,6 +74,6 @@ export interface ContainerLifecycleActionResponse {
   completedAt: string
 }
 
-export const logTailOptions = [100, 200, 500, 1000] as const
+export const logTailOptions = [100, 200, 500, 1000, 2000] as const
 
 export type LogTailOption = (typeof logTailOptions)[number]

@@ -2,15 +2,21 @@ using GamesHud.Api.Configuration;
 using GamesHud.Api.Docker.Services;
 using GamesHud.Api.Metrics.Configuration;
 using GamesHud.Api.Metrics.Services;
+using GamesHud.Api.Operations.Notifications;
+using GamesHud.Api.Operations.Scheduling;
 using GamesHud.Api.Palworld.Backups.Services;
 using GamesHud.Api.Palworld.Configuration;
 using GamesHud.Api.Palworld.Services;
+using GamesHud.Api.Palworld.Updates.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<DockerOptions>(builder.Configuration.GetSection(DockerOptions.SectionName));
 builder.Services.Configure<PalworldOptions>(builder.Configuration.GetSection(PalworldOptions.SectionName));
 builder.Services.Configure<MetricsOptions>(builder.Configuration.GetSection(MetricsOptions.SectionName));
+builder.Services.Configure<NotificationOptions>(builder.Configuration.GetSection(NotificationOptions.SectionName));
+builder.Services.Configure<ScheduledOperationOptions>(builder.Configuration.GetSection(ScheduledOperationOptions.SectionName));
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<IContainerService, DockerContainerService>();
 builder.Services.AddSingleton<IHostMetricsFileSystem, HostMetricsFileSystem>();
 builder.Services.AddSingleton<IHostMetricsService, LinuxHostMetricsService>();
@@ -25,6 +31,15 @@ builder.Services.AddScoped<IPalworldOverviewService, PalworldOverviewService>();
 builder.Services.AddSingleton<PalworldBackupScheduleState>();
 builder.Services.AddScoped<IPalworldBackupService, PalworldBackupService>();
 builder.Services.AddHostedService<PalworldBackupScheduler>();
+builder.Services.AddScoped<IPalworldContainerCommandService, DockerPalworldContainerCommandService>();
+builder.Services.AddScoped<IPalworldUpdateRunner, PalworldUpdateOnBootRunner>();
+builder.Services.AddScoped<IPalworldUpdateService, PalworldUpdateService>();
+builder.Services.AddSingleton<NotificationRuntimeState>();
+builder.Services.AddHttpClient<INotificationService, DiscordNotificationService>();
+builder.Services.AddSingleton<IScheduleStore, InMemoryScheduleStore>();
+builder.Services.AddScoped<IScheduledOperationExecutor, ScheduledOperationExecutor>();
+builder.Services.AddScoped<ISchedulerService, SchedulerService>();
+builder.Services.AddHostedService<OperationalScheduler>();
 builder.Services
     .AddHttpClient<IPalworldRestService, PalworldRestService>()
     .ConfigureHttpClient(client => client.Timeout = Timeout.InfiniteTimeSpan);

@@ -408,6 +408,8 @@ public sealed class PalworldConfigTests
             string containerId,
             int tail,
             bool timestamps,
+            string stream,
+            string? search,
             CancellationToken cancellationToken)
         {
             return Task.FromResult<ContainerLogsResponse?>(null);

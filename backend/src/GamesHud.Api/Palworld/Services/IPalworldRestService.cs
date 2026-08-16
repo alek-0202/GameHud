@@ -11,4 +11,8 @@ public interface IPalworldRestService
     Task<PalworldRestMetrics> GetMetricsAsync(CancellationToken cancellationToken);
 
     Task SaveWorldAsync(CancellationToken cancellationToken);
+
+    Task AnnounceAsync(
+        string message,
+        CancellationToken cancellationToken);
 }

@@ -127,11 +127,65 @@ Status: Completed
 Temporary note:
 
 - This is not the plugin system.
-- It should migrate into the future Palworld plugin after v0.10.
+- It should migrate into the future Palworld plugin after v0.12.
 
 ---
 
-## v0.8 - Authentication and Authorization
+## v0.8 - Temporary Palworld Updates
+
+Status: Completed
+
+- Installed version display
+- Steam build update status check
+- Manual update apply flow
+- Strong-confirmation update modal
+- Update announcement when REST is available
+- Required world save before update
+- Required pre-update backup
+- Configured Palworld container stop/start only
+- Health check after update
+- No automatic updates
+- No binary rollback promise
+- Backend tests for status, exact order and failure steps
+
+Temporary note:
+
+- This is not the plugin system.
+- It should migrate into the future Palworld plugin after v0.12.
+- Docker/VPS homologation against the real Palworld image is still required.
+
+---
+
+## v0.9 - Advanced Operations
+
+Status: Completed
+
+- Improved bounded log snapshots
+- Log search and term filtering
+- stdout/stderr filtering when Docker provides stream metadata
+- Optional timestamps
+- Optional frontend auto refresh and pause
+- Frontend log snapshot download
+- Visual log severity highlights
+- In-memory scheduler for supported safe actions
+- Scheduled automatic backup
+- Scheduled Palworld restart flow
+- Scheduled update check
+- Scheduled announcement
+- Scheduled Palworld shutdown
+- Optional backend-only Discord webhook notifications
+- Notification cooldown and deduplication
+- Settings UI for notifications and scheduler
+- Backend tests for schedule, recurrence, disabled tasks, duplicate execution, webhook failure, webhook secrecy, cooldown and cancellation
+
+Temporary note:
+
+- Scheduler state is in API memory and should be revisited when durable authenticated administration exists.
+- Discord webhook values are configuration-only secrets and must not be sent to the frontend.
+
+---
+
+## v0.10 - Authentication and Authorization
 
 Status: Planned
 
@@ -142,7 +196,7 @@ Status: Planned
 
 ---
 
-## v0.9 - Public Deployment / HTTPS
+## v0.11 - Public Deployment / HTTPS
 
 Status: Planned
 
@@ -154,7 +208,7 @@ Status: Planned
 
 ---
 
-## v0.10 - Plugin Foundation
+## v0.12 - Plugin Foundation
 
 Status: Planned
 
@@ -164,7 +218,7 @@ Status: Planned
 
 ---
 
-## v0.11 - Palworld Plugin
+## v0.13 - Palworld Plugin
 
 Status: Planned
 
@@ -182,7 +236,9 @@ Temporary note:
 - A personal Palworld settings editor exists before the plugin foundation.
 - A personal Palworld REST overview and players view exists before the plugin foundation.
 - A personal Palworld backup manager exists before the plugin foundation.
-- It is not the plugin system and should be migrated after v0.10.
+- A personal Palworld update flow exists before the plugin foundation.
+- Advanced operational tools exist before the plugin foundation.
+- It is not the plugin system and should be migrated after v0.12.
 
 ---
 
@@ -190,6 +246,5 @@ Temporary note:
 
 - Real-time logs
 - SignalR/WebSockets
-- Scheduler
 - Multi-user permissions
 - Additional game plugins

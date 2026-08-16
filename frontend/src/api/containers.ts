@@ -3,6 +3,7 @@ import type {
   ContainerDetails,
   ContainerLifecycleActionResponse,
   ContainerLogs,
+  LogStream,
   LogTailOption,
 } from '../types/container'
 
@@ -36,12 +37,19 @@ export async function fetchContainerLogs(
   containerId: string,
   tail: LogTailOption,
   timestamps: boolean,
+  stream: LogStream,
+  search: string,
   signal?: AbortSignal,
 ): Promise<ContainerLogs> {
   const parameters = new URLSearchParams({
     tail: tail.toString(),
     timestamps: timestamps.toString(),
+    stream,
   })
+
+  if (search.trim().length > 0) {
+    parameters.set('search', search.trim())
+  }
 
   return fetchJson<ContainerLogs>(
     `/api/containers/${encodeURIComponent(containerId)}/logs?${parameters.toString()}`,

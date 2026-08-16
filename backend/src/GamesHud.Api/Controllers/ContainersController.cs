@@ -11,6 +11,7 @@ public sealed class ContainersController : ControllerBase
 {
     private const int DefaultLogTail = 200;
     private const int MaximumLogTail = 2000;
+    private const int MaximumLogSearchLength = 120;
     private const int DefaultLifecycleTimeoutSeconds = 10;
     private const int MinimumLifecycleTimeoutSeconds = 1;
     private const int MaximumLifecycleTimeoutSeconds = 120;
@@ -95,10 +96,14 @@ public sealed class ContainersController : ControllerBase
         string containerId,
         [FromQuery] int? tail,
         [FromQuery] bool? timestamps,
+        [FromQuery] string? stream,
+        [FromQuery] string? search,
         CancellationToken cancellationToken)
     {
         var requestedTail = tail ?? DefaultLogTail;
         var includeTimestamps = timestamps ?? true;
+        var requestedStream = string.IsNullOrWhiteSpace(stream) ? "all" : stream.Trim().ToLowerInvariant();
+        var requestedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
 
         if (requestedTail is < 1 or > MaximumLogTail)
         {
@@ -108,12 +113,30 @@ public sealed class ContainersController : ControllerBase
                 statusCode: StatusCodes.Status400BadRequest);
         }
 
+        if (requestedStream is not ("all" or "stdout" or "stderr"))
+        {
+            return Problem(
+                title: "Invalid log stream",
+                detail: "The stream query parameter must be all, stdout or stderr.",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        if (requestedSearch?.Length > MaximumLogSearchLength)
+        {
+            return Problem(
+                title: "Invalid log search",
+                detail: $"The search query parameter must be {MaximumLogSearchLength} characters or fewer.",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
         try
         {
             var logs = await _containerService.GetContainerLogsAsync(
                 containerId,
                 requestedTail,
                 includeTimestamps,
+                requestedStream,
+                requestedSearch,
                 cancellationToken);
 
             if (logs is null)

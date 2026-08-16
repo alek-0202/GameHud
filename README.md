@@ -34,6 +34,10 @@ Implemented:
 - Temporary personal Palworld settings editor isolated outside Docker Core
 - Temporary Palworld REST overview and players view isolated outside Docker Core
 - Temporary Palworld backup management isolated outside Docker Core
+- Temporary manual Palworld update check/apply flow isolated outside Docker Core
+- Improved logs snapshot tools
+- In-memory operational scheduler for supported safe actions
+- Optional backend-only Discord webhook notifications
 
 Deployment foundation status:
 
@@ -161,6 +165,20 @@ Metrics:
 - `Metrics__RetentionHours`
 - `Metrics__HostDiskPath`
 
+Operations:
+
+- `Notifications__Discord__WebhookUrl`
+- `Notifications__Discord__CooldownSeconds`
+- `Notifications__Discord__Events__ServerStatus`
+- `Notifications__Discord__Events__Backups`
+- `Notifications__Discord__Events__Updates`
+- `Notifications__Discord__Events__PlayerJoinLeave`
+- `Operations__Palworld__LifecycleTimeoutSeconds`
+- `Operations__Palworld__RestartWaitSeconds`
+- `Operations__Palworld__RestartWarningMinutes__0`
+- `Operations__Palworld__RestartWarningMinutes__1`
+- `Operations__Palworld__RestartWarningMinutes__2`
+
 Frontend API base URL:
 
 - `VITE_API_BASE_URL`
@@ -192,6 +210,8 @@ Temporary Palworld integration:
 
 The managed path must point to the Palworld data directory. The backup path must be a separate directory and must not be inside the managed path. The container name is the only container targeted by Palworld Save & Restart and backup restore flows. Keep `DISABLE_GENERATE_SETTINGS=true` in the Palworld deployment when GamesHud edits the file directly. REST credentials are used only by the backend. Do not commit real VPS paths, server passwords, REST credentials or private container names.
 
+Manual Palworld update apply requires the configured Palworld container to already use `UPDATE_ON_BOOT=true`. GamesHud checks this before starting the maintenance flow and does not change Palworld container environment variables.
+
 ---
 
 ## API
@@ -220,13 +240,15 @@ Recent logs:
 
 ```text
 GET /api/containers/{containerId}/logs
-GET /api/containers/{containerId}/logs?tail=200&timestamps=true
+GET /api/containers/{containerId}/logs?tail=200&timestamps=true&stream=all&search=error
 ```
 
 Log query parameters:
 
 - `tail`: recent line count. Default `200`, minimum `1`, maximum `2000`.
 - `timestamps`: include Docker timestamps. Default `true`.
+- `stream`: `all`, `stdout` or `stderr`. Default `all`.
+- `search`: optional case-insensitive term filter, maximum `120` characters.
 
 Logs are returned as a bounded snapshot, not as a stream.
 
@@ -272,11 +294,25 @@ GET /api/palworld/backups/{backupId}/download
 POST /api/palworld/backups
 POST /api/palworld/backups/{backupId}/restore
 DELETE /api/palworld/backups/{backupId}
+GET /api/palworld/update
+POST /api/palworld/update
 ```
 
 `GET` returns a typed settings list with metadata, current values and `hasValue` for protected password settings. It does not return plaintext passwords or raw INI content. Empty password values on `PUT` preserve the current password.
 
-The Palworld overview, players and backups endpoints use GamesHud contracts and sanitize external data before returning it to the frontend. Backup restore is destructive and requires strong confirmation.
+The Palworld overview, players, backups and update endpoints use GamesHud contracts and sanitize external data before returning it to the frontend. Backup restore and server update are destructive maintenance flows and require strong confirmation.
+
+Operations:
+
+```text
+GET /api/scheduler
+POST /api/scheduler
+POST /api/scheduler/{id}/run
+GET /api/settings/notifications
+POST /api/settings/notifications/test
+```
+
+The scheduler accepts only supported GamesHud action types and never arbitrary shell commands. Discord webhook configuration is backend-only; the frontend only receives whether a webhook is configured.
 
 ---
 
@@ -383,8 +419,10 @@ The VPS may already host production containers such as Palworld and Portainer. G
 - [Deployment Guide](docs/deployment.md)
 - [Metrics Guide](docs/metrics.md)
 - [Palworld Backups Guide](docs/palworld-backups.md)
+- [Palworld Updates Guide](docs/palworld-updates.md)
 - [Palworld Settings Guide](docs/palworld-settings.md)
 - [Palworld REST API Guide](docs/palworld-rest-api.md)
+- [Operations Guide](docs/operations.md)
 - [API Guidelines](docs/api-guidelines.md)
 - [Frontend Guidelines](docs/frontend-guidelines.md)
 

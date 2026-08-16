@@ -145,3 +145,29 @@ export interface PalworldDeleteBackupResponse {
   backupId: string
   deletedAt: string
 }
+
+export interface PalworldUpdateStatus {
+  installedVersion: string | null
+  availableVersion: string | null
+  updateStatus: string
+  lastCheckedAt: string
+  strategy: string
+  message: string
+}
+
+export interface PalworldUpdateResponse {
+  message: string
+  installedVersionBefore: string | null
+  installedVersionAfter: string | null
+  availableVersion: string | null
+  updateApplied: boolean
+  playersOnlineBeforeUpdate: number | null
+  announcementStatus: string
+  saveStatus: string
+  backupId: string
+  stopStatus: string
+  updateStatus: string
+  startStatus: string
+  healthCheckStatus: string
+  completedAt: string
+}

@@ -14,6 +14,8 @@ public interface IContainerService
         string containerId,
         int tail,
         bool timestamps,
+        string stream,
+        string? search,
         CancellationToken cancellationToken);
 
     Task<ContainerLifecycleActionResponse?> StartContainerAsync(

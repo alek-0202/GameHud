@@ -41,6 +41,8 @@ The Docker Core owns generic infrastructure features only:
 - Recent logs snapshots
 - Manual container lifecycle actions
 - Host, Docker summary and container metrics
+- Safe operational schedules for supported actions
+- Optional backend-only operational notifications
 - Future image, network and volume views
 - Future backup and restore foundations
 
@@ -65,7 +67,7 @@ Plugins are not implemented yet.
 
 ## Temporary Palworld Integration
 
-A temporary personal Palworld settings editor, REST overview and backup manager exist before the planned plugin system.
+A temporary personal Palworld settings editor, REST overview, backup manager and manual update flow exist before the planned plugin system.
 
 This feature is intentionally isolated under Palworld-specific backend and frontend boundaries. It is not part of Docker Core and must not add Palworld rules to `DockerContainerService`.
 
@@ -80,6 +82,7 @@ Current responsibilities:
 - Read native Palworld REST API info, players, settings and metrics through the backend only.
 - Create, list, download, restore and delete Palworld backups from configured backend paths only.
 - Create a pre-restore backup before every restore.
+- Check and apply Palworld server updates only for the configured Palworld container.
 - Never expose Palworld REST API credentials, player IP addresses or raw external contracts.
 
 This temporary integration should migrate into a future plugin when the plugin foundation exists.
@@ -194,9 +197,12 @@ Implemented:
 - Frontend container list
 - Frontend details view
 - Recent logs snapshot view
+- Log search, stream filters, timestamps and severity metadata
 - Manual lifecycle actions in the details view
 - Host, Docker summary and container metrics
 - Short in-memory metrics history
+- In-memory operational scheduler for supported action types only
+- Backend-only Discord webhook notification status and test endpoint
 - Friendly Docker-unavailable responses
 - Tests for contracts, mapping and error handling
 
@@ -224,6 +230,18 @@ The temporary Palworld config endpoints are separate from Docker Core:
 - `POST /api/palworld/backups`
 - `POST /api/palworld/backups/{backupId}/restore`
 - `DELETE /api/palworld/backups/{backupId}`
+- `GET /api/palworld/update`
+- `POST /api/palworld/update`
+
+Operational endpoints:
+
+- `GET /api/scheduler`
+- `POST /api/scheduler`
+- `POST /api/scheduler/{id}/run`
+- `GET /api/settings/notifications`
+- `POST /api/settings/notifications/test`
+
+The scheduler must never accept shell commands, Docker exec commands, compose operations or arbitrary user-provided operations. It may execute only action types explicitly supported by GamesHud.
 
 The metrics endpoints are part of the generic operational surface:
 

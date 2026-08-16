@@ -88,6 +88,25 @@ Metrics are configured through:
 - `Metrics:HostDiskPath`
 - `Metrics__HostDiskPath`
 
+Operational tools are configured through:
+
+- `Notifications:Discord:WebhookUrl`
+- `Notifications__Discord__WebhookUrl`
+- `Notifications:Discord:CooldownSeconds`
+- `Notifications__Discord__CooldownSeconds`
+- `Notifications:Discord:Events:ServerStatus`
+- `Notifications__Discord__Events__ServerStatus`
+- `Notifications:Discord:Events:Backups`
+- `Notifications__Discord__Events__Backups`
+- `Notifications:Discord:Events:Updates`
+- `Notifications__Discord__Events__Updates`
+- `Notifications:Discord:Events:PlayerJoinLeave`
+- `Notifications__Discord__Events__PlayerJoinLeave`
+- `Operations:Palworld:LifecycleTimeoutSeconds`
+- `Operations__Palworld__LifecycleTimeoutSeconds`
+- `Operations:Palworld:RestartWaitSeconds`
+- `Operations__Palworld__RestartWaitSeconds`
+
 For local development, leave the endpoint empty when the Docker client default is correct for the machine. Use local environment variables for machine-specific values and do not commit them.
 
 Docker may be unavailable during local development. In that case:
@@ -157,13 +176,15 @@ Recent logs:
 
 ```text
 GET http://localhost:5258/api/containers/{containerId}/logs
-GET http://localhost:5258/api/containers/{containerId}/logs?tail=500&timestamps=true
+GET http://localhost:5258/api/containers/{containerId}/logs?tail=500&timestamps=true&stream=stderr&search=warn
 ```
 
 Log query parameters:
 
 - `tail`: recent line count. Default `200`, minimum `1`, maximum `2000`.
 - `timestamps`: include Docker timestamps. Default `true`.
+- `stream`: `all`, `stdout` or `stderr`. Default `all`.
+- `search`: optional case-insensitive term filter, maximum `120` characters.
 
 Logs are returned as a snapshot response and are not streamed.
 
@@ -209,13 +230,27 @@ GET http://localhost:5258/api/palworld/backups/{backupId}/download
 POST http://localhost:5258/api/palworld/backups
 POST http://localhost:5258/api/palworld/backups/{backupId}/restore
 DELETE http://localhost:5258/api/palworld/backups/{backupId}
+GET http://localhost:5258/api/palworld/update
+POST http://localhost:5258/api/palworld/update
 ```
 
 The GET response returns supported settings as a typed metadata list. Password values are represented with `hasValue` and must not expose plaintext `ServerPassword` or `AdminPassword`.
 
 The overview and players endpoints use the Palworld REST API through the backend only. They must not return REST credentials, player IP addresses or raw external contracts.
 
-When `restart=true`, GamesHud stops and starts only the configured Palworld container. Backup restore also stops and starts only the configured Palworld container after strong confirmation and after creating a pre-restore backup. These flows must not call compose down, Docker daemon restart, remove, kill, recreate or lifecycle actions for any other container.
+When `restart=true`, GamesHud stops and starts only the configured Palworld container. Backup restore and manual update also stop and start only the configured Palworld container after strong confirmation and after creating a required backup. These flows must not call compose down, Docker daemon restart, remove, kill, recreate or lifecycle actions for any other container.
+
+Operational tools:
+
+```text
+GET http://localhost:5258/api/scheduler
+POST http://localhost:5258/api/scheduler
+POST http://localhost:5258/api/scheduler/{id}/run
+GET http://localhost:5258/api/settings/notifications
+POST http://localhost:5258/api/settings/notifications/test
+```
+
+The scheduler accepts only supported action types and never shell commands. Discord webhook configuration is backend-only and is never returned to the frontend.
 
 ---
 
@@ -337,5 +372,7 @@ Run lint only when a lint script is configured.
 - Use [Deployment Guide](deployment.md) for private deployment and homologation procedures.
 - Use [Metrics Guide](metrics.md) for metric source and retention decisions.
 - Use [Palworld Backups Guide](palworld-backups.md) for backup and restore behavior.
+- Use [Palworld Updates Guide](palworld-updates.md) for manual update checks and update flow behavior.
+- Use [Operations Guide](operations.md) for logs, scheduler and Discord notification behavior.
 - Use [Palworld Settings Guide](palworld-settings.md) for Palworld setting schema maintenance.
 - Use [Palworld REST API Guide](palworld-rest-api.md) for Palworld REST contracts and security rules.

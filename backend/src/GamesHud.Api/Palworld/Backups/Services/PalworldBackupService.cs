@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using GamesHud.Api.Docker.Models;
 using GamesHud.Api.Docker.Services;
+using GamesHud.Api.Operations.Notifications;
 using GamesHud.Api.Palworld.Configuration;
 using GamesHud.Api.Palworld.Services;
 using Microsoft.Extensions.Options;
@@ -28,6 +29,7 @@ public sealed class PalworldBackupService : IPalworldBackupService
     private readonly IOptions<PalworldOptions> _options;
     private readonly IPalworldRestService _palworldRestService;
     private readonly IContainerService _containerService;
+    private readonly INotificationService _notificationService;
     private readonly PalworldBackupScheduleState _scheduleState;
     private readonly ILogger<PalworldBackupService> _logger;
 
@@ -35,12 +37,14 @@ public sealed class PalworldBackupService : IPalworldBackupService
         IOptions<PalworldOptions> options,
         IPalworldRestService palworldRestService,
         IContainerService containerService,
+        INotificationService notificationService,
         PalworldBackupScheduleState scheduleState,
         ILogger<PalworldBackupService> logger)
     {
         _options = options;
         _palworldRestService = palworldRestService;
         _containerService = containerService;
+        _notificationService = notificationService;
         _scheduleState = scheduleState;
         _logger = logger;
     }
@@ -103,17 +107,41 @@ public sealed class PalworldBackupService : IPalworldBackupService
         var worldSaveStatus = await TryRequestWorldSaveAsync(
             options.RequestWorldSave,
             cancellationToken);
-        var metadata = await CreateArchiveAsync(
-            context,
-            options.Type,
-            options.Note,
-            worldSaveStatus,
-            cancellationToken);
+        PalworldBackupMetadata metadata;
+
+        try
+        {
+            metadata = await CreateArchiveAsync(
+                context,
+                options.Type,
+                options.Note,
+                worldSaveStatus,
+                cancellationToken);
+        }
+        catch
+        {
+            await _notificationService.NotifyAsync(
+                new NotificationEvent(
+                    NotificationEventTypes.BackupFailed,
+                    "Palworld backup failed",
+                    "Palworld backup creation failed.",
+                    "palworld-backup-failed"),
+                cancellationToken);
+            throw;
+        }
 
         if (options.Type.Equals(PalworldBackupTypes.Automatic, StringComparison.Ordinal))
         {
             await ApplyRetentionAsync(cancellationToken);
         }
+
+        await _notificationService.NotifyAsync(
+            new NotificationEvent(
+                NotificationEventTypes.BackupCompleted,
+                "Palworld backup completed",
+                $"Palworld backup {metadata.Type} completed.",
+                $"palworld-backup-completed-{metadata.Type}"),
+            cancellationToken);
 
         return metadata;
     }
@@ -790,7 +818,8 @@ public sealed class PalworldBackupService : IPalworldBackupService
     {
         if (options.Type is not PalworldBackupTypes.Manual
             and not PalworldBackupTypes.Automatic
-            and not PalworldBackupTypes.PreRestore)
+            and not PalworldBackupTypes.PreRestore
+            and not PalworldBackupTypes.PreUpdate)
         {
             throw new PalworldBackupValidationException("Backup type is invalid.");
         }

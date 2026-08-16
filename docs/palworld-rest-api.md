@@ -1,6 +1,6 @@
 # Palworld REST API Integration
 
-GamesHud uses the native Palworld REST API for server status, player information, metrics and world-save requests before backups. RCON is not used for this integration.
+GamesHud uses the native Palworld REST API for server status, player information, metrics, world-save requests and update announcements. RCON is not used for this integration.
 
 ## Sources Checked
 
@@ -9,6 +9,7 @@ GamesHud uses the native Palworld REST API for server status, player information
 - Official `players` endpoint: `https://docs.palworldgame.com/api/rest-api/players/`
 - Official `settings` endpoint: `https://docs.palworldgame.com/api/rest-api/settings/`
 - Official `metrics` endpoint: `https://docs.palworldgame.com/api/rest-api/metrics/`
+- Official `announce` endpoint: `https://docs.palworldgame.com/api/rest-api/announce/`
 - Official `save` endpoint: `https://docs.palworldgame.com/api/rest-api/save/`
 - `thijsvanloef/palworld-server-docker` README: `https://github.com/thijsvanloef/palworld-server-docker`
 
@@ -23,10 +24,11 @@ GET /v1/api/info
 GET /v1/api/players
 GET /v1/api/settings
 GET /v1/api/metrics
+POST /v1/api/announce
 POST /v1/api/save
 ```
 
-Administrative REST operations such as announce, kick, ban, shutdown and force stop are intentionally not implemented.
+Administrative REST operations such as kick, ban, shutdown and force stop are intentionally not implemented.
 
 ## GamesHud Endpoints
 
@@ -37,6 +39,7 @@ GET /api/palworld/overview
 GET /api/palworld/players
 GET /api/palworld/metrics
 POST /api/palworld/backups
+POST /api/palworld/update
 ```
 
 The backend maps Palworld REST responses into GamesHud contracts. It does not return external API payloads directly.

@@ -11,6 +11,17 @@ services:
       Metrics__SnapshotIntervalSeconds: ${GAMESHUD_METRICS_SNAPSHOT_INTERVAL_SECONDS:-60}
       Metrics__RetentionHours: ${GAMESHUD_METRICS_RETENTION_HOURS:-24}
       Metrics__HostDiskPath: ${GAMESHUD_METRICS_HOST_DISK_PATH:-/}
+      Notifications__Discord__WebhookUrl: ${GAMESHUD_DISCORD_WEBHOOK_URL:-}
+      Notifications__Discord__CooldownSeconds: ${GAMESHUD_DISCORD_COOLDOWN_SECONDS:-60}
+      Notifications__Discord__Events__ServerStatus: ${GAMESHUD_DISCORD_EVENT_SERVER_STATUS:-true}
+      Notifications__Discord__Events__Backups: ${GAMESHUD_DISCORD_EVENT_BACKUPS:-true}
+      Notifications__Discord__Events__Updates: ${GAMESHUD_DISCORD_EVENT_UPDATES:-true}
+      Notifications__Discord__Events__PlayerJoinLeave: ${GAMESHUD_DISCORD_EVENT_PLAYER_JOIN_LEAVE:-false}
+      Operations__Palworld__LifecycleTimeoutSeconds: ${GAMESHUD_SCHEDULER_PALWORLD_LIFECYCLE_TIMEOUT_SECONDS:-30}
+      Operations__Palworld__RestartWaitSeconds: ${GAMESHUD_SCHEDULER_PALWORLD_RESTART_WAIT_SECONDS:-60}
+      Operations__Palworld__RestartWarningMinutes__0: ${GAMESHUD_SCHEDULER_PALWORLD_RESTART_WARNING_0:-10}
+      Operations__Palworld__RestartWarningMinutes__1: ${GAMESHUD_SCHEDULER_PALWORLD_RESTART_WARNING_1:-5}
+      Operations__Palworld__RestartWarningMinutes__2: ${GAMESHUD_SCHEDULER_PALWORLD_RESTART_WARNING_2:-1}
       Palworld__ManagedPath: /managed/palworld
       Palworld__BackupPath: /managed/palworld-backups
       Palworld__ContainerName: ${GAMESHUD_PALWORLD_CONTAINER:-palworld-server-example}

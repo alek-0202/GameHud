@@ -60,6 +60,17 @@ GAMESHUD_DOCKER_ENDPOINT=unix:///var/run/docker.sock
 GAMESHUD_METRICS_SNAPSHOT_INTERVAL_SECONDS=60
 GAMESHUD_METRICS_RETENTION_HOURS=24
 GAMESHUD_METRICS_HOST_DISK_PATH=/
+GAMESHUD_DISCORD_WEBHOOK_URL=
+GAMESHUD_DISCORD_COOLDOWN_SECONDS=60
+GAMESHUD_DISCORD_EVENT_SERVER_STATUS=true
+GAMESHUD_DISCORD_EVENT_BACKUPS=true
+GAMESHUD_DISCORD_EVENT_UPDATES=true
+GAMESHUD_DISCORD_EVENT_PLAYER_JOIN_LEAVE=false
+GAMESHUD_SCHEDULER_PALWORLD_LIFECYCLE_TIMEOUT_SECONDS=30
+GAMESHUD_SCHEDULER_PALWORLD_RESTART_WAIT_SECONDS=60
+GAMESHUD_SCHEDULER_PALWORLD_RESTART_WARNING_0=10
+GAMESHUD_SCHEDULER_PALWORLD_RESTART_WARNING_1=5
+GAMESHUD_SCHEDULER_PALWORLD_RESTART_WARNING_2=1
 GAMESHUD_PALWORLD_PATH=/path/to/palworld/data
 GAMESHUD_PALWORLD_BACKUP_PATH=/path/to/gameshud/palworld-backups
 GAMESHUD_PALWORLD_CONTAINER=palworld-server-example
@@ -106,6 +117,14 @@ Palworld__BackupPath=/managed/palworld-backups
 Metrics__SnapshotIntervalSeconds=${GAMESHUD_METRICS_SNAPSHOT_INTERVAL_SECONDS}
 Metrics__RetentionHours=${GAMESHUD_METRICS_RETENTION_HOURS}
 Metrics__HostDiskPath=${GAMESHUD_METRICS_HOST_DISK_PATH}
+Notifications__Discord__WebhookUrl=${GAMESHUD_DISCORD_WEBHOOK_URL}
+Notifications__Discord__CooldownSeconds=${GAMESHUD_DISCORD_COOLDOWN_SECONDS}
+Notifications__Discord__Events__ServerStatus=${GAMESHUD_DISCORD_EVENT_SERVER_STATUS}
+Notifications__Discord__Events__Backups=${GAMESHUD_DISCORD_EVENT_BACKUPS}
+Notifications__Discord__Events__Updates=${GAMESHUD_DISCORD_EVENT_UPDATES}
+Notifications__Discord__Events__PlayerJoinLeave=${GAMESHUD_DISCORD_EVENT_PLAYER_JOIN_LEAVE}
+Operations__Palworld__LifecycleTimeoutSeconds=${GAMESHUD_SCHEDULER_PALWORLD_LIFECYCLE_TIMEOUT_SECONDS}
+Operations__Palworld__RestartWaitSeconds=${GAMESHUD_SCHEDULER_PALWORLD_RESTART_WAIT_SECONDS}
 Palworld__ContainerName=${GAMESHUD_PALWORLD_CONTAINER}
 Palworld__ConnectionAddress=${GAMESHUD_PALWORLD_CONNECTION_ADDRESS}
 Palworld__Backups__AutomaticEnabled=${GAMESHUD_PALWORLD_BACKUPS_AUTOMATIC_ENABLED}
@@ -124,6 +143,7 @@ The frontend mounts no Docker socket and receives no Docker credentials.
 The frontend does not receive the Palworld data directory.
 The frontend does not receive the Palworld backup directory.
 The frontend does not receive Palworld REST API credentials.
+The frontend does not receive Discord webhook URLs.
 
 No database is created in this phase. Palworld backup archives and sidecar metadata use the configured backend-only backup mount.
 
@@ -137,6 +157,18 @@ GamesHud collects host, Docker and Palworld metrics as lightweight snapshots.
 - No Prometheus, Grafana, SQLite volume or database is introduced in this phase.
 
 See [Metrics Guide](metrics.md) for contracts and retention details.
+
+## Operational Tools Notes
+
+GamesHud includes bounded log filtering, an in-memory operational scheduler and optional Discord webhook notifications.
+
+- Scheduler state is kept in API memory and resets when the API restarts.
+- Scheduler actions are limited to supported GamesHud actions and never accept shell commands.
+- Scheduled Palworld restart announces through REST, requests a save, waits the configured delay and restarts only the configured Palworld container.
+- Discord webhook configuration is backend-only and must be provided through environment configuration or secrets.
+- The frontend can only see whether the webhook is configured.
+
+See [Operations Guide](operations.md) for contracts and operating details.
 
 ## Temporary Palworld Settings Notes
 
@@ -169,6 +201,21 @@ GamesHud can create, list, download, restore and delete backups for the configur
 Do not point `GAMESHUD_PALWORLD_BACKUP_PATH` at an existing unrelated backup archive directory without reviewing expected retention behavior.
 
 See [Palworld Backups Guide](palworld-backups.md) for contracts and operating details.
+
+## Temporary Palworld Updates Notes
+
+GamesHud can check and manually apply updates for the configured Palworld container.
+
+- Updates are not automatic in GamesHud.
+- The configured Palworld container must already use `UPDATE_ON_BOOT=true`.
+- GamesHud does not modify Palworld container environment variables and does not recreate the container.
+- Update apply requires strong confirmation.
+- Update apply announces maintenance when REST is available, saves the world, creates a `pre-update` backup, stops only the configured Palworld container, starts only the configured Palworld container and checks health.
+- Binary rollback is not promised in this phase.
+
+Do not use GamesHud update flow if the Palworld deployment uses a different image/update mechanism without first reviewing compatibility.
+
+See [Palworld Updates Guide](palworld-updates.md) for the current strategy and operational constraints.
 
 ## Temporary Palworld REST Notes
 

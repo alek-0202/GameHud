@@ -50,6 +50,19 @@ public sealed class PalworldRestTests
     }
 
     [Fact]
+    public async Task RestServicePostsAnnounceEndpoint()
+    {
+        var handler = new StaticJsonHandler("{}");
+        var service = CreateRestService(handler);
+
+        await service.AnnounceAsync("Maintenance soon.", CancellationToken.None);
+
+        Assert.Equal(HttpMethod.Post, handler.LastMethod);
+        Assert.Equal("http://palworld.local:8212/v1/api/announce", handler.LastUri?.ToString());
+        Assert.Equal("Basic", handler.AuthorizationScheme);
+    }
+
+    [Fact]
     public async Task OverviewPlayersCanBeEmpty()
     {
         var service = CreateOverviewService(
@@ -284,11 +297,17 @@ public sealed class PalworldRestTests
 
         public string? AuthorizationScheme { get; private set; }
 
+        public HttpMethod? LastMethod { get; private set; }
+
+        public Uri? LastUri { get; private set; }
+
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
             AuthorizationScheme = request.Headers.Authorization?.Scheme;
+            LastMethod = request.Method;
+            LastUri = request.RequestUri;
 
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
@@ -382,6 +401,20 @@ public sealed class PalworldRestTests
             return Task.CompletedTask;
         }
 
+        public Task AnnounceAsync(
+            string message,
+            CancellationToken cancellationToken)
+        {
+            CallCount++;
+
+            if (Exception is not null)
+            {
+                throw Exception;
+            }
+
+            return Task.CompletedTask;
+        }
+
         private Task<TResponse> Execute<TResponse>(TResponse response)
         {
             CallCount++;
@@ -436,6 +469,8 @@ public sealed class PalworldRestTests
             string containerId,
             int tail,
             bool timestamps,
+            string stream,
+            string? search,
             CancellationToken cancellationToken)
         {
             return Task.FromResult<ContainerLogsResponse?>(null);
