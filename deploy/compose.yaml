@@ -8,9 +8,19 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
       Docker__Endpoint: ${GAMESHUD_DOCKER_ENDPOINT:-unix:///var/run/docker.sock}
+      Metrics__SnapshotIntervalSeconds: ${GAMESHUD_METRICS_SNAPSHOT_INTERVAL_SECONDS:-60}
+      Metrics__RetentionHours: ${GAMESHUD_METRICS_RETENTION_HOURS:-24}
+      Metrics__HostDiskPath: ${GAMESHUD_METRICS_HOST_DISK_PATH:-/}
       Palworld__ManagedPath: /managed/palworld
+      Palworld__BackupPath: /managed/palworld-backups
       Palworld__ContainerName: ${GAMESHUD_PALWORLD_CONTAINER:-palworld-server-example}
       Palworld__ConnectionAddress: ${GAMESHUD_PALWORLD_CONNECTION_ADDRESS:-}
+      Palworld__Backups__AutomaticEnabled: ${GAMESHUD_PALWORLD_BACKUPS_AUTOMATIC_ENABLED:-false}
+      Palworld__Backups__AutomaticIntervalMinutes: ${GAMESHUD_PALWORLD_BACKUPS_AUTOMATIC_INTERVAL_MINUTES:-360}
+      Palworld__Backups__RetentionCount: ${GAMESHUD_PALWORLD_BACKUPS_RETENTION_COUNT:-24}
+      Palworld__Backups__RetentionDays: ${GAMESHUD_PALWORLD_BACKUPS_RETENTION_DAYS:-7}
+      Palworld__Backups__PreBackupSaveDelaySeconds: ${GAMESHUD_PALWORLD_BACKUPS_PRE_SAVE_DELAY_SECONDS:-2}
+      Palworld__Backups__LifecycleTimeoutSeconds: ${GAMESHUD_PALWORLD_BACKUPS_LIFECYCLE_TIMEOUT_SECONDS:-30}
       Palworld__RestApi__BaseUrl: ${GAMESHUD_PALWORLD_REST_BASE_URL:-}
       Palworld__RestApi__Username: ${GAMESHUD_PALWORLD_REST_USERNAME:-}
       Palworld__RestApi__Password: ${GAMESHUD_PALWORLD_REST_PASSWORD:-}
@@ -18,6 +28,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${GAMESHUD_PALWORLD_PATH:-./palworld-data}:/managed/palworld
+      - ${GAMESHUD_PALWORLD_BACKUP_PATH:-./palworld-backups}:/managed/palworld-backups
     expose:
       - "8080"
     restart: unless-stopped

@@ -1,6 +1,6 @@
 # Palworld REST API Integration
 
-GamesHud uses the native Palworld REST API for read-only server status and player information. RCON is not used for this integration.
+GamesHud uses the native Palworld REST API for server status, player information, metrics and world-save requests before backups. RCON is not used for this integration.
 
 ## Sources Checked
 
@@ -9,22 +9,24 @@ GamesHud uses the native Palworld REST API for read-only server status and playe
 - Official `players` endpoint: `https://docs.palworldgame.com/api/rest-api/players/`
 - Official `settings` endpoint: `https://docs.palworldgame.com/api/rest-api/settings/`
 - Official `metrics` endpoint: `https://docs.palworldgame.com/api/rest-api/metrics/`
+- Official `save` endpoint: `https://docs.palworldgame.com/api/rest-api/save/`
 - `thijsvanloef/palworld-server-docker` README: `https://github.com/thijsvanloef/palworld-server-docker`
 
 The official REST API uses HTTP Basic Auth and should not be exposed directly to the Internet. Keep it reachable only from the backend or a private/internal network path.
 
 ## Palworld REST Endpoints Used
 
-GamesHud currently uses only read operations:
+GamesHud currently uses:
 
 ```text
 GET /v1/api/info
 GET /v1/api/players
 GET /v1/api/settings
 GET /v1/api/metrics
+POST /v1/api/save
 ```
 
-Administrative REST operations such as announce, kick, ban, save, shutdown and stop are intentionally not implemented.
+Administrative REST operations such as announce, kick, ban, shutdown and force stop are intentionally not implemented.
 
 ## GamesHud Endpoints
 
@@ -33,6 +35,8 @@ GamesHud exposes internal contracts:
 ```text
 GET /api/palworld/overview
 GET /api/palworld/players
+GET /api/palworld/metrics
+POST /api/palworld/backups
 ```
 
 The backend maps Palworld REST responses into GamesHud contracts. It does not return external API payloads directly.
@@ -109,4 +113,4 @@ The frontend polls overview and players every 15 seconds by default and pauses r
 - Do not send Palworld REST credentials to the frontend.
 - Do not log the `Authorization` header or credentials.
 - Do not use RCON for this integration.
-- Keep write/admin REST actions for a separate reviewed task.
+- Keep additional write/admin REST actions for separate reviewed tasks.

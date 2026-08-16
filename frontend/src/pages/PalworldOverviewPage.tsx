@@ -1,16 +1,23 @@
 import { useEffect, useState } from 'react'
 import { ContainerLifecycleActions } from '../components/ContainerLifecycleActions'
+import { MetricProgressCard } from '../components/MetricProgressCard'
+import { MiniMetricChart } from '../components/MiniMetricChart'
 import { SectionHeader } from '../components/SectionHeader'
 import { StatusBadge } from '../components/StatusBadge'
 import { useContainerDetails } from '../hooks/useContainerDetails'
+import { usePalworldMetrics } from '../hooks/usePalworldMetrics'
 import { usePalworldOverview } from '../hooks/usePalworldOverview'
 import type { ContainerDetails } from '../types/container'
+import type { MetricsHistoryWindow } from '../types/metrics'
 import { formatDuration, formatPlayerLimit, getInitials } from '../utils/palworldDisplay'
 import { toFriendlyState } from '../utils/containerStatus'
+import { formatBytePair, formatPercent, toPercent } from '../utils/metricsDisplay'
 import { PalworldUnavailableState } from './PalworldLayout'
 
 export function PalworldOverviewPage() {
   const overviewState = usePalworldOverview()
+  const [historyWindow, setHistoryWindow] = useState<MetricsHistoryWindow>(1)
+  const metricsState = usePalworldMetrics(historyWindow)
   const containerName = overviewState.status === 'success' ? overviewState.overview.containerName : null
   const detailsState = useContainerDetails(containerName)
   const [updatedContainer, setUpdatedContainer] = useState<ContainerDetails | null>(null)
@@ -51,6 +58,69 @@ export function PalworldOverviewPage() {
           {overview.restApiMessage && <p>{overview.restApiMessage}</p>}
         </div>
       </div>
+
+      {metricsState.status === 'success' && (
+        <section className="details-block" aria-labelledby="palworld-resource-usage">
+          <SectionHeader
+            titleId="palworld-resource-usage"
+            title="Resource Usage"
+            description="Container CPU, memory and short Palworld history."
+          />
+          <div className="server-overview-grid resource-usage-grid">
+            <MetricProgressCard
+              label="CPU"
+              percent={metricsState.metrics.cpuPercent}
+              value={formatPercent(metricsState.metrics.cpuPercent)}
+            />
+            <MetricProgressCard
+              label="RAM"
+              percent={metricsState.metrics.memoryPercent}
+              value={formatBytePair(
+                metricsState.metrics.memoryUsageBytes,
+                metricsState.metrics.memoryLimitBytes,
+              )}
+            />
+          </div>
+          <div className="chart-toolbar">
+            {[1, 6, 24].map((hours) => (
+              <button
+                aria-pressed={historyWindow === hours}
+                className={historyWindow === hours ? 'chart-range-active' : ''}
+                key={hours}
+                type="button"
+                onClick={() => setHistoryWindow(hours as MetricsHistoryWindow)}
+              >
+                {hours}h
+              </button>
+            ))}
+          </div>
+          <div className="metric-chart-grid">
+            <MiniMetricChart
+              label="CPU"
+              max={100}
+              unit="%"
+              values={metricsState.metrics.history.map((point) => point.palworldCpuPercent)}
+            />
+            <MiniMetricChart
+              label="RAM"
+              max={100}
+              unit="%"
+              values={metricsState.metrics.history.map((point) => (
+                toPercent(point.palworldMemoryUsageBytes, point.palworldMemoryLimitBytes)
+              ))}
+            />
+            <MiniMetricChart
+              label="Players"
+              max={metricsState.metrics.maxPlayers ?? undefined}
+              values={metricsState.metrics.history.map((point) => point.playersOnline)}
+            />
+          </div>
+        </section>
+      )}
+
+      {metricsState.status !== 'success' && metricsState.status !== 'loading' && (
+        <p className="state-message state-message-error">{metricsState.message}</p>
+      )}
 
       <section className="details-block" aria-labelledby="palworld-online-players">
         <SectionHeader titleId="palworld-online-players" title="Players Online" />

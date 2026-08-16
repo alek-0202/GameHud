@@ -91,3 +91,57 @@ export interface PalworldOverview {
   players: PalworldPlayer[]
   retrievedAt: string
 }
+
+export interface PalworldBackupSchedule {
+  enabled: boolean
+  intervalMinutes: number
+  retentionCount: number
+  retentionDays: number
+  nextScheduledAt: string | null
+}
+
+export interface PalworldBackupStorage {
+  totalBytes: number
+  backupCount: number
+}
+
+export interface PalworldBackup {
+  id: string
+  createdAt: string
+  sizeBytes: number
+  filename: string
+  status: string
+  type: string
+  note: string | null
+  worldSaveStatus: string | null
+  downloadUrl: string | null
+}
+
+export interface PalworldBackupSummary {
+  schedule: PalworldBackupSchedule
+  storage: PalworldBackupStorage
+  latestBackup: PalworldBackup | null
+  backups: PalworldBackup[]
+}
+
+export interface PalworldCreateBackupResponse {
+  message: string
+  backup: PalworldBackup
+}
+
+export interface PalworldRestoreBackupResponse {
+  message: string
+  restoredBackupId: string
+  preRestoreBackup: PalworldBackup
+  playersOnlineBeforeRestore: number | null
+  stopStatus: string
+  startStatus: string
+  healthCheckStatus: string
+  completedAt: string
+}
+
+export interface PalworldDeleteBackupResponse {
+  message: string
+  backupId: string
+  deletedAt: string
+}

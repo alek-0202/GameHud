@@ -57,9 +57,19 @@ Use `deploy/.env.example` as the template.
 ```text
 GAMESHUD_FRONTEND_PORT=8088
 GAMESHUD_DOCKER_ENDPOINT=unix:///var/run/docker.sock
+GAMESHUD_METRICS_SNAPSHOT_INTERVAL_SECONDS=60
+GAMESHUD_METRICS_RETENTION_HOURS=24
+GAMESHUD_METRICS_HOST_DISK_PATH=/
 GAMESHUD_PALWORLD_PATH=/path/to/palworld/data
+GAMESHUD_PALWORLD_BACKUP_PATH=/path/to/gameshud/palworld-backups
 GAMESHUD_PALWORLD_CONTAINER=palworld-server-example
 GAMESHUD_PALWORLD_CONNECTION_ADDRESS=palworld.example.test:8211
+GAMESHUD_PALWORLD_BACKUPS_AUTOMATIC_ENABLED=false
+GAMESHUD_PALWORLD_BACKUPS_AUTOMATIC_INTERVAL_MINUTES=360
+GAMESHUD_PALWORLD_BACKUPS_RETENTION_COUNT=24
+GAMESHUD_PALWORLD_BACKUPS_RETENTION_DAYS=7
+GAMESHUD_PALWORLD_BACKUPS_PRE_SAVE_DELAY_SECONDS=2
+GAMESHUD_PALWORLD_BACKUPS_LIFECYCLE_TIMEOUT_SECONDS=30
 GAMESHUD_PALWORLD_REST_BASE_URL=http://internal-palworld-rest:8212
 GAMESHUD_PALWORLD_REST_USERNAME=admin
 GAMESHUD_PALWORLD_REST_PASSWORD=change-me
@@ -76,18 +86,34 @@ The API mounts the Docker socket:
 /var/run/docker.sock:/var/run/docker.sock
 ```
 
-For the temporary Palworld config editor, the API also mounts the configured Palworld data directory:
+For the temporary Palworld config editor and backup manager, the API also mounts the configured Palworld data directory:
 
 ```text
 ${GAMESHUD_PALWORLD_PATH}:/managed/palworld
+```
+
+Palworld backups use a separate API-only mount:
+
+```text
+${GAMESHUD_PALWORLD_BACKUP_PATH}:/managed/palworld-backups
 ```
 
 The API receives:
 
 ```text
 Palworld__ManagedPath=/managed/palworld
+Palworld__BackupPath=/managed/palworld-backups
+Metrics__SnapshotIntervalSeconds=${GAMESHUD_METRICS_SNAPSHOT_INTERVAL_SECONDS}
+Metrics__RetentionHours=${GAMESHUD_METRICS_RETENTION_HOURS}
+Metrics__HostDiskPath=${GAMESHUD_METRICS_HOST_DISK_PATH}
 Palworld__ContainerName=${GAMESHUD_PALWORLD_CONTAINER}
 Palworld__ConnectionAddress=${GAMESHUD_PALWORLD_CONNECTION_ADDRESS}
+Palworld__Backups__AutomaticEnabled=${GAMESHUD_PALWORLD_BACKUPS_AUTOMATIC_ENABLED}
+Palworld__Backups__AutomaticIntervalMinutes=${GAMESHUD_PALWORLD_BACKUPS_AUTOMATIC_INTERVAL_MINUTES}
+Palworld__Backups__RetentionCount=${GAMESHUD_PALWORLD_BACKUPS_RETENTION_COUNT}
+Palworld__Backups__RetentionDays=${GAMESHUD_PALWORLD_BACKUPS_RETENTION_DAYS}
+Palworld__Backups__PreBackupSaveDelaySeconds=${GAMESHUD_PALWORLD_BACKUPS_PRE_SAVE_DELAY_SECONDS}
+Palworld__Backups__LifecycleTimeoutSeconds=${GAMESHUD_PALWORLD_BACKUPS_LIFECYCLE_TIMEOUT_SECONDS}
 Palworld__RestApi__BaseUrl=${GAMESHUD_PALWORLD_REST_BASE_URL}
 Palworld__RestApi__Username=${GAMESHUD_PALWORLD_REST_USERNAME}
 Palworld__RestApi__Password=${GAMESHUD_PALWORLD_REST_PASSWORD}
@@ -96,9 +122,21 @@ Palworld__RestApi__TimeoutSeconds=${GAMESHUD_PALWORLD_REST_TIMEOUT_SECONDS}
 
 The frontend mounts no Docker socket and receives no Docker credentials.
 The frontend does not receive the Palworld data directory.
+The frontend does not receive the Palworld backup directory.
 The frontend does not receive Palworld REST API credentials.
 
-No database or persistent application volume is created in this phase.
+No database is created in this phase. Palworld backup archives and sidecar metadata use the configured backend-only backup mount.
+
+## Metrics Notes
+
+GamesHud collects host, Docker and Palworld metrics as lightweight snapshots.
+
+- Host metrics read Linux `/proc` files and filesystem usage.
+- Container metrics use Docker Engine one-shot stats.
+- Metrics history is kept in API memory with default 60-second snapshots and 24-hour retention.
+- No Prometheus, Grafana, SQLite volume or database is introduced in this phase.
+
+See [Metrics Guide](metrics.md) for contracts and retention details.
 
 ## Temporary Palworld Settings Notes
 
@@ -116,9 +154,25 @@ GamesHud needs write access to the configured Palworld directory. Do not commit 
 
 See [Palworld Settings Guide](palworld-settings.md) for the schema categories, sources and maintenance rules.
 
+## Temporary Palworld Backups Notes
+
+GamesHud can create, list, download, restore and delete backups for the configured Palworld managed directory.
+
+- Only the API receives `Palworld__ManagedPath` and `Palworld__BackupPath`.
+- `Palworld__BackupPath` must be separate from `Palworld__ManagedPath`; do not place backups inside the managed data directory.
+- Manual backup asks the Palworld REST API to save the world first when REST is configured, waits briefly, then creates a `.tar.gz` archive.
+- Restore is destructive and requires strong confirmation in the UI and API.
+- Restore stops only the configured Palworld container, creates a `pre-restore` backup, restores the selected archive, starts only the configured Palworld container and checks health.
+- Automatic backups are controlled by application configuration and are disabled by default.
+- Retention applies to automatic backups and must never remove the last valid backup.
+
+Do not point `GAMESHUD_PALWORLD_BACKUP_PATH` at an existing unrelated backup archive directory without reviewing expected retention behavior.
+
+See [Palworld Backups Guide](palworld-backups.md) for contracts and operating details.
+
 ## Temporary Palworld REST Notes
 
-GamesHud uses the native Palworld REST API for read-only overview and players data. RCON is not used.
+GamesHud uses the native Palworld REST API for overview, players, metrics and world-save requests before backups. RCON is not used.
 
 The Palworld REST API must remain private. Do not publish port `8212` publicly for GamesHud. Configure `GAMESHUD_PALWORLD_REST_BASE_URL` with an address reachable from the backend container through a private/internal path.
 

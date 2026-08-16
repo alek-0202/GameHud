@@ -94,17 +94,44 @@ Status: In progress
 
 ## v0.6 - Metrics
 
-Status: Planned
+Status: Completed
 
 - Host CPU
 - Host RAM
 - Disk usage
 - Container CPU and memory
 - Running and stopped container summaries
+- Palworld CPU, RAM, uptime and players online
+- Short in-memory metrics history
+- Dashboard metric cards
+- Palworld Overview resource charts
 
 ---
 
-## v0.7 - Authentication and Authorization
+## v0.7 - Temporary Palworld Backups
+
+Status: Completed
+
+- Manual backup creation
+- Palworld REST world save before backup when available
+- Backup history
+- Backup metadata and download endpoint
+- Strong-confirmation restore flow
+- Automatic pre-restore backup
+- Delete backup
+- Internal automatic backup scheduler
+- Automatic backup retention
+- Palworld Backups frontend page
+- Backend tests for backup, restore, retention and path safety
+
+Temporary note:
+
+- This is not the plugin system.
+- It should migrate into the future Palworld plugin after v0.10.
+
+---
+
+## v0.8 - Authentication and Authorization
 
 Status: Planned
 
@@ -115,7 +142,7 @@ Status: Planned
 
 ---
 
-## v0.8 - Public Deployment / HTTPS
+## v0.9 - Public Deployment / HTTPS
 
 Status: Planned
 
@@ -127,7 +154,7 @@ Status: Planned
 
 ---
 
-## v0.9 - Plugin Foundation
+## v0.10 - Plugin Foundation
 
 Status: Planned
 
@@ -137,7 +164,7 @@ Status: Planned
 
 ---
 
-## v0.10 - Palworld Plugin
+## v0.11 - Palworld Plugin
 
 Status: Planned
 
@@ -154,7 +181,8 @@ Temporary note:
 
 - A personal Palworld settings editor exists before the plugin foundation.
 - A personal Palworld REST overview and players view exists before the plugin foundation.
-- It is not the plugin system and should be migrated after v0.9.
+- A personal Palworld backup manager exists before the plugin foundation.
+- It is not the plugin system and should be migrated after v0.10.
 
 ---
 

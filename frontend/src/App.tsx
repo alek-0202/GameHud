@@ -5,6 +5,7 @@ import { ContainersPage } from './pages/ContainersPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { GameServersPage } from './pages/GameServersPage'
 import { PalworldAdvancedPage } from './pages/PalworldAdvancedPage'
+import { PalworldBackupsPage } from './pages/PalworldBackupsPage'
 import { PalworldLayout } from './pages/PalworldLayout'
 import { PalworldLogsPage } from './pages/PalworldLogsPage'
 import { PalworldOverviewPage } from './pages/PalworldOverviewPage'
@@ -23,6 +24,7 @@ function App() {
           <Route index element={<PalworldOverviewPage />} />
           <Route path="players" element={<PalworldPlayersPage />} />
           <Route path="settings" element={<PalworldSettingsPage />} />
+          <Route path="backups" element={<PalworldBackupsPage />} />
           <Route path="logs" element={<PalworldLogsPage />} />
           <Route path="advanced" element={<PalworldAdvancedPage />} />
         </Route>

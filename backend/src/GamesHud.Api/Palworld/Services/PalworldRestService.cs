@@ -82,14 +82,43 @@ public sealed class PalworldRestService : IPalworldRestService
             response.Days);
     }
 
+    public async Task SaveWorldAsync(CancellationToken cancellationToken)
+    {
+        using var _ = await SendAsync(HttpMethod.Post, "save", cancellationToken);
+    }
+
     private async Task<TResponse> GetJsonAsync<TResponse>(
+        string endpoint,
+        CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(HttpMethod.Get, endpoint, cancellationToken);
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+
+        try
+        {
+            var result = await JsonSerializer.DeserializeAsync<TResponse>(
+                stream,
+                JsonOptions,
+                cancellationToken);
+
+            return result
+                ?? throw new PalworldRestMalformedResponseException("Palworld REST API returned an empty response.");
+        }
+        catch (JsonException exception)
+        {
+            throw new PalworldRestMalformedResponseException("Palworld REST API returned malformed JSON.", exception);
+        }
+    }
+
+    private async Task<HttpResponseMessage> SendAsync(
+        HttpMethod method,
         string endpoint,
         CancellationToken cancellationToken)
     {
         var restOptions = ResolveRestOptions();
         using var timeoutCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCancellationTokenSource.CancelAfter(TimeSpan.FromSeconds(restOptions.TimeoutSeconds));
-        using var request = new HttpRequestMessage(HttpMethod.Get, ResolveEndpoint(restOptions.BaseUrl, endpoint));
+        using var request = new HttpRequestMessage(method, ResolveEndpoint(restOptions.BaseUrl, endpoint));
 
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         request.Headers.Authorization = new AuthenticationHeaderValue(
@@ -101,38 +130,31 @@ public sealed class PalworldRestService : IPalworldRestService
 
         try
         {
-            using var response = await _httpClient.SendAsync(
+            var response = await _httpClient.SendAsync(
                 request,
                 HttpCompletionOption.ResponseHeadersRead,
                 timeoutCancellationTokenSource.Token);
 
             if (response.StatusCode is HttpStatusCode.Unauthorized)
             {
+                response.Dispose();
+
                 throw new PalworldRestUnauthorizedException();
             }
 
             if (!response.IsSuccessStatusCode)
             {
+                response.Dispose();
+
                 throw new PalworldRestUnavailableException(
                     $"Palworld REST API returned HTTP {(int)response.StatusCode}.");
             }
 
-            await using var stream = await response.Content.ReadAsStreamAsync(timeoutCancellationTokenSource.Token);
-            var result = await JsonSerializer.DeserializeAsync<TResponse>(
-                stream,
-                JsonOptions,
-                timeoutCancellationTokenSource.Token);
-
-            return result
-                ?? throw new PalworldRestMalformedResponseException("Palworld REST API returned an empty response.");
+            return response;
         }
         catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
         {
             throw new PalworldRestUnavailableException("Palworld REST API request timed out.", exception);
-        }
-        catch (JsonException exception)
-        {
-            throw new PalworldRestMalformedResponseException("Palworld REST API returned malformed JSON.", exception);
         }
         catch (HttpRequestException exception)
         {

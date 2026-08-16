@@ -79,6 +79,15 @@ Docker access is configured through application configuration:
 - `Docker:Endpoint`
 - `Docker__Endpoint`
 
+Metrics are configured through:
+
+- `Metrics:SnapshotIntervalSeconds`
+- `Metrics__SnapshotIntervalSeconds`
+- `Metrics:RetentionHours`
+- `Metrics__RetentionHours`
+- `Metrics:HostDiskPath`
+- `Metrics__HostDiskPath`
+
 For local development, leave the endpoint empty when the Docker client default is correct for the machine. Use local environment variables for machine-specific values and do not commit them.
 
 Docker may be unavailable during local development. In that case:
@@ -89,14 +98,28 @@ Docker may be unavailable during local development. In that case:
 
 The Docker socket is high privilege. Only the backend should access Docker Engine.
 
-Temporary Palworld settings editor is configured separately:
+Temporary Palworld settings, REST and backups are configured separately:
 
 - `Palworld:ManagedPath`
 - `Palworld__ManagedPath`
+- `Palworld:BackupPath`
+- `Palworld__BackupPath`
 - `Palworld:ContainerName`
 - `Palworld__ContainerName`
 - `Palworld:ConnectionAddress`
 - `Palworld__ConnectionAddress`
+- `Palworld:Backups:AutomaticEnabled`
+- `Palworld__Backups__AutomaticEnabled`
+- `Palworld:Backups:AutomaticIntervalMinutes`
+- `Palworld__Backups__AutomaticIntervalMinutes`
+- `Palworld:Backups:RetentionCount`
+- `Palworld__Backups__RetentionCount`
+- `Palworld:Backups:RetentionDays`
+- `Palworld__Backups__RetentionDays`
+- `Palworld:Backups:PreBackupSaveDelaySeconds`
+- `Palworld__Backups__PreBackupSaveDelaySeconds`
+- `Palworld:Backups:LifecycleTimeoutSeconds`
+- `Palworld__Backups__LifecycleTimeoutSeconds`
 - `Palworld:RestApi:BaseUrl`
 - `Palworld__RestApi__BaseUrl`
 - `Palworld:RestApi:Username`
@@ -106,7 +129,7 @@ Temporary Palworld settings editor is configured separately:
 - `Palworld:RestApi:TimeoutSeconds`
 - `Palworld__RestApi__TimeoutSeconds`
 
-Use local environment variables for local testing. Keep `DISABLE_GENERATE_SETTINGS=true` in the Palworld deployment when testing direct file edits. Do not commit real Palworld paths, container names, passwords, REST credentials, tokens or VPS details.
+Use local environment variables for local testing. The backup path must be separate from the managed path. Keep `DISABLE_GENERATE_SETTINGS=true` in the Palworld deployment when testing direct file edits. Do not commit real Palworld paths, container names, passwords, REST credentials, tokens or VPS details.
 
 ---
 
@@ -144,6 +167,20 @@ Log query parameters:
 
 Logs are returned as a snapshot response and are not streamed.
 
+Metrics:
+
+```text
+GET http://localhost:5258/api/system/metrics
+GET http://localhost:5258/api/system/metrics?historyHours=1
+GET http://localhost:5258/api/containers/{containerId}/metrics
+GET http://localhost:5258/api/palworld/metrics
+GET http://localhost:5258/api/palworld/metrics?historyHours=1
+GET http://localhost:5258/api/palworld/metrics?historyHours=6
+GET http://localhost:5258/api/palworld/metrics?historyHours=24
+```
+
+Metrics use one-shot Docker stats and short in-memory history. They do not expose Docker SDK models.
+
 Lifecycle actions:
 
 ```text
@@ -158,7 +195,7 @@ Lifecycle actions are manual only and must be triggered explicitly. Stop and res
 
 Start returns a friendly success response when the container is already running. Stop returns a friendly success response when the container is already stopped.
 
-Temporary Palworld settings:
+Temporary Palworld integration:
 
 ```text
 GET http://localhost:5258/api/palworld/config
@@ -166,13 +203,19 @@ PUT http://localhost:5258/api/palworld/config
 PUT http://localhost:5258/api/palworld/config?restart=true
 GET http://localhost:5258/api/palworld/overview
 GET http://localhost:5258/api/palworld/players
+GET http://localhost:5258/api/palworld/backups
+GET http://localhost:5258/api/palworld/backups/{backupId}
+GET http://localhost:5258/api/palworld/backups/{backupId}/download
+POST http://localhost:5258/api/palworld/backups
+POST http://localhost:5258/api/palworld/backups/{backupId}/restore
+DELETE http://localhost:5258/api/palworld/backups/{backupId}
 ```
 
 The GET response returns supported settings as a typed metadata list. Password values are represented with `hasValue` and must not expose plaintext `ServerPassword` or `AdminPassword`.
 
 The overview and players endpoints use the Palworld REST API through the backend only. They must not return REST credentials, player IP addresses or raw external contracts.
 
-When `restart=true`, GamesHud stops and starts only the configured Palworld container. It must not call compose down, Docker daemon restart, remove, kill, recreate or lifecycle actions for any other container.
+When `restart=true`, GamesHud stops and starts only the configured Palworld container. Backup restore also stops and starts only the configured Palworld container after strong confirmation and after creating a pre-restore backup. These flows must not call compose down, Docker daemon restart, remove, kill, recreate or lifecycle actions for any other container.
 
 ---
 
@@ -292,5 +335,7 @@ Run lint only when a lint script is configured.
 - Use [API Guidelines](api-guidelines.md) for backend decisions.
 - Use [Frontend Guidelines](frontend-guidelines.md) for frontend decisions.
 - Use [Deployment Guide](deployment.md) for private deployment and homologation procedures.
+- Use [Metrics Guide](metrics.md) for metric source and retention decisions.
+- Use [Palworld Backups Guide](palworld-backups.md) for backup and restore behavior.
 - Use [Palworld Settings Guide](palworld-settings.md) for Palworld setting schema maintenance.
 - Use [Palworld REST API Guide](palworld-rest-api.md) for Palworld REST contracts and security rules.

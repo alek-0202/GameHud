@@ -1,4 +1,5 @@
 using GamesHud.Api.Docker.Models;
+using GamesHud.Api.Metrics.Services;
 using GamesHud.Api.Palworld.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,13 +10,19 @@ namespace GamesHud.Api.Palworld.Controllers;
 public sealed class PalworldController : ControllerBase
 {
     private readonly IPalworldOverviewService _palworldOverviewService;
+    private readonly IPalworldMetricsService _palworldMetricsService;
+    private readonly IMetricsHistoryStore _historyStore;
     private readonly ILogger<PalworldController> _logger;
 
     public PalworldController(
         IPalworldOverviewService palworldOverviewService,
+        IPalworldMetricsService palworldMetricsService,
+        IMetricsHistoryStore historyStore,
         ILogger<PalworldController> logger)
     {
         _palworldOverviewService = palworldOverviewService;
+        _palworldMetricsService = palworldMetricsService;
+        _historyStore = historyStore;
         _logger = logger;
     }
 
@@ -77,6 +84,46 @@ public sealed class PalworldController : ControllerBase
         }
     }
 
+    [HttpGet("metrics")]
+    public async Task<IActionResult> GetMetrics(
+        [FromQuery] int? historyHours,
+        CancellationToken cancellationToken)
+    {
+        if (!TryResolveHistoryWindow(historyHours, out var resolvedHistoryHours, out var problem))
+        {
+            return problem;
+        }
+
+        try
+        {
+            var metrics = await _palworldMetricsService.GetPalworldMetricsAsync(cancellationToken);
+            var history = _historyStore.GetSince(DateTimeOffset.UtcNow.AddHours(-resolvedHistoryHours));
+
+            return Ok(MetricsContractMapper.Map(metrics, history));
+        }
+        catch (DockerUnavailableException exception)
+        {
+            _logger.LogWarning(exception, "Docker Engine is unavailable while reading Palworld metrics.");
+
+            return DockerUnavailableProblem();
+        }
+        catch (PalworldConfigException exception)
+        {
+            _logger.LogWarning(exception, "Palworld metrics are not configured.");
+
+            return Problem(
+                title: "Palworld integration is not configured",
+                detail: exception.Message,
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _logger.LogError(exception, "Unexpected error while reading Palworld metrics.");
+
+            return UnexpectedErrorProblem();
+        }
+    }
+
     private static string GetRestErrorMessage(PalworldRestException exception)
     {
         return exception switch
@@ -102,5 +149,26 @@ public sealed class PalworldController : ControllerBase
             title: "Unexpected API error",
             detail: "The API could not complete the Palworld request.",
             statusCode: StatusCodes.Status500InternalServerError);
+    }
+
+    private bool TryResolveHistoryWindow(
+        int? historyHours,
+        out int resolvedHistoryHours,
+        out ObjectResult problem)
+    {
+        resolvedHistoryHours = historyHours ?? 1;
+
+        if (resolvedHistoryHours is 1 or 6 or 24)
+        {
+            problem = null!;
+            return true;
+        }
+
+        problem = Problem(
+            title: "Invalid history window",
+            detail: "The historyHours query parameter must be 1, 6 or 24.",
+            statusCode: StatusCodes.Status400BadRequest);
+
+        return false;
     }
 }

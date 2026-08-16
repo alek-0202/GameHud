@@ -370,6 +370,18 @@ public sealed class PalworldRestTests
             return Execute(Metrics);
         }
 
+        public Task SaveWorldAsync(CancellationToken cancellationToken)
+        {
+            CallCount++;
+
+            if (Exception is not null)
+            {
+                throw Exception;
+            }
+
+            return Task.CompletedTask;
+        }
+
         private Task<TResponse> Execute<TResponse>(TResponse response)
         {
             CallCount++;

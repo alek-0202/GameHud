@@ -231,6 +231,25 @@
   font-size: 2rem;
 }
 
+.metric-card-progress {
+  align-content: start;
+}
+
+.metric-progress {
+  overflow: hidden;
+  width: 100%;
+  height: 0.58rem;
+  border-radius: 999px;
+  background: var(--color-surface-muted);
+}
+
+.metric-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-accent);
+}
+
 .metric-card-success strong {
   color: var(--color-success);
 }
@@ -668,6 +687,87 @@ tbody tr:last-child td {
   word-break: break-word;
 }
 
+.backup-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.backup-create-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-4);
+  padding: var(--space-5);
+}
+
+.backup-create-form label,
+.backup-confirmation-modal label {
+  display: grid;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.backup-create-form input,
+.backup-confirmation-modal input {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.55rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 500;
+  text-transform: none;
+}
+
+.backup-create-form input:focus,
+.backup-confirmation-modal input:focus {
+  border-color: var(--color-accent);
+  outline: 2px solid rgb(56 189 248 / 0.24);
+  outline-offset: 1px;
+}
+
+.backup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.backup-actions .secondary-button,
+.backup-actions .danger-button {
+  min-height: 2.1rem;
+  padding: 0 var(--space-3);
+  font-size: 0.82rem;
+}
+
+.table-subtext {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.backup-confirmation-modal h3 {
+  color: var(--color-text-primary);
+  font-size: 1.12rem;
+}
+
+.backup-confirmation-modal p {
+  color: var(--color-text-secondary);
+}
+
+.compact-details-grid {
+  padding: 0;
+}
+
 .palworld-hero {
   padding: var(--space-6);
   border: 1px solid var(--color-border);
@@ -818,6 +918,88 @@ tbody tr:last-child td {
   overflow-wrap: anywhere;
   color: var(--color-text-primary);
   font-size: 1.1rem;
+}
+
+.resource-usage-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.chart-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.chart-toolbar button {
+  min-height: 2rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.chart-toolbar button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.chart-toolbar .chart-range-active {
+  border-color: rgb(56 189 248 / 0.42);
+  background: rgb(56 189 248 / 0.12);
+  color: var(--color-text-primary);
+}
+
+.metric-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.metric-chart-card {
+  display: grid;
+  gap: var(--space-3);
+  min-height: 8.5rem;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-panel);
+}
+
+.metric-chart-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.metric-chart-heading strong {
+  color: var(--color-text-primary);
+  font-size: 0.95rem;
+}
+
+.metric-chart {
+  width: 100%;
+  height: 4.5rem;
+}
+
+.metric-chart polyline {
+  fill: none;
+  stroke: var(--color-accent);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.4;
+}
+
+.empty-chart-message {
+  align-self: center;
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
 }
 
 .palworld-form {
@@ -1149,6 +1331,7 @@ tbody tr:last-child td {
   }
 
   .server-overview-grid,
+  .metric-chart-grid,
   .settings-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -1192,6 +1375,7 @@ tbody tr:last-child td {
   .server-meta,
   .server-overview-grid,
   .compact-players-list,
+  .metric-chart-grid,
   .settings-grid,
   .settings-grid-limits,
   .settings-grid-server,
@@ -1215,14 +1399,21 @@ tbody tr:last-child td {
 @media (max-width: 640px) {
   .sidebar-nav,
   .overview-grid,
+  .backup-summary-grid,
   .server-overview-grid,
+  .resource-usage-grid,
   .server-meta,
   .compact-players-list,
+  .metric-chart-grid,
   .settings-grid,
   .settings-grid-limits,
   .settings-grid-server,
   .settings-grid-editor,
   .details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .backup-create-form {
     grid-template-columns: 1fr;
   }
 
@@ -1242,6 +1433,7 @@ tbody tr:last-child td {
   }
 
   .logs-actions,
+  .backup-actions,
   .settings-category-header,
   .settings-category-actions,
   .modal-actions {

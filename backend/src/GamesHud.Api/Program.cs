@@ -1,5 +1,8 @@
 using GamesHud.Api.Configuration;
 using GamesHud.Api.Docker.Services;
+using GamesHud.Api.Metrics.Configuration;
+using GamesHud.Api.Metrics.Services;
+using GamesHud.Api.Palworld.Backups.Services;
 using GamesHud.Api.Palworld.Configuration;
 using GamesHud.Api.Palworld.Services;
 
@@ -7,10 +10,21 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<DockerOptions>(builder.Configuration.GetSection(DockerOptions.SectionName));
 builder.Services.Configure<PalworldOptions>(builder.Configuration.GetSection(PalworldOptions.SectionName));
+builder.Services.Configure<MetricsOptions>(builder.Configuration.GetSection(MetricsOptions.SectionName));
 builder.Services.AddScoped<IContainerService, DockerContainerService>();
+builder.Services.AddSingleton<IHostMetricsFileSystem, HostMetricsFileSystem>();
+builder.Services.AddSingleton<IHostMetricsService, LinuxHostMetricsService>();
+builder.Services.AddScoped<IDockerMetricsService, DockerMetricsService>();
+builder.Services.AddScoped<IMetricsService, MetricsService>();
+builder.Services.AddScoped<IPalworldMetricsService, PalworldMetricsService>();
+builder.Services.AddSingleton<IMetricsHistoryStore, InMemoryMetricsHistoryStore>();
+builder.Services.AddHostedService<MetricsSnapshotCollector>();
 builder.Services.AddSingleton<IPalworldConfigFileSystem, PalworldConfigFileSystem>();
 builder.Services.AddScoped<IPalworldConfigService, PalworldConfigService>();
 builder.Services.AddScoped<IPalworldOverviewService, PalworldOverviewService>();
+builder.Services.AddSingleton<PalworldBackupScheduleState>();
+builder.Services.AddScoped<IPalworldBackupService, PalworldBackupService>();
+builder.Services.AddHostedService<PalworldBackupScheduler>();
 builder.Services
     .AddHttpClient<IPalworldRestService, PalworldRestService>()
     .ConfigureHttpClient(client => client.Timeout = Timeout.InfiniteTimeSpan);

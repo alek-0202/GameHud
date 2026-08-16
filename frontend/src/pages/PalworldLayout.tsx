@@ -22,6 +22,7 @@ export function PalworldLayout() {
         <PalworldTab label="Overview" to="/servers/palworld" end />
         <PalworldTab label="Players" to="/servers/palworld/players" />
         <PalworldTab label="Settings" to="/servers/palworld/settings" />
+        <PalworldTab label="Backups" to="/servers/palworld/backups" />
         <PalworldTab label="Logs" to="/servers/palworld/logs" />
         <PalworldTab label="Advanced" to="/servers/palworld/advanced" />
       </nav>

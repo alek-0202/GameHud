@@ -40,8 +40,8 @@ The Docker Core owns generic infrastructure features only:
 - Container details
 - Recent logs snapshots
 - Manual container lifecycle actions
+- Host, Docker summary and container metrics
 - Future image, network and volume views
-- Future metrics
 - Future backup and restore foundations
 
 The Docker Core must not contain behavior specific to Palworld, Minecraft, Terraria, Discord Bot or any other game or application.
@@ -65,7 +65,7 @@ Plugins are not implemented yet.
 
 ## Temporary Palworld Integration
 
-A temporary personal Palworld settings editor and REST overview exist before the planned plugin system.
+A temporary personal Palworld settings editor, REST overview and backup manager exist before the planned plugin system.
 
 This feature is intentionally isolated under Palworld-specific backend and frontend boundaries. It is not part of Docker Core and must not add Palworld rules to `DockerContainerService`.
 
@@ -78,6 +78,8 @@ Current responsibilities:
 - Never return plaintext `ServerPassword` or raw INI content.
 - Optionally stop and start only the configured Palworld container after saving.
 - Read native Palworld REST API info, players, settings and metrics through the backend only.
+- Create, list, download, restore and delete Palworld backups from configured backend paths only.
+- Create a pre-restore backup before every restore.
 - Never expose Palworld REST API credentials, player IP addresses or raw external contracts.
 
 This temporary integration should migrate into a future plugin when the plugin foundation exists.
@@ -164,6 +166,8 @@ Temporary Palworld configuration uses environment-specific values:
 
 - `Palworld:ManagedPath`
 - `Palworld__ManagedPath`
+- `Palworld:BackupPath`
+- `Palworld__BackupPath`
 - `Palworld:ContainerName`
 - `Palworld__ContainerName`
 - `Palworld:ConnectionAddress`
@@ -191,12 +195,13 @@ Implemented:
 - Frontend details view
 - Recent logs snapshot view
 - Manual lifecycle actions in the details view
+- Host, Docker summary and container metrics
+- Short in-memory metrics history
 - Friendly Docker-unavailable responses
 - Tests for contracts, mapping and error handling
 
 Not implemented yet:
 
-- Metrics
 - Authentication
 - Authorization
 - Plugins
@@ -212,6 +217,18 @@ The temporary Palworld config endpoints are separate from Docker Core:
 - `PUT /api/palworld/config?restart=true`
 - `GET /api/palworld/overview`
 - `GET /api/palworld/players`
+- `GET /api/palworld/metrics`
+- `GET /api/palworld/backups`
+- `GET /api/palworld/backups/{backupId}`
+- `GET /api/palworld/backups/{backupId}/download`
+- `POST /api/palworld/backups`
+- `POST /api/palworld/backups/{backupId}/restore`
+- `DELETE /api/palworld/backups/{backupId}`
+
+The metrics endpoints are part of the generic operational surface:
+
+- `GET /api/system/metrics`
+- `GET /api/containers/{containerId}/metrics`
 
 ---
 
@@ -250,7 +267,8 @@ The frontend is published only on VPS loopback while authentication does not exi
 - The Docker socket must never be exposed over TCP.
 - GamesHud must not enable Docker remote API.
 - No Docker credentials or host-level secrets may be sent to the frontend.
-- No database or persistent volume is introduced until there is real persistent state.
+- No database is introduced until there is real durable application state beyond filesystem backups.
+- Palworld backups must use a separate backend-only mount from the managed Palworld data path.
 
 ### VPS Operational Boundaries
 

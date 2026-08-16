@@ -29,8 +29,11 @@ Implemented:
 - Configurable Docker endpoint
 - Configurable frontend API URL
 - Local Docker Compose deployment foundation
+- Host, Docker and Palworld metrics
+- Short in-memory metrics history
 - Temporary personal Palworld settings editor isolated outside Docker Core
 - Temporary Palworld REST overview and players view isolated outside Docker Core
+- Temporary Palworld backup management isolated outside Docker Core
 
 Deployment foundation status:
 
@@ -40,7 +43,6 @@ Deployment foundation status:
 
 Planned:
 
-- Metrics
 - Authentication and authorization
 - Public deployment after authentication
 - Plugin foundation
@@ -49,7 +51,6 @@ Planned:
 Not implemented yet:
 
 - Real-time log streaming
-- Metrics
 - Authentication
 - Authorization
 - Plugins
@@ -154,6 +155,12 @@ Backend Docker endpoint:
 
 When this value is empty or unset, Docker.DotNet uses its default local Docker client behavior. Use environment-specific values locally or in deployment, but do not commit personal paths, production endpoints, credentials or local secret files.
 
+Metrics:
+
+- `Metrics__SnapshotIntervalSeconds`
+- `Metrics__RetentionHours`
+- `Metrics__HostDiskPath`
+
 Frontend API base URL:
 
 - `VITE_API_BASE_URL`
@@ -166,17 +173,24 @@ VITE_API_BASE_URL=http://localhost:5258
 
 Local `.env` files are ignored by git and must not be committed.
 
-Temporary Palworld settings editor:
+Temporary Palworld integration:
 
 - `Palworld__ManagedPath`
+- `Palworld__BackupPath`
 - `Palworld__ContainerName`
 - `Palworld__ConnectionAddress`
+- `Palworld__Backups__AutomaticEnabled`
+- `Palworld__Backups__AutomaticIntervalMinutes`
+- `Palworld__Backups__RetentionCount`
+- `Palworld__Backups__RetentionDays`
+- `Palworld__Backups__PreBackupSaveDelaySeconds`
+- `Palworld__Backups__LifecycleTimeoutSeconds`
 - `Palworld__RestApi__BaseUrl`
 - `Palworld__RestApi__Username`
 - `Palworld__RestApi__Password`
 - `Palworld__RestApi__TimeoutSeconds`
 
-The managed path must point to a directory containing `PalWorldSettings.ini`. The container name is the only container targeted by the Palworld Save & Restart flow. Keep `DISABLE_GENERATE_SETTINGS=true` in the Palworld deployment when GamesHud edits the file directly. REST credentials are used only by the backend. Do not commit real VPS paths, server passwords, REST credentials or private container names.
+The managed path must point to the Palworld data directory. The backup path must be a separate directory and must not be inside the managed path. The container name is the only container targeted by Palworld Save & Restart and backup restore flows. Keep `DISABLE_GENERATE_SETTINGS=true` in the Palworld deployment when GamesHud edits the file directly. REST credentials are used only by the backend. Do not commit real VPS paths, server passwords, REST credentials or private container names.
 
 ---
 
@@ -230,7 +244,21 @@ Lifecycle actions are explicit manual operations only. `timeoutSeconds` applies 
 
 If Docker is unavailable, `/health` should still work and Docker-dependent endpoints return friendly service-unavailable responses without stack traces.
 
-Temporary Palworld config:
+Metrics:
+
+```text
+GET /api/system/metrics
+GET /api/system/metrics?historyHours=1
+GET /api/containers/{containerId}/metrics
+GET /api/palworld/metrics
+GET /api/palworld/metrics?historyHours=1
+GET /api/palworld/metrics?historyHours=6
+GET /api/palworld/metrics?historyHours=24
+```
+
+Metrics are lightweight snapshots. Docker stats are read as one-shot snapshots, and short history is kept in memory.
+
+Temporary Palworld integration:
 
 ```text
 GET /api/palworld/config
@@ -238,11 +266,17 @@ PUT /api/palworld/config
 PUT /api/palworld/config?restart=true
 GET /api/palworld/overview
 GET /api/palworld/players
+GET /api/palworld/backups
+GET /api/palworld/backups/{backupId}
+GET /api/palworld/backups/{backupId}/download
+POST /api/palworld/backups
+POST /api/palworld/backups/{backupId}/restore
+DELETE /api/palworld/backups/{backupId}
 ```
 
 `GET` returns a typed settings list with metadata, current values and `hasValue` for protected password settings. It does not return plaintext passwords or raw INI content. Empty password values on `PUT` preserve the current password.
 
-The Palworld overview and players endpoints use GamesHud contracts and sanitize REST API data before returning it to the frontend.
+The Palworld overview, players and backups endpoints use GamesHud contracts and sanitize external data before returning it to the frontend. Backup restore is destructive and requires strong confirmation.
 
 ---
 
@@ -274,7 +308,7 @@ Suggested loopback publication:
 
 The API is not published to the VPS host by default. The frontend proxies `/api` and `/health` to the API over the private Compose network.
 
-For the temporary Palworld config editor, only `gameshud-api` receives the configured Palworld data directory mount. The frontend does not receive the Palworld mount or Docker socket.
+For the temporary Palworld config editor and backup manager, only `gameshud-api` receives the configured Palworld data directory mount and the separate Palworld backup directory mount. The frontend does not receive the Palworld mounts or Docker socket.
 
 Manual commands:
 
@@ -347,6 +381,8 @@ The VPS may already host production containers such as Palworld and Portainer. G
 - [Roadmap](ROADMAP.md)
 - [Development Guide](docs/development.md)
 - [Deployment Guide](docs/deployment.md)
+- [Metrics Guide](docs/metrics.md)
+- [Palworld Backups Guide](docs/palworld-backups.md)
 - [Palworld Settings Guide](docs/palworld-settings.md)
 - [Palworld REST API Guide](docs/palworld-rest-api.md)
 - [API Guidelines](docs/api-guidelines.md)

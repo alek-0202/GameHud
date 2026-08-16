@@ -41,6 +41,10 @@ pnpm-debug.log*
 appsettings.Local.json
 appsettings.*.Local.json
 
+# Local deployment data
+deploy/palworld-data/
+deploy/palworld-backups/
+
 # OS files
 .DS_Store
 Thumbs.db

@@ -2,8 +2,12 @@ import type {
   PalworldConfig,
   PalworldConfigUpdateRequest,
   PalworldConfigUpdateResponse,
+  PalworldBackupSummary,
+  PalworldCreateBackupResponse,
+  PalworldDeleteBackupResponse,
   PalworldOverview,
   PalworldPlayers,
+  PalworldRestoreBackupResponse,
 } from '../types/palworld'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
@@ -28,6 +32,63 @@ export async function fetchPalworldOverview(signal?: AbortSignal): Promise<Palwo
 
 export async function fetchPalworldPlayers(signal?: AbortSignal): Promise<PalworldPlayers> {
   return fetchJson<PalworldPlayers>('/api/palworld/players', signal)
+}
+
+export function resolvePalworldBackupDownloadUrl(downloadUrl: string | null): string | null {
+  return downloadUrl === null ? null : `${apiBaseUrl}${downloadUrl}`
+}
+
+export async function fetchPalworldBackups(signal?: AbortSignal): Promise<PalworldBackupSummary> {
+  return fetchJson<PalworldBackupSummary>('/api/palworld/backups', signal)
+}
+
+export async function createPalworldBackup(
+  note: string | null,
+  signal?: AbortSignal,
+): Promise<PalworldCreateBackupResponse> {
+  return fetchJson<PalworldCreateBackupResponse>('/api/palworld/backups', signal, {
+    body: JSON.stringify({ note }),
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    method: 'POST',
+  })
+}
+
+export async function restorePalworldBackup(
+  backupId: string,
+  confirmationText: string,
+  signal?: AbortSignal,
+): Promise<PalworldRestoreBackupResponse> {
+  return fetchJson<PalworldRestoreBackupResponse>(
+    `/api/palworld/backups/${encodeURIComponent(backupId)}/restore`,
+    signal,
+    {
+      body: JSON.stringify({ confirmationText }),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      method: 'POST',
+    },
+  )
+}
+
+export async function deletePalworldBackup(
+  backupId: string,
+  confirmationText: string,
+  signal?: AbortSignal,
+): Promise<PalworldDeleteBackupResponse> {
+  return fetchJson<PalworldDeleteBackupResponse>(
+    `/api/palworld/backups/${encodeURIComponent(backupId)}`,
+    signal,
+    {
+      body: JSON.stringify({ confirmationText }),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      method: 'DELETE',
+    },
+  )
 }
 
 export async function updatePalworldConfig(
