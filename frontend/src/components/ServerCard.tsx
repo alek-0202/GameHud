@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import type { Container } from '../types/container'
 import type { PalworldConfig } from '../types/palworld'
 import { StatusBadge } from './StatusBadge'
@@ -9,7 +10,6 @@ interface ServerCardProps {
 
 export function ServerCard({ config, container }: ServerCardProps) {
   const serverName = config?.serverName || 'Palworld'
-  const containerName = config?.containerName || container?.name || 'Not configured'
   const state = container?.state || 'Unknown'
 
   return (
@@ -24,12 +24,8 @@ export function ServerCard({ config, container }: ServerCardProps) {
 
       <dl className="server-meta">
         <div>
-          <dt>Container</dt>
-          <dd>{containerName}</dd>
-        </div>
-        <div>
-          <dt>Image</dt>
-          <dd>{container?.image || 'Unavailable'}</dd>
+          <dt>Game</dt>
+          <dd>Palworld</dd>
         </div>
         <div>
           <dt>Status</dt>
@@ -38,7 +34,7 @@ export function ServerCard({ config, container }: ServerCardProps) {
       </dl>
 
       <div className="server-card-actions">
-        <a className="secondary-button" href="#palworld-settings">Manage</a>
+        <Link className="secondary-button" to="/servers/palworld">Manage Server</Link>
       </div>
     </article>
   )

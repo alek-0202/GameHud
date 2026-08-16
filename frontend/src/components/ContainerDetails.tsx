@@ -60,7 +60,7 @@ export function ContainerDetails({ containerId, onBack }: ContainerDetailsProps)
   return (
     <section className="container-details-section" aria-label="Container details">
       <button className="secondary-button" type="button" onClick={onBack}>
-        Back to dashboard
+        Back to containers
       </button>
 
       {state.status === 'loading' && <p className="state-message">Loading container details...</p>}

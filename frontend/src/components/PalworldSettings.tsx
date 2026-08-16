@@ -4,10 +4,8 @@ import {
   fetchPalworldConfig,
   updatePalworldConfig,
 } from '../api/palworld'
-import type { Container } from '../types/container'
 import type { PalworldConfig, PalworldConfigUpdateRequest } from '../types/palworld'
 import { SectionHeader } from './SectionHeader'
-import { StatusBadge } from './StatusBadge'
 
 type LoadState =
   | { status: 'loading' }
@@ -46,16 +44,22 @@ interface PalworldFormState {
 const deathPenaltyOptions = ['None', 'Item', 'ItemAndEquipment', 'All'] as const
 
 interface PalworldSettingsProps {
-  container: Container | null
-  onConfigLoaded: (config: PalworldConfig) => void
+  initialConfig?: PalworldConfig | null
+  onConfigLoaded?: (config: PalworldConfig) => void
 }
 
 export function PalworldSettings({
-  container,
+  initialConfig = null,
   onConfigLoaded,
 }: PalworldSettingsProps) {
-  const [state, setState] = useState<LoadState>({ status: 'loading' })
-  const [form, setForm] = useState<PalworldFormState>(createEmptyForm())
+  const [state, setState] = useState<LoadState>(
+    initialConfig === null
+      ? { status: 'loading' }
+      : { status: 'success', config: initialConfig },
+  )
+  const [form, setForm] = useState<PalworldFormState>(
+    initialConfig === null ? createEmptyForm() : createFormFromConfig(initialConfig),
+  )
   const [feedback, setFeedback] = useState<Feedback | null>(null)
   const [pendingOperation, setPendingOperation] = useState<Operation | null>(null)
   const [isRestartConfirmationOpen, setIsRestartConfirmationOpen] = useState(false)
@@ -85,7 +89,7 @@ export function PalworldSettings({
       if (isMountedRef.current) {
         setState({ status: 'success', config })
         setForm(createFormFromConfig(config))
-        onConfigLoaded(config)
+        onConfigLoaded?.(config)
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
@@ -121,7 +125,7 @@ export function PalworldSettings({
       if (isMountedRef.current) {
         setState({ status: 'success', config: reloadedConfig })
         setForm(createFormFromConfig(reloadedConfig))
-        onConfigLoaded(reloadedConfig)
+        onConfigLoaded?.(reloadedConfig)
         setFeedback({
           type: 'success',
           message: result.message,
@@ -149,26 +153,13 @@ export function PalworldSettings({
   }
 
   return (
-    <section className="palworld-section" id="palworld-settings" aria-labelledby="palworld-title">
-      <div className="palworld-hero">
-        <div>
-          <span className="section-eyebrow">Game server administration</span>
-          <h2 id="palworld-title">Palworld</h2>
-          <p>
-            {state.status === 'success'
-              ? state.config.serverName || state.config.containerName
-              : 'Temporary quick config'}
-          </p>
-        </div>
-        <StatusBadge state={container?.state || 'Unknown'} />
-      </div>
-
-      <div className="tab-strip" aria-label="Palworld sections">
-        <span className="tab-item tab-item-disabled">Overview</span>
-        <span className="tab-item tab-item-active">Settings</span>
-        <span className="tab-item tab-item-disabled">Logs</span>
-        <span className="tab-item tab-item-disabled">Backups</span>
-      </div>
+    <section className="page-section" aria-labelledby="palworld-settings-title">
+      <SectionHeader
+        eyebrow="Settings"
+        titleId="palworld-settings-title"
+        title="Palworld Settings"
+        description="Supported quick config values. Empty password preserves the current server password."
+      />
 
       {state.status === 'loading' && (
         <p className="state-message">Loading Palworld settings...</p>
@@ -192,23 +183,6 @@ export function PalworldSettings({
 
       {state.status === 'success' && (
         <>
-          <section className="server-summary-panel" aria-label="Palworld server summary">
-            <dl className="server-meta">
-              <div>
-                <dt>Container</dt>
-                <dd>{state.config.containerName}</dd>
-              </div>
-              <div>
-                <dt>Status</dt>
-                <dd>{container?.status || 'Unavailable'}</dd>
-              </div>
-              <div>
-                <dt>Image</dt>
-                <dd>{container?.image || 'Unavailable'}</dd>
-              </div>
-            </dl>
-          </section>
-
           <form
             className="palworld-form"
             onSubmit={(event) => {
@@ -219,15 +193,24 @@ export function PalworldSettings({
             <fieldset className="settings-group">
               <SectionHeader
                 title="Gameplay"
-                description="Rates and world rules saved to the supported Palworld settings."
+                description="Combat, progression and work pacing."
               />
               <div className="settings-grid">
                 <NumberField label="Experience rate" value={form.expRate} onChange={(value) => updateForm('expRate', value)} />
                 <NumberField label="Player damage" value={form.playerDamageRateAttack} onChange={(value) => updateForm('playerDamageRateAttack', value)} />
                 <NumberField label="Capture rate" value={form.palCaptureRate} onChange={(value) => updateForm('palCaptureRate', value)} />
+                <NumberField label="Work speed" value={form.workSpeedRate} onChange={(value) => updateForm('workSpeedRate', value)} />
+              </div>
+            </fieldset>
+
+            <fieldset className="settings-group">
+              <SectionHeader
+                title="World"
+                description="Survival, drops, incubation and death behavior."
+              />
+              <div className="settings-grid">
                 <NumberField label="Hunger rate" value={form.playerStomachDecreaceRate} onChange={(value) => updateForm('playerStomachDecreaceRate', value)} />
                 <NumberField label="Stamina rate" value={form.playerStaminaDecreaceRate} onChange={(value) => updateForm('playerStaminaDecreaceRate', value)} />
-                <NumberField label="Work speed" value={form.workSpeedRate} onChange={(value) => updateForm('workSpeedRate', value)} />
                 <NumberField label="Gather/drop rate" value={form.collectionDropRate} onChange={(value) => updateForm('collectionDropRate', value)} />
                 <NumberField label="Enemy drop rate" value={form.enemyDropItemRate} onChange={(value) => updateForm('enemyDropItemRate', value)} />
                 <NumberField label="Incubation" value={form.palEggDefaultHatchingTime} onChange={(value) => updateForm('palEggDefaultHatchingTime', value)} />
@@ -251,8 +234,20 @@ export function PalworldSettings({
 
             <fieldset className="settings-group">
               <SectionHeader
+                title="Limits"
+                description="Guild, base and worker limits."
+              />
+              <div className="settings-grid settings-grid-limits">
+                <NumberField label="Guild player max" step="1" value={form.guildPlayerMaxNum} onChange={(value) => updateForm('guildPlayerMaxNum', value)} />
+                <NumberField label="Base max" step="1" value={form.baseCampMaxNum} onChange={(value) => updateForm('baseCampMaxNum', value)} />
+                <NumberField label="Worker max" step="1" value={form.baseCampWorkerMaxNum} onChange={(value) => updateForm('baseCampWorkerMaxNum', value)} />
+              </div>
+            </fieldset>
+
+            <fieldset className="settings-group">
+              <SectionHeader
                 title="Server"
-                description="Identity, password replacement and base limits."
+                description="Public name and optional password replacement."
               />
               <div className="settings-grid settings-grid-server">
                 <TextField
@@ -266,9 +261,6 @@ export function PalworldSettings({
                   value={form.serverPassword}
                   onChange={(value) => updateForm('serverPassword', value)}
                 />
-                <NumberField label="Guild player max" step="1" value={form.guildPlayerMaxNum} onChange={(value) => updateForm('guildPlayerMaxNum', value)} />
-                <NumberField label="Base max" step="1" value={form.baseCampMaxNum} onChange={(value) => updateForm('baseCampMaxNum', value)} />
-                <NumberField label="Worker max" step="1" value={form.baseCampWorkerMaxNum} onChange={(value) => updateForm('baseCampWorkerMaxNum', value)} />
               </div>
             </fieldset>
 
