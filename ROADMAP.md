@@ -152,7 +152,8 @@ Status: Planned
 
 Temporary note:
 
-- A minimal personal Palworld settings editor exists before the plugin foundation.
+- A personal Palworld settings editor exists before the plugin foundation.
+- A personal Palworld REST overview and players view exists before the plugin foundation.
 - It is not the plugin system and should be migrated after v0.9.
 
 ---

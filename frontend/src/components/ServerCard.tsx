@@ -1,16 +1,23 @@
 import { Link } from 'react-router-dom'
 import type { Container } from '../types/container'
-import type { PalworldConfig } from '../types/palworld'
+import type { PalworldConfig, PalworldOverview } from '../types/palworld'
+import { formatDuration, formatPlayerLimit, getInitials } from '../utils/palworldDisplay'
+import { getPalworldServerName } from '../utils/palworldSettings'
 import { StatusBadge } from './StatusBadge'
 
 interface ServerCardProps {
   config: PalworldConfig | null
   container: Container | null
+  overview?: PalworldOverview | null
 }
 
-export function ServerCard({ config, container }: ServerCardProps) {
-  const serverName = config?.serverName || 'Palworld'
-  const state = container?.state || 'Unknown'
+export function ServerCard({ config, container, overview = null }: ServerCardProps) {
+  const serverName = overview?.displayName || getPalworldServerName(config)
+  const state = overview?.healthLabel || container?.state || 'Unknown'
+  const onlinePlayers = overview?.onlinePlayers ?? 0
+  const maxPlayers = overview?.maxPlayers ?? null
+  const visiblePlayers = overview?.players.slice(0, 4) ?? []
+  const remainingPlayers = Math.max(0, onlinePlayers - visiblePlayers.length)
 
   return (
     <article className="server-card">
@@ -24,12 +31,34 @@ export function ServerCard({ config, container }: ServerCardProps) {
 
       <dl className="server-meta">
         <div>
-          <dt>Game</dt>
-          <dd>Palworld</dd>
+          <dt>Players Online</dt>
+          <dd>{formatPlayerLimit(onlinePlayers, maxPlayers)}</dd>
         </div>
         <div>
-          <dt>Status</dt>
-          <dd>{container?.status || 'Unavailable'}</dd>
+          <dt>Uptime</dt>
+          <dd>{formatDuration(overview?.uptimeSeconds ?? null)}</dd>
+        </div>
+        <div>
+          <dt>Version</dt>
+          <dd>{overview?.version ?? 'Unknown'}</dd>
+        </div>
+        <div>
+          <dt>Players</dt>
+          <dd>
+            {visiblePlayers.length === 0 ? (
+              'No players online'
+            ) : (
+              <span className="inline-player-list">
+                {visiblePlayers.map((player) => (
+                  <span className="player-chip" key={player.publicId ?? player.name}>
+                    <span>{getInitials(player.name)}</span>
+                    {player.name}
+                  </span>
+                ))}
+                {remainingPlayers > 0 && <span>+{remainingPlayers}</span>}
+              </span>
+            )}
+          </dd>
         </div>
       </dl>
 

@@ -63,9 +63,9 @@ Examples of future plugin responsibilities:
 
 Plugins are not implemented yet.
 
-## Temporary Palworld Quick Config
+## Temporary Palworld Integration
 
-A temporary personal Palworld settings editor exists before the planned plugin system.
+A temporary personal Palworld settings editor and REST overview exist before the planned plugin system.
 
 This feature is intentionally isolated under Palworld-specific backend and frontend boundaries. It is not part of Docker Core and must not add Palworld rules to `DockerContainerService`.
 
@@ -77,6 +77,8 @@ Current responsibilities:
 - Create a backup before writing.
 - Never return plaintext `ServerPassword` or raw INI content.
 - Optionally stop and start only the configured Palworld container after saving.
+- Read native Palworld REST API info, players, settings and metrics through the backend only.
+- Never expose Palworld REST API credentials, player IP addresses or raw external contracts.
 
 This temporary integration should migrate into a future plugin when the plugin foundation exists.
 
@@ -164,6 +166,10 @@ Temporary Palworld configuration uses environment-specific values:
 - `Palworld__ManagedPath`
 - `Palworld:ContainerName`
 - `Palworld__ContainerName`
+- `Palworld:ConnectionAddress`
+- `Palworld__ConnectionAddress`
+- `Palworld:RestApi:*`
+- `Palworld__RestApi__*`
 
 The client must never provide filesystem paths.
 
@@ -204,6 +210,8 @@ The temporary Palworld config endpoints are separate from Docker Core:
 - `GET /api/palworld/config`
 - `PUT /api/palworld/config`
 - `PUT /api/palworld/config?restart=true`
+- `GET /api/palworld/overview`
+- `GET /api/palworld/players`
 
 ---
 

@@ -1,10 +1,16 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useBeforeUnload, useBlocker } from 'react-router-dom'
 import {
   PalworldApiRequestError,
   fetchPalworldConfig,
   updatePalworldConfig,
 } from '../api/palworld'
-import type { PalworldConfig, PalworldConfigUpdateRequest } from '../types/palworld'
+import type {
+  PalworldConfig,
+  PalworldConfigUpdateRequest,
+  PalworldSetting,
+} from '../types/palworld'
+import { getPalworldServerName } from '../utils/palworldSettings'
 import { SectionHeader } from './SectionHeader'
 
 type LoadState =
@@ -23,25 +29,13 @@ type Feedback = {
   message: string
 }
 
-interface PalworldFormState {
-  serverName: string
-  serverPassword: string
-  expRate: string
-  playerDamageRateAttack: string
-  palCaptureRate: string
-  playerStomachDecreaceRate: string
-  playerStaminaDecreaceRate: string
-  workSpeedRate: string
-  collectionDropRate: string
-  enemyDropItemRate: string
-  palEggDefaultHatchingTime: string
-  deathPenalty: string
-  guildPlayerMaxNum: string
-  baseCampMaxNum: string
-  baseCampWorkerMaxNum: string
-}
+type EditorMode = 'basic' | 'advanced'
 
-const deathPenaltyOptions = ['None', 'Item', 'ItemAndEquipment', 'All'] as const
+type FormValues = Record<string, string>
+
+type ChangedSetting = PalworldSetting & {
+  pendingValue: string
+}
 
 interface PalworldSettingsProps {
   initialConfig?: PalworldConfig | null
@@ -57,16 +51,61 @@ export function PalworldSettings({
       ? { status: 'loading' }
       : { status: 'success', config: initialConfig },
   )
-  const [form, setForm] = useState<PalworldFormState>(
-    initialConfig === null ? createEmptyForm() : createFormFromConfig(initialConfig),
+  const [values, setValues] = useState<FormValues>(
+    initialConfig === null ? {} : createValuesFromConfig(initialConfig),
   )
+  const [baselineValues, setBaselineValues] = useState<FormValues>(
+    initialConfig === null ? {} : createValuesFromConfig(initialConfig),
+  )
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({})
+  const [searchTerm, setSearchTerm] = useState('')
+  const [mode, setMode] = useState<EditorMode>('basic')
   const [feedback, setFeedback] = useState<Feedback | null>(null)
   const [pendingOperation, setPendingOperation] = useState<Operation | null>(null)
   const [isRestartConfirmationOpen, setIsRestartConfirmationOpen] = useState(false)
   const activeAbortControllerRef = useRef<AbortController | null>(null)
   const isMountedRef = useRef(true)
 
+  const config = state.status === 'success' ? state.config : null
+  const changedSettings = useMemo(
+    () => (config === null ? [] : getChangedSettings(config.settings, values, baselineValues)),
+    [baselineValues, config, values],
+  )
+  const changedCount = changedSettings.length
+  const hasPendingChanges = changedCount > 0
   const isProcessing = pendingOperation !== null
+  const groupedSettings = useMemo(
+    () => (config === null ? [] : groupSettings(config.settings, values, baselineValues, mode, searchTerm)),
+    [baselineValues, config, mode, searchTerm, values],
+  )
+  const blocker = useBlocker(hasPendingChanges)
+
+  useBeforeUnload(
+    useCallback(
+      (event) => {
+        if (!hasPendingChanges) {
+          return
+        }
+
+        event.preventDefault()
+        event.returnValue = ''
+      },
+      [hasPendingChanges],
+    ),
+  )
+
+  useEffect(() => {
+    if (blocker.state !== 'blocked') {
+      return
+    }
+
+    if (window.confirm('You have unsaved Palworld setting changes. Leave this page?')) {
+      blocker.proceed()
+      return
+    }
+
+    blocker.reset()
+  }, [blocker])
 
   useEffect(() => {
     void loadConfig()
@@ -77,6 +116,22 @@ export function PalworldSettings({
     }
   }, [])
 
+  useEffect(() => {
+    if (config === null) {
+      return
+    }
+
+    setExpandedCategories((current) => {
+      const next = { ...current }
+
+      for (const category of getCategories(config.settings)) {
+        next[category] ??= true
+      }
+
+      return next
+    })
+  }, [config])
+
   async function loadConfig() {
     const abortController = new AbortController()
     activeAbortControllerRef.current = abortController
@@ -84,12 +139,10 @@ export function PalworldSettings({
     try {
       setState({ status: 'loading' })
 
-      const config = await fetchPalworldConfig(abortController.signal)
+      const loadedConfig = await fetchPalworldConfig(abortController.signal)
 
       if (isMountedRef.current) {
-        setState({ status: 'success', config })
-        setForm(createFormFromConfig(config))
-        onConfigLoaded?.(config)
+        acceptConfig(loadedConfig)
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
@@ -103,7 +156,7 @@ export function PalworldSettings({
   }
 
   async function submitForm(operation: Operation) {
-    if (isProcessing) {
+    if (isProcessing || changedCount === 0) {
       return
     }
 
@@ -114,18 +167,15 @@ export function PalworldSettings({
       setPendingOperation(operation)
       setFeedback(null)
 
-      const request = createUpdateRequest(form)
+      const request = createUpdateRequest(changedSettings)
       const result = await updatePalworldConfig(
         request,
         operation === 'restart',
         abortController.signal,
       )
-      const reloadedConfig = await fetchPalworldConfig(abortController.signal)
 
       if (isMountedRef.current) {
-        setState({ status: 'success', config: reloadedConfig })
-        setForm(createFormFromConfig(reloadedConfig))
-        onConfigLoaded?.(reloadedConfig)
+        acceptConfig(result.config)
         setFeedback({
           type: 'success',
           message: result.message,
@@ -152,13 +202,48 @@ export function PalworldSettings({
     }
   }
 
+  function acceptConfig(loadedConfig: PalworldConfig) {
+    const nextValues = createValuesFromConfig(loadedConfig)
+
+    setState({ status: 'success', config: loadedConfig })
+    setValues(nextValues)
+    setBaselineValues(nextValues)
+    onConfigLoaded?.(loadedConfig)
+  }
+
+  function updateValue(key: string, value: string) {
+    setValues((currentValues) => ({
+      ...currentValues,
+      [key]: value,
+    }))
+  }
+
+  function resetSetting(key: string) {
+    setValues((currentValues) => ({
+      ...currentValues,
+      [key]: baselineValues[key] ?? '',
+    }))
+  }
+
+  function resetCategory(settingKeys: string[]) {
+    setValues((currentValues) => {
+      const nextValues = { ...currentValues }
+
+      for (const settingKey of settingKeys) {
+        nextValues[settingKey] = baselineValues[settingKey] ?? ''
+      }
+
+      return nextValues
+    })
+  }
+
   return (
     <section className="page-section" aria-labelledby="palworld-settings-title">
       <SectionHeader
         eyebrow="Settings"
         titleId="palworld-settings-title"
         title="Palworld Settings"
-        description="Supported quick config values. Empty password preserves the current server password."
+        description="World, server and lifecycle-sensitive settings from PalWorldSettings.ini."
       />
 
       {state.status === 'loading' && (
@@ -181,7 +266,7 @@ export function PalworldSettings({
         <p className="state-message state-message-error">Unable to load Palworld settings.</p>
       )}
 
-      {state.status === 'success' && (
+      {config !== null && (
         <>
           <form
             className="palworld-form"
@@ -190,87 +275,112 @@ export function PalworldSettings({
               void submitForm('save')
             }}
           >
-            <fieldset className="settings-group">
-              <SectionHeader
-                title="Gameplay"
-                description="Combat, progression and work pacing."
-              />
-              <div className="settings-grid">
-                <NumberField label="Experience rate" value={form.expRate} onChange={(value) => updateForm('expRate', value)} />
-                <NumberField label="Player damage" value={form.playerDamageRateAttack} onChange={(value) => updateForm('playerDamageRateAttack', value)} />
-                <NumberField label="Capture rate" value={form.palCaptureRate} onChange={(value) => updateForm('palCaptureRate', value)} />
-                <NumberField label="Work speed" value={form.workSpeedRate} onChange={(value) => updateForm('workSpeedRate', value)} />
-              </div>
-            </fieldset>
-
-            <fieldset className="settings-group">
-              <SectionHeader
-                title="World"
-                description="Survival, drops, incubation and death behavior."
-              />
-              <div className="settings-grid">
-                <NumberField label="Hunger rate" value={form.playerStomachDecreaceRate} onChange={(value) => updateForm('playerStomachDecreaceRate', value)} />
-                <NumberField label="Stamina rate" value={form.playerStaminaDecreaceRate} onChange={(value) => updateForm('playerStaminaDecreaceRate', value)} />
-                <NumberField label="Gather/drop rate" value={form.collectionDropRate} onChange={(value) => updateForm('collectionDropRate', value)} />
-                <NumberField label="Enemy drop rate" value={form.enemyDropItemRate} onChange={(value) => updateForm('enemyDropItemRate', value)} />
-                <NumberField label="Incubation" value={form.palEggDefaultHatchingTime} onChange={(value) => updateForm('palEggDefaultHatchingTime', value)} />
-                <label className="form-field">
-                  <span>Death penalty</span>
-                  <select
-                    disabled={isProcessing}
-                    value={form.deathPenalty}
-                    onChange={(event) => updateForm('deathPenalty', event.target.value)}
-                  >
-                    <option value="">Preserve current value</option>
-                    {deathPenaltyOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            </fieldset>
-
-            <fieldset className="settings-group">
-              <SectionHeader
-                title="Limits"
-                description="Guild, base and worker limits."
-              />
-              <div className="settings-grid settings-grid-limits">
-                <NumberField label="Guild player max" step="1" value={form.guildPlayerMaxNum} onChange={(value) => updateForm('guildPlayerMaxNum', value)} />
-                <NumberField label="Base max" step="1" value={form.baseCampMaxNum} onChange={(value) => updateForm('baseCampMaxNum', value)} />
-                <NumberField label="Worker max" step="1" value={form.baseCampWorkerMaxNum} onChange={(value) => updateForm('baseCampWorkerMaxNum', value)} />
-              </div>
-            </fieldset>
-
-            <fieldset className="settings-group">
-              <SectionHeader
-                title="Server"
-                description="Public name and optional password replacement."
-              />
-              <div className="settings-grid settings-grid-server">
-                <TextField
-                  label="Server name"
-                  value={form.serverName}
-                  onChange={(value) => updateForm('serverName', value)}
+            <div className="palworld-toolbar">
+              <label className="form-field palworld-search">
+                <span>Search settings</span>
+                <input
+                  disabled={isProcessing}
+                  type="search"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
                 />
-                <TextField
-                  label={state.config.hasServerPassword ? 'New server password' : 'Server password'}
-                  type="password"
-                  value={form.serverPassword}
-                  onChange={(value) => updateForm('serverPassword', value)}
-                />
+              </label>
+
+              <div className="segmented-control" aria-label="Palworld setting mode">
+                <button
+                  aria-pressed={mode === 'basic'}
+                  className={mode === 'basic' ? 'segmented-control-active' : ''}
+                  disabled={isProcessing}
+                  type="button"
+                  onClick={() => setMode('basic')}
+                >
+                  Basic
+                </button>
+                <button
+                  aria-pressed={mode === 'advanced'}
+                  className={mode === 'advanced' ? 'segmented-control-active' : ''}
+                  disabled={isProcessing}
+                  type="button"
+                  onClick={() => setMode('advanced')}
+                >
+                  Advanced
+                </button>
               </div>
-            </fieldset>
+
+              <div className="pending-count" aria-live="polite">
+                <strong>{changedCount}</strong>
+                <span>Pending</span>
+              </div>
+            </div>
+
+            {groupedSettings.length === 0 && (
+              <p className="empty-message">No settings match the current search.</p>
+            )}
+
+            {groupedSettings.map((group) => {
+              const isExpanded = expandedCategories[group.category] ?? true
+              const categoryChangedCount = group.settings.filter((setting) => setting.isChanged).length
+
+              return (
+                <fieldset className="settings-group" key={group.category}>
+                  <div className="settings-category-header">
+                    <button
+                      aria-expanded={isExpanded}
+                      className="settings-category-toggle"
+                      type="button"
+                      onClick={() => {
+                        setExpandedCategories((current) => ({
+                          ...current,
+                          [group.category]: !isExpanded,
+                        }))
+                      }}
+                    >
+                      <span>{isExpanded ? '-' : '+'}</span>
+                      <strong>{group.category}</strong>
+                    </button>
+                    <div className="settings-category-actions">
+                      <span>{categoryChangedCount} changed</span>
+                      <button
+                        className="secondary-button compact-button"
+                        disabled={isProcessing || categoryChangedCount === 0}
+                        type="button"
+                        onClick={() => resetCategory(group.settings.map((setting) => setting.key))}
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+
+                  {isExpanded && (
+                    <div className="settings-grid settings-grid-editor">
+                      {group.settings.map((setting) => (
+                        <SettingField
+                          disabled={isProcessing}
+                          isChanged={setting.isChanged}
+                          key={setting.key}
+                          setting={setting}
+                          value={values[setting.key] ?? ''}
+                          onChange={(value) => updateValue(setting.key, value)}
+                          onReset={() => resetSetting(setting.key)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </fieldset>
+              )
+            })}
 
             <div className="palworld-actions">
-              <button className="primary-button" disabled={isProcessing} type="submit">
+              <button
+                className="primary-button"
+                disabled={isProcessing || changedCount === 0}
+                type="submit"
+              >
                 {pendingOperation === 'save' ? 'Saving...' : 'Save'}
               </button>
               <button
                 className="danger-button"
-                disabled={isProcessing}
+                disabled={isProcessing || changedCount === 0}
                 type="button"
                 onClick={() => setIsRestartConfirmationOpen(true)}
               >
@@ -295,8 +405,10 @@ export function PalworldSettings({
 
           {isRestartConfirmationOpen && (
             <ConfirmPalworldRestartDialog
-              containerName={state.config.containerName}
+              changedCount={changedCount}
+              containerName={config.containerName}
               isProcessing={isProcessing}
+              serverName={getPalworldServerName(config)}
               onCancel={() => setIsRestartConfirmationOpen(false)}
               onConfirm={() => {
                 void submitForm('restart')
@@ -307,64 +419,137 @@ export function PalworldSettings({
       )}
     </section>
   )
-
-  function updateForm(field: keyof PalworldFormState, value: string) {
-    setForm((currentForm) => ({
-      ...currentForm,
-      [field]: value,
-    }))
-  }
 }
 
-interface FieldProps {
-  label: string
+interface SettingFieldProps {
+  disabled: boolean
+  isChanged: boolean
+  setting: PalworldSetting
   value: string
   onChange: (value: string) => void
+  onReset: () => void
 }
 
-function TextField({ label, value, onChange, type = 'text' }: FieldProps & { type?: 'text' | 'password' }) {
+function SettingField({
+  disabled,
+  isChanged,
+  setting,
+  value,
+  onChange,
+  onReset,
+}: SettingFieldProps) {
   return (
-    <label className="form-field">
-      <span>{label}</span>
-      <input
-        type={type}
+    <div className={isChanged ? 'setting-card setting-card-changed' : 'setting-card'}>
+      <div className="setting-card-header">
+        <label className="setting-label" htmlFor={`palworld-setting-${setting.key}`}>
+          {setting.label}
+        </label>
+        <button
+          className="secondary-button compact-button"
+          disabled={disabled || !isChanged}
+          type="button"
+          onClick={onReset}
+        >
+          Reset
+        </button>
+      </div>
+      <p>{setting.description}</p>
+      <SettingControl
+        disabled={disabled}
+        setting={setting}
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={onChange}
       />
-    </label>
+      <div className="setting-meta">
+        <code>{setting.key}</code>
+        {setting.defaultValue !== null && <span>Default {setting.defaultValue}</span>}
+        {setting.securitySensitive && <span>Security</span>}
+      </div>
+    </div>
   )
 }
 
-function NumberField({
-  label,
+function SettingControl({
+  disabled,
+  setting,
   value,
   onChange,
-  step = '0.1',
-}: FieldProps & { step?: string }) {
-  return (
-    <label className="form-field">
-      <span>{label}</span>
+}: Omit<SettingFieldProps, 'isChanged' | 'onReset'>) {
+  const inputId = `palworld-setting-${setting.key}`
+
+  if (setting.type === 'boolean') {
+    return (
+      <label className="switch-field" htmlFor={inputId}>
+        <input
+          checked={value.toLowerCase() === 'true'}
+          disabled={disabled}
+          id={inputId}
+          type="checkbox"
+          onChange={(event) => onChange(event.target.checked ? 'True' : 'False')}
+        />
+        <span aria-hidden="true" />
+      </label>
+    )
+  }
+
+  if (setting.type === 'select') {
+    return (
+      <select
+        disabled={disabled}
+        id={inputId}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        {setting.options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    )
+  }
+
+  if (setting.type === 'integer' || setting.type === 'decimal') {
+    return (
       <input
-        min="0"
-        step={step}
+        disabled={disabled}
+        id={inputId}
+        max={setting.max ?? undefined}
+        min={setting.min ?? undefined}
+        step={setting.step ?? (setting.type === 'integer' ? 1 : 0.1)}
         type="number"
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
-    </label>
+    )
+  }
+
+  return (
+    <input
+      disabled={disabled}
+      id={inputId}
+      placeholder={setting.type === 'password' && setting.hasValue ? 'Current value is protected' : undefined}
+      type={setting.type === 'password' ? 'password' : 'text'}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+    />
   )
 }
 
 interface ConfirmPalworldRestartDialogProps {
+  changedCount: number
   containerName: string
   isProcessing: boolean
+  serverName: string
   onCancel: () => void
   onConfirm: () => void
 }
 
 function ConfirmPalworldRestartDialog({
+  changedCount,
   containerName,
   isProcessing,
+  serverName,
   onCancel,
   onConfirm,
 }: ConfirmPalworldRestartDialogProps) {
@@ -377,10 +562,10 @@ function ConfirmPalworldRestartDialog({
         className="modal-panel"
         role="dialog"
       >
-        <h4 id="palworld-restart-title">Save and restart Palworld</h4>
+        <h4 id="palworld-restart-title">Save and restart {serverName}</h4>
         <p id="palworld-restart-description">
-          This will stop and start {containerName}. Connected players will be disconnected and
-          the server will have temporary downtime.
+          This applies {changedCount} setting changes to {containerName}. Connected players will
+          be disconnected and the server will have temporary downtime.
         </p>
         <div className="modal-actions">
           <button
@@ -393,7 +578,7 @@ function ConfirmPalworldRestartDialog({
           </button>
           <button
             className="danger-button"
-            disabled={isProcessing}
+            disabled={isProcessing || changedCount === 0}
             type="button"
             onClick={onConfirm}
           >
@@ -405,80 +590,90 @@ function ConfirmPalworldRestartDialog({
   )
 }
 
-function createFormFromConfig(config: PalworldConfig): PalworldFormState {
+function createValuesFromConfig(config: PalworldConfig): FormValues {
+  return Object.fromEntries(
+    config.settings.map((setting) => [
+      setting.key,
+      setting.type === 'password' ? '' : setting.value ?? setting.defaultValue ?? '',
+    ]),
+  )
+}
+
+function getChangedSettings(
+  settings: PalworldSetting[],
+  values: FormValues,
+  baselineValues: FormValues,
+) {
+  return settings.reduce<ChangedSetting[]>((changedSettings, setting) => {
+    const value = normalizeFormValue(setting, values[setting.key] ?? '')
+    const baselineValue = normalizeFormValue(setting, baselineValues[setting.key] ?? '')
+
+    if (setting.type === 'password') {
+      if (value.length > 0) {
+        changedSettings.push({ ...setting, pendingValue: value })
+      }
+
+      return changedSettings
+    }
+
+    if (value !== baselineValue) {
+      changedSettings.push({ ...setting, pendingValue: value })
+    }
+
+    return changedSettings
+  }, [])
+}
+
+function createUpdateRequest(settings: ChangedSetting[]): PalworldConfigUpdateRequest {
   return {
-    serverName: config.serverName ?? '',
-    serverPassword: '',
-    expRate: formatNumber(config.expRate),
-    playerDamageRateAttack: formatNumber(config.playerDamageRateAttack),
-    palCaptureRate: formatNumber(config.palCaptureRate),
-    playerStomachDecreaceRate: formatNumber(config.playerStomachDecreaceRate),
-    playerStaminaDecreaceRate: formatNumber(config.playerStaminaDecreaceRate),
-    workSpeedRate: formatNumber(config.workSpeedRate),
-    collectionDropRate: formatNumber(config.collectionDropRate),
-    enemyDropItemRate: formatNumber(config.enemyDropItemRate),
-    palEggDefaultHatchingTime: formatNumber(config.palEggDefaultHatchingTime),
-    deathPenalty: config.deathPenalty ?? '',
-    guildPlayerMaxNum: formatNumber(config.guildPlayerMaxNum),
-    baseCampMaxNum: formatNumber(config.baseCampMaxNum),
-    baseCampWorkerMaxNum: formatNumber(config.baseCampWorkerMaxNum),
+    settings: settings.map((setting) => ({
+      key: setting.key,
+      value: setting.pendingValue,
+    })),
   }
 }
 
-function createEmptyForm(): PalworldFormState {
-  return {
-    serverName: '',
-    serverPassword: '',
-    expRate: '',
-    playerDamageRateAttack: '',
-    palCaptureRate: '',
-    playerStomachDecreaceRate: '',
-    playerStaminaDecreaceRate: '',
-    workSpeedRate: '',
-    collectionDropRate: '',
-    enemyDropItemRate: '',
-    palEggDefaultHatchingTime: '',
-    deathPenalty: '',
-    guildPlayerMaxNum: '',
-    baseCampMaxNum: '',
-    baseCampWorkerMaxNum: '',
+function normalizeFormValue(setting: PalworldSetting, value: string) {
+  if (setting.type === 'string' || setting.type === 'password') {
+    return value.trim()
   }
+
+  return value
 }
 
-function createUpdateRequest(form: PalworldFormState): PalworldConfigUpdateRequest {
-  return {
-    serverName: optionalText(form.serverName),
-    serverPassword: optionalText(form.serverPassword),
-    expRate: optionalNumber(form.expRate),
-    playerDamageRateAttack: optionalNumber(form.playerDamageRateAttack),
-    palCaptureRate: optionalNumber(form.palCaptureRate),
-    playerStomachDecreaceRate: optionalNumber(form.playerStomachDecreaceRate),
-    playerStaminaDecreaceRate: optionalNumber(form.playerStaminaDecreaceRate),
-    workSpeedRate: optionalNumber(form.workSpeedRate),
-    collectionDropRate: optionalNumber(form.collectionDropRate),
-    enemyDropItemRate: optionalNumber(form.enemyDropItemRate),
-    palEggDefaultHatchingTime: optionalNumber(form.palEggDefaultHatchingTime),
-    deathPenalty: optionalText(form.deathPenalty),
-    guildPlayerMaxNum: optionalNumber(form.guildPlayerMaxNum),
-    baseCampMaxNum: optionalNumber(form.baseCampMaxNum),
-    baseCampWorkerMaxNum: optionalNumber(form.baseCampWorkerMaxNum),
-  }
+function getCategories(settings: PalworldSetting[]) {
+  return [...new Set(settings.map((setting) => setting.category))]
 }
 
-function formatNumber(value: number | null) {
-  return value === null ? '' : value.toString()
-}
+function groupSettings(
+  settings: PalworldSetting[],
+  values: FormValues,
+  baselineValues: FormValues,
+  mode: EditorMode,
+  searchTerm: string,
+) {
+  const normalizedSearch = searchTerm.trim().toLowerCase()
+  const filteredSettings = settings
+    .filter((setting) => mode === 'advanced' || !setting.advanced)
+    .filter((setting) => {
+      if (normalizedSearch.length === 0) {
+        return true
+      }
 
-function optionalText(value: string) {
-  const trimmedValue = value.trim()
+      return setting.label.toLowerCase().includes(normalizedSearch)
+        || setting.description.toLowerCase().includes(normalizedSearch)
+        || (mode === 'advanced' && setting.key.toLowerCase().includes(normalizedSearch))
+    })
 
-  return trimmedValue.length === 0 ? null : trimmedValue
-}
-
-function optionalNumber(value: string) {
-  const trimmedValue = value.trim()
-
-  return trimmedValue.length === 0 ? null : Number(trimmedValue)
+  return getCategories(filteredSettings).map((category) => ({
+    category,
+    settings: filteredSettings
+      .filter((setting) => setting.category === category)
+      .map((setting) => ({
+        ...setting,
+        isChanged: getChangedSettings([setting], values, baselineValues).length > 0,
+      })),
+  }))
 }
 
 function getLoadErrorStatus(error: unknown): LoadErrorStatus {

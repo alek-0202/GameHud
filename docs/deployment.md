@@ -59,6 +59,11 @@ GAMESHUD_FRONTEND_PORT=8088
 GAMESHUD_DOCKER_ENDPOINT=unix:///var/run/docker.sock
 GAMESHUD_PALWORLD_PATH=/path/to/palworld/data
 GAMESHUD_PALWORLD_CONTAINER=palworld-server-example
+GAMESHUD_PALWORLD_CONNECTION_ADDRESS=palworld.example.test:8211
+GAMESHUD_PALWORLD_REST_BASE_URL=http://internal-palworld-rest:8212
+GAMESHUD_PALWORLD_REST_USERNAME=admin
+GAMESHUD_PALWORLD_REST_PASSWORD=change-me
+GAMESHUD_PALWORLD_REST_TIMEOUT_SECONDS=5
 ```
 
 Do not commit a real `.env`.
@@ -82,16 +87,22 @@ The API receives:
 ```text
 Palworld__ManagedPath=/managed/palworld
 Palworld__ContainerName=${GAMESHUD_PALWORLD_CONTAINER}
+Palworld__ConnectionAddress=${GAMESHUD_PALWORLD_CONNECTION_ADDRESS}
+Palworld__RestApi__BaseUrl=${GAMESHUD_PALWORLD_REST_BASE_URL}
+Palworld__RestApi__Username=${GAMESHUD_PALWORLD_REST_USERNAME}
+Palworld__RestApi__Password=${GAMESHUD_PALWORLD_REST_PASSWORD}
+Palworld__RestApi__TimeoutSeconds=${GAMESHUD_PALWORLD_REST_TIMEOUT_SECONDS}
 ```
 
 The frontend mounts no Docker socket and receives no Docker credentials.
 The frontend does not receive the Palworld data directory.
+The frontend does not receive Palworld REST API credentials.
 
 No database or persistent application volume is created in this phase.
 
-## Temporary Palworld Config Notes
+## Temporary Palworld Settings Notes
 
-The Palworld integration is a minimal personal feature, not the planned plugin system.
+The Palworld integration is a personal settings editor, not the planned plugin system.
 
 The target Palworld deployment should keep generated settings disabled when using file-based edits:
 
@@ -99,9 +110,19 @@ The target Palworld deployment should keep generated settings disabled when usin
 DISABLE_GENERATE_SETTINGS=true
 ```
 
-Some Palworld settings require a server restart before they take effect. The GamesHud Save & Restart action stops and starts only the configured Palworld container. Connected players will be disconnected and the server will have temporary downtime.
+Some Palworld settings require a server restart before they take effect. The GamesHud Save & Restart action stops and starts only the configured Palworld container and is disabled when there are no pending changes. Connected players will be disconnected and the server will have temporary downtime.
 
 GamesHud needs write access to the configured Palworld directory. Do not commit real server paths, passwords, container names, IPs, users, keys or secrets.
+
+See [Palworld Settings Guide](palworld-settings.md) for the schema categories, sources and maintenance rules.
+
+## Temporary Palworld REST Notes
+
+GamesHud uses the native Palworld REST API for read-only overview and players data. RCON is not used.
+
+The Palworld REST API must remain private. Do not publish port `8212` publicly for GamesHud. Configure `GAMESHUD_PALWORLD_REST_BASE_URL` with an address reachable from the backend container through a private/internal path.
+
+See [Palworld REST API Guide](palworld-rest-api.md) for contracts and security rules.
 
 ## Manual VPS Deployment
 

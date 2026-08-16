@@ -89,14 +89,24 @@ Docker may be unavailable during local development. In that case:
 
 The Docker socket is high privilege. Only the backend should access Docker Engine.
 
-Temporary Palworld quick config is configured separately:
+Temporary Palworld settings editor is configured separately:
 
 - `Palworld:ManagedPath`
 - `Palworld__ManagedPath`
 - `Palworld:ContainerName`
 - `Palworld__ContainerName`
+- `Palworld:ConnectionAddress`
+- `Palworld__ConnectionAddress`
+- `Palworld:RestApi:BaseUrl`
+- `Palworld__RestApi__BaseUrl`
+- `Palworld:RestApi:Username`
+- `Palworld__RestApi__Username`
+- `Palworld:RestApi:Password`
+- `Palworld__RestApi__Password`
+- `Palworld:RestApi:TimeoutSeconds`
+- `Palworld__RestApi__TimeoutSeconds`
 
-Use local environment variables for local testing. Do not commit real Palworld paths, container names, passwords, tokens or VPS details.
+Use local environment variables for local testing. Keep `DISABLE_GENERATE_SETTINGS=true` in the Palworld deployment when testing direct file edits. Do not commit real Palworld paths, container names, passwords, REST credentials, tokens or VPS details.
 
 ---
 
@@ -148,15 +158,19 @@ Lifecycle actions are manual only and must be triggered explicitly. Stop and res
 
 Start returns a friendly success response when the container is already running. Stop returns a friendly success response when the container is already stopped.
 
-Temporary Palworld config:
+Temporary Palworld settings:
 
 ```text
 GET http://localhost:5258/api/palworld/config
 PUT http://localhost:5258/api/palworld/config
 PUT http://localhost:5258/api/palworld/config?restart=true
+GET http://localhost:5258/api/palworld/overview
+GET http://localhost:5258/api/palworld/players
 ```
 
-The GET response returns only supported settings and `hasServerPassword`; it must not expose plaintext `ServerPassword`.
+The GET response returns supported settings as a typed metadata list. Password values are represented with `hasValue` and must not expose plaintext `ServerPassword` or `AdminPassword`.
+
+The overview and players endpoints use the Palworld REST API through the backend only. They must not return REST credentials, player IP addresses or raw external contracts.
 
 When `restart=true`, GamesHud stops and starts only the configured Palworld container. It must not call compose down, Docker daemon restart, remove, kill, recreate or lifecycle actions for any other container.
 
@@ -278,3 +292,5 @@ Run lint only when a lint script is configured.
 - Use [API Guidelines](api-guidelines.md) for backend decisions.
 - Use [Frontend Guidelines](frontend-guidelines.md) for frontend decisions.
 - Use [Deployment Guide](deployment.md) for private deployment and homologation procedures.
+- Use [Palworld Settings Guide](palworld-settings.md) for Palworld setting schema maintenance.
+- Use [Palworld REST API Guide](palworld-rest-api.md) for Palworld REST contracts and security rules.

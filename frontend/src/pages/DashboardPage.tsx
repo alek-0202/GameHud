@@ -1,20 +1,26 @@
 import { Link } from 'react-router-dom'
 import { useContainers } from '../hooks/useContainers'
 import { usePalworldConfig } from '../hooks/usePalworldConfig'
+import { usePalworldOverview } from '../hooks/usePalworldOverview'
 import { SectionHeader } from '../components/SectionHeader'
 import { ServerCard } from '../components/ServerCard'
 import {
   countRunningContainers,
   countStoppedContainers,
+  findContainerByName,
   findPalworldContainer,
 } from '../utils/containerStatus'
 
 export function DashboardPage() {
   const containersState = useContainers()
   const palworldState = usePalworldConfig()
+  const palworldOverviewState = usePalworldOverview()
   const containers = containersState.containers
   const palworldConfig = palworldState.status === 'success' ? palworldState.config : null
-  const palworldContainer = findPalworldContainer(containers, palworldConfig)
+  const palworldOverview = palworldOverviewState.status === 'success' ? palworldOverviewState.overview : null
+  const palworldContainer = palworldOverview === null
+    ? findPalworldContainer(containers, palworldConfig)
+    : findContainerByName(containers, palworldOverview.containerName)
   const runningContainers = countRunningContainers(containers)
   const stoppedContainers = countStoppedContainers(containers)
 
@@ -47,9 +53,17 @@ export function DashboardPage() {
           description="Friendly operations view for configured game servers."
           aside="1 configured"
         />
-        <ServerCard config={palworldConfig} container={palworldContainer} />
+        <ServerCard
+          config={palworldConfig}
+          container={palworldContainer}
+          overview={palworldOverview}
+        />
         {palworldState.status !== 'success' && palworldState.status !== 'loading' && (
           <p className="state-message state-message-error">{palworldState.message}</p>
+        )}
+        {palworldOverviewState.status !== 'success'
+          && palworldOverviewState.status !== 'loading' && (
+          <p className="state-message state-message-error">{palworldOverviewState.message}</p>
         )}
       </section>
 

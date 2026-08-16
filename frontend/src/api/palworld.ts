@@ -2,6 +2,8 @@ import type {
   PalworldConfig,
   PalworldConfigUpdateRequest,
   PalworldConfigUpdateResponse,
+  PalworldOverview,
+  PalworldPlayers,
 } from '../types/palworld'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
@@ -18,6 +20,14 @@ export class PalworldApiRequestError extends Error {
 
 export async function fetchPalworldConfig(signal?: AbortSignal): Promise<PalworldConfig> {
   return fetchJson<PalworldConfig>('/api/palworld/config', signal)
+}
+
+export async function fetchPalworldOverview(signal?: AbortSignal): Promise<PalworldOverview> {
+  return fetchJson<PalworldOverview>('/api/palworld/overview', signal)
+}
+
+export async function fetchPalworldPlayers(signal?: AbortSignal): Promise<PalworldPlayers> {
+  return fetchJson<PalworldPlayers>('/api/palworld/players', signal)
 }
 
 export async function updatePalworldConfig(

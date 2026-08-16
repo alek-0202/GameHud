@@ -8,6 +8,7 @@ import { PalworldAdvancedPage } from './pages/PalworldAdvancedPage'
 import { PalworldLayout } from './pages/PalworldLayout'
 import { PalworldLogsPage } from './pages/PalworldLogsPage'
 import { PalworldOverviewPage } from './pages/PalworldOverviewPage'
+import { PalworldPlayersPage } from './pages/PalworldPlayersPage'
 import { PalworldSettingsPage } from './pages/PalworldSettingsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import './App.css'
@@ -20,6 +21,7 @@ function App() {
         <Route path="servers" element={<GameServersPage />} />
         <Route path="servers/palworld" element={<PalworldLayout />}>
           <Route index element={<PalworldOverviewPage />} />
+          <Route path="players" element={<PalworldPlayersPage />} />
           <Route path="settings" element={<PalworldSettingsPage />} />
           <Route path="logs" element={<PalworldLogsPage />} />
           <Route path="advanced" element={<PalworldAdvancedPage />} />

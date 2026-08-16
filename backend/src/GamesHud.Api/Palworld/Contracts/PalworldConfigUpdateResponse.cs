@@ -5,5 +5,6 @@ public sealed record PalworldConfigUpdateResponse(
     string ContainerName,
     bool RestartRequested,
     bool LifecycleApplied,
-    string BackupFileName,
+    int ChangedSettings,
+    string? BackupFileName,
     PalworldConfigResponse Config);

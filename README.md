@@ -30,6 +30,7 @@ Implemented:
 - Configurable frontend API URL
 - Local Docker Compose deployment foundation
 - Temporary personal Palworld settings editor isolated outside Docker Core
+- Temporary Palworld REST overview and players view isolated outside Docker Core
 
 Deployment foundation status:
 
@@ -165,12 +166,17 @@ VITE_API_BASE_URL=http://localhost:5258
 
 Local `.env` files are ignored by git and must not be committed.
 
-Temporary Palworld quick config:
+Temporary Palworld settings editor:
 
 - `Palworld__ManagedPath`
 - `Palworld__ContainerName`
+- `Palworld__ConnectionAddress`
+- `Palworld__RestApi__BaseUrl`
+- `Palworld__RestApi__Username`
+- `Palworld__RestApi__Password`
+- `Palworld__RestApi__TimeoutSeconds`
 
-The managed path must point to a directory containing `PalWorldSettings.ini`. The container name is the only container targeted by the Palworld Save & Restart flow. Do not commit real VPS paths, server passwords or private container names.
+The managed path must point to a directory containing `PalWorldSettings.ini`. The container name is the only container targeted by the Palworld Save & Restart flow. Keep `DISABLE_GENERATE_SETTINGS=true` in the Palworld deployment when GamesHud edits the file directly. REST credentials are used only by the backend. Do not commit real VPS paths, server passwords, REST credentials or private container names.
 
 ---
 
@@ -230,9 +236,13 @@ Temporary Palworld config:
 GET /api/palworld/config
 PUT /api/palworld/config
 PUT /api/palworld/config?restart=true
+GET /api/palworld/overview
+GET /api/palworld/players
 ```
 
-`GET` returns only supported settings and `hasServerPassword`; it does not return the plaintext server password or raw INI content. Empty or omitted `serverPassword` on `PUT` preserves the current password.
+`GET` returns a typed settings list with metadata, current values and `hasValue` for protected password settings. It does not return plaintext passwords or raw INI content. Empty password values on `PUT` preserve the current password.
+
+The Palworld overview and players endpoints use GamesHud contracts and sanitize REST API data before returning it to the frontend.
 
 ---
 
@@ -337,6 +347,8 @@ The VPS may already host production containers such as Palworld and Portainer. G
 - [Roadmap](ROADMAP.md)
 - [Development Guide](docs/development.md)
 - [Deployment Guide](docs/deployment.md)
+- [Palworld Settings Guide](docs/palworld-settings.md)
+- [Palworld REST API Guide](docs/palworld-rest-api.md)
 - [API Guidelines](docs/api-guidelines.md)
 - [Frontend Guidelines](docs/frontend-guidelines.md)
 

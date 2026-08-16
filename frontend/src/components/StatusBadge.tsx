@@ -15,19 +15,19 @@ export function StatusBadge({ state }: StatusBadgeProps) {
 }
 
 function getTone(state: string) {
-  if (state === 'running') {
+  if (state === 'running' || state === 'online') {
     return 'success'
   }
 
-  if (['created', 'exited', 'stopped'].includes(state)) {
+  if (['created', 'exited', 'stopped', 'offline'].includes(state)) {
     return 'muted'
   }
 
-  if (['restarting', 'paused'].includes(state)) {
+  if (['restarting', 'paused', 'starting', 'rest unavailable'].includes(state)) {
     return 'warning'
   }
 
-  if (state === 'dead') {
+  if (state === 'dead' || state === 'not found') {
     return 'danger'
   }
 

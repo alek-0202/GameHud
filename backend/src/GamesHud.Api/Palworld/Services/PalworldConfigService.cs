@@ -11,6 +11,7 @@ public sealed class PalworldConfigService : IPalworldConfigService
     private const string SettingsFileName = "PalWorldSettings.ini";
     private const string OptionSettingsMarker = "OptionSettings=(";
     private const int LifecycleTimeoutSeconds = 10;
+    private const int MaxTextLength = 512;
 
     private static readonly string[] SettingsFileCandidates =
     [
@@ -18,33 +19,6 @@ public sealed class PalworldConfigService : IPalworldConfigService
         "Pal/Saved/Config/LinuxServer/PalWorldSettings.ini",
         "Pal/Saved/Config/WindowsServer/PalWorldSettings.ini"
     ];
-
-    private static readonly HashSet<string> SupportedKeys = new(StringComparer.Ordinal)
-    {
-        PalworldConfigKey.ServerName,
-        PalworldConfigKey.ServerPassword,
-        PalworldConfigKey.ExpRate,
-        PalworldConfigKey.PlayerDamageRateAttack,
-        PalworldConfigKey.PalCaptureRate,
-        PalworldConfigKey.PlayerStomachDecreaceRate,
-        PalworldConfigKey.PlayerStaminaDecreaceRate,
-        PalworldConfigKey.WorkSpeedRate,
-        PalworldConfigKey.CollectionDropRate,
-        PalworldConfigKey.EnemyDropItemRate,
-        PalworldConfigKey.PalEggDefaultHatchingTime,
-        PalworldConfigKey.DeathPenalty,
-        PalworldConfigKey.GuildPlayerMaxNum,
-        PalworldConfigKey.BaseCampMaxNum,
-        PalworldConfigKey.BaseCampWorkerMaxNum
-    };
-
-    private static readonly HashSet<string> AllowedDeathPenaltyValues = new(StringComparer.Ordinal)
-    {
-        "None",
-        "Item",
-        "ItemAndEquipment",
-        "All"
-    };
 
     private readonly IOptions<PalworldOptions> _options;
     private readonly IPalworldConfigFileSystem _fileSystem;
@@ -81,8 +55,19 @@ public sealed class PalworldConfigService : IPalworldConfigService
         var settingsFile = ResolveSettingsFile();
         var currentText = await _fileSystem.ReadAllTextAsync(settingsFile, cancellationToken);
         var document = PalworldSettingsDocument.Parse(currentText);
+        var changedSettings = ApplyRequest(document, request);
 
-        ApplyRequest(document, request);
+        if (changedSettings == 0)
+        {
+            return new PalworldConfigUpdateResponse(
+                "No Palworld settings changed.",
+                containerName,
+                restart,
+                false,
+                changedSettings,
+                null,
+                CreateResponse(document, containerName));
+        }
 
         if (restart)
         {
@@ -106,6 +91,7 @@ public sealed class PalworldConfigService : IPalworldConfigService
             containerName,
             restart,
             restart,
+            changedSettings,
             Path.GetFileName(backupFile),
             CreateResponse(document, containerName));
     }
@@ -252,163 +238,250 @@ public sealed class PalworldConfigService : IPalworldConfigService
         }
     }
 
-    private static void ApplyRequest(
+    private static int ApplyRequest(
         PalworldSettingsDocument document,
         PalworldConfigUpdateRequest request)
     {
-        var errors = Validate(request);
+        var updates = NormalizeUpdates(request);
+        var changedSettings = 0;
+
+        foreach (var (definition, serializedValue, comparableValue) in updates)
+        {
+            if (definition.Type is PalworldSettingType.Password
+                && string.IsNullOrEmpty(comparableValue))
+            {
+                continue;
+            }
+
+            var currentComparableValue = document.GetComparableValue(definition);
+
+            if (string.Equals(currentComparableValue, comparableValue, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            document.Set(definition.Key, serializedValue);
+            changedSettings++;
+        }
+
+        return changedSettings;
+    }
+
+    private static List<ValidatedSettingUpdate> NormalizeUpdates(PalworldConfigUpdateRequest request)
+    {
+        var errors = new List<string>();
+        var updates = new List<ValidatedSettingUpdate>();
+
+        if (request.Settings is null)
+        {
+            throw new PalworldConfigValidationException(["Settings are required."]);
+        }
+
+        var seenKeys = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var update in request.Settings)
+        {
+            if (string.IsNullOrWhiteSpace(update.Key))
+            {
+                errors.Add("Setting key is required.");
+                continue;
+            }
+
+            if (!seenKeys.Add(update.Key))
+            {
+                errors.Add($"{update.Key} was provided more than once.");
+                continue;
+            }
+
+            if (!PalworldSettingSchema.ByKey.TryGetValue(update.Key, out var definition))
+            {
+                errors.Add($"{update.Key} is not a supported Palworld setting.");
+                continue;
+            }
+
+            if (!TryNormalizeValue(definition, update.Value, out var serializedValue, out var comparableValue, out var error))
+            {
+                errors.Add(error);
+                continue;
+            }
+
+            updates.Add(new ValidatedSettingUpdate(definition, serializedValue, comparableValue));
+        }
 
         if (errors.Count > 0)
         {
             throw new PalworldConfigValidationException(errors);
         }
 
-        SetStringIfProvided(document, PalworldConfigKey.ServerName, request.ServerName);
-
-        if (!string.IsNullOrEmpty(request.ServerPassword))
-        {
-            document.Set(PalworldConfigKey.ServerPassword, SerializeQuotedString(request.ServerPassword));
-        }
-
-        SetDecimalIfProvided(document, PalworldConfigKey.ExpRate, request.ExpRate);
-        SetDecimalIfProvided(document, PalworldConfigKey.PlayerDamageRateAttack, request.PlayerDamageRateAttack);
-        SetDecimalIfProvided(document, PalworldConfigKey.PalCaptureRate, request.PalCaptureRate);
-        SetDecimalIfProvided(document, PalworldConfigKey.PlayerStomachDecreaceRate, request.PlayerStomachDecreaceRate);
-        SetDecimalIfProvided(document, PalworldConfigKey.PlayerStaminaDecreaceRate, request.PlayerStaminaDecreaceRate);
-        SetDecimalIfProvided(document, PalworldConfigKey.WorkSpeedRate, request.WorkSpeedRate);
-        SetDecimalIfProvided(document, PalworldConfigKey.CollectionDropRate, request.CollectionDropRate);
-        SetDecimalIfProvided(document, PalworldConfigKey.EnemyDropItemRate, request.EnemyDropItemRate);
-        SetDecimalIfProvided(document, PalworldConfigKey.PalEggDefaultHatchingTime, request.PalEggDefaultHatchingTime);
-        SetEnumIfProvided(document, PalworldConfigKey.DeathPenalty, request.DeathPenalty);
-        SetIntegerIfProvided(document, PalworldConfigKey.GuildPlayerMaxNum, request.GuildPlayerMaxNum);
-        SetIntegerIfProvided(document, PalworldConfigKey.BaseCampMaxNum, request.BaseCampMaxNum);
-        SetIntegerIfProvided(document, PalworldConfigKey.BaseCampWorkerMaxNum, request.BaseCampWorkerMaxNum);
+        return updates;
     }
 
-    private static List<string> Validate(PalworldConfigUpdateRequest request)
-    {
-        var errors = new List<string>();
-
-        ValidateText(errors, nameof(request.ServerName), request.ServerName, requiredWhenProvided: true);
-        ValidateText(errors, nameof(request.ServerPassword), request.ServerPassword, requiredWhenProvided: false);
-        ValidateRate(errors, nameof(request.ExpRate), request.ExpRate);
-        ValidateRate(errors, nameof(request.PlayerDamageRateAttack), request.PlayerDamageRateAttack);
-        ValidateRate(errors, nameof(request.PalCaptureRate), request.PalCaptureRate);
-        ValidateRate(errors, nameof(request.PlayerStomachDecreaceRate), request.PlayerStomachDecreaceRate);
-        ValidateRate(errors, nameof(request.PlayerStaminaDecreaceRate), request.PlayerStaminaDecreaceRate);
-        ValidateRate(errors, nameof(request.WorkSpeedRate), request.WorkSpeedRate);
-        ValidateRate(errors, nameof(request.CollectionDropRate), request.CollectionDropRate);
-        ValidateRate(errors, nameof(request.EnemyDropItemRate), request.EnemyDropItemRate);
-        ValidateRate(errors, nameof(request.PalEggDefaultHatchingTime), request.PalEggDefaultHatchingTime);
-        ValidatePositiveInteger(errors, nameof(request.GuildPlayerMaxNum), request.GuildPlayerMaxNum);
-        ValidatePositiveInteger(errors, nameof(request.BaseCampMaxNum), request.BaseCampMaxNum);
-        ValidatePositiveInteger(errors, nameof(request.BaseCampWorkerMaxNum), request.BaseCampWorkerMaxNum);
-
-        if (request.DeathPenalty is { } deathPenalty
-            && !AllowedDeathPenaltyValues.Contains(deathPenalty))
-        {
-            errors.Add("DeathPenalty must be one of: None, Item, ItemAndEquipment, All.");
-        }
-
-        return errors;
-    }
-
-    private static void ValidateText(
-        List<string> errors,
-        string fieldName,
+    private static bool TryNormalizeValue(
+        PalworldSettingDefinition definition,
         string? value,
-        bool requiredWhenProvided)
+        out string serializedValue,
+        out string comparableValue,
+        out string error)
     {
+        serializedValue = string.Empty;
+        comparableValue = string.Empty;
+        error = string.Empty;
+
+        if (definition.Type is PalworldSettingType.Password && string.IsNullOrEmpty(value))
+        {
+            return true;
+        }
+
         if (value is null)
         {
-            return;
+            error = $"{definition.Key} value is required.";
+            return false;
         }
 
-        if (requiredWhenProvided && string.IsNullOrWhiteSpace(value))
+        return definition.Type switch
         {
-            errors.Add($"{fieldName} cannot be empty.");
-            return;
+            PalworldSettingType.Boolean => TryNormalizeBoolean(definition, value, out serializedValue, out comparableValue, out error),
+            PalworldSettingType.Integer => TryNormalizeInteger(definition, value, out serializedValue, out comparableValue, out error),
+            PalworldSettingType.Decimal => TryNormalizeDecimal(definition, value, out serializedValue, out comparableValue, out error),
+            PalworldSettingType.String => TryNormalizeText(definition, value, out serializedValue, out comparableValue, out error),
+            PalworldSettingType.Password => TryNormalizeText(definition, value, out serializedValue, out comparableValue, out error),
+            PalworldSettingType.Select => TryNormalizeSelect(definition, value, out serializedValue, out comparableValue, out error),
+            _ => throw new InvalidOperationException("Unsupported Palworld setting type.")
+        };
+    }
+
+    private static bool TryNormalizeBoolean(
+        PalworldSettingDefinition definition,
+        string value,
+        out string serializedValue,
+        out string comparableValue,
+        out string error)
+    {
+        if (!bool.TryParse(value, out var boolValue))
+        {
+            serializedValue = string.Empty;
+            comparableValue = string.Empty;
+            error = $"{definition.Key} must be true or false.";
+            return false;
         }
 
-        if (value.Length > 128)
+        serializedValue = boolValue ? "True" : "False";
+        comparableValue = serializedValue;
+        error = string.Empty;
+        return true;
+    }
+
+    private static bool TryNormalizeInteger(
+        PalworldSettingDefinition definition,
+        string value,
+        out string serializedValue,
+        out string comparableValue,
+        out string error)
+    {
+        if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var integerValue))
         {
-            errors.Add($"{fieldName} must be 128 characters or fewer.");
+            serializedValue = string.Empty;
+            comparableValue = string.Empty;
+            error = $"{definition.Key} must be an integer.";
+            return false;
+        }
+
+        if (definition.Min is not null && integerValue < definition.Min
+            || definition.Max is not null && integerValue > definition.Max)
+        {
+            serializedValue = string.Empty;
+            comparableValue = string.Empty;
+            error = $"{definition.Key} must be between {definition.Min} and {definition.Max}.";
+            return false;
+        }
+
+        serializedValue = integerValue.ToString(CultureInfo.InvariantCulture);
+        comparableValue = serializedValue;
+        error = string.Empty;
+        return true;
+    }
+
+    private static bool TryNormalizeDecimal(
+        PalworldSettingDefinition definition,
+        string value,
+        out string serializedValue,
+        out string comparableValue,
+        out string error)
+    {
+        if (!decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var decimalValue))
+        {
+            serializedValue = string.Empty;
+            comparableValue = string.Empty;
+            error = $"{definition.Key} must be a decimal number.";
+            return false;
+        }
+
+        if (definition.Min is not null && decimalValue < definition.Min
+            || definition.Max is not null && decimalValue > definition.Max)
+        {
+            serializedValue = string.Empty;
+            comparableValue = string.Empty;
+            error = $"{definition.Key} must be between {definition.Min} and {definition.Max}.";
+            return false;
+        }
+
+        serializedValue = PalworldSettingSchema.FormatDecimal(decimalValue);
+        comparableValue = serializedValue;
+        error = string.Empty;
+        return true;
+    }
+
+    private static bool TryNormalizeText(
+        PalworldSettingDefinition definition,
+        string value,
+        out string serializedValue,
+        out string comparableValue,
+        out string error)
+    {
+        if (value.Length > MaxTextLength)
+        {
+            serializedValue = string.Empty;
+            comparableValue = string.Empty;
+            error = $"{definition.Key} must be {MaxTextLength} characters or fewer.";
+            return false;
         }
 
         if (value.Contains('\r') || value.Contains('\n'))
         {
-            errors.Add($"{fieldName} cannot contain line breaks.");
+            serializedValue = string.Empty;
+            comparableValue = string.Empty;
+            error = $"{definition.Key} cannot contain line breaks.";
+            return false;
         }
+
+        serializedValue = SerializeQuotedString(value.Trim());
+        comparableValue = value.Trim();
+        error = string.Empty;
+        return true;
     }
 
-    private static void ValidateRate(List<string> errors, string fieldName, decimal? value)
+    private static bool TryNormalizeSelect(
+        PalworldSettingDefinition definition,
+        string value,
+        out string serializedValue,
+        out string comparableValue,
+        out string error)
     {
-        if (value is null)
+        var isAllowed = definition.Options.Any(
+            option => string.Equals(option.Value, value, StringComparison.Ordinal));
+
+        if (!isAllowed)
         {
-            return;
+            serializedValue = string.Empty;
+            comparableValue = string.Empty;
+            error = $"{definition.Key} must be one of: {string.Join(", ", definition.Options.Select(option => option.Value))}.";
+            return false;
         }
 
-        if (value < 0 || value > 100)
-        {
-            errors.Add($"{fieldName} must be between 0 and 100.");
-        }
-    }
-
-    private static void ValidatePositiveInteger(List<string> errors, string fieldName, int? value)
-    {
-        if (value is null)
-        {
-            return;
-        }
-
-        if (value < 1 || value > 10000)
-        {
-            errors.Add($"{fieldName} must be between 1 and 10000.");
-        }
-    }
-
-    private static void SetStringIfProvided(
-        PalworldSettingsDocument document,
-        string key,
-        string? value)
-    {
-        if (value is not null)
-        {
-            document.Set(key, SerializeQuotedString(value.Trim()));
-        }
-    }
-
-    private static void SetEnumIfProvided(
-        PalworldSettingsDocument document,
-        string key,
-        string? value)
-    {
-        if (value is not null)
-        {
-            document.Set(key, value);
-        }
-    }
-
-    private static void SetDecimalIfProvided(
-        PalworldSettingsDocument document,
-        string key,
-        decimal? value)
-    {
-        if (value is not null)
-        {
-            document.Set(key, value.Value.ToString("0.######", CultureInfo.InvariantCulture));
-        }
-    }
-
-    private static void SetIntegerIfProvided(
-        PalworldSettingsDocument document,
-        string key,
-        int? value)
-    {
-        if (value is not null)
-        {
-            document.Set(key, value.Value.ToString(CultureInfo.InvariantCulture));
-        }
+        serializedValue = value;
+        comparableValue = value;
+        error = string.Empty;
+        return true;
     }
 
     private static PalworldConfigResponse CreateResponse(
@@ -417,21 +490,11 @@ public sealed class PalworldConfigService : IPalworldConfigService
     {
         return new PalworldConfigResponse(
             containerName,
-            document.GetString(PalworldConfigKey.ServerName),
-            !string.IsNullOrEmpty(document.GetString(PalworldConfigKey.ServerPassword)),
-            document.GetDecimal(PalworldConfigKey.ExpRate),
-            document.GetDecimal(PalworldConfigKey.PlayerDamageRateAttack),
-            document.GetDecimal(PalworldConfigKey.PalCaptureRate),
-            document.GetDecimal(PalworldConfigKey.PlayerStomachDecreaceRate),
-            document.GetDecimal(PalworldConfigKey.PlayerStaminaDecreaceRate),
-            document.GetDecimal(PalworldConfigKey.WorkSpeedRate),
-            document.GetDecimal(PalworldConfigKey.CollectionDropRate),
-            document.GetDecimal(PalworldConfigKey.EnemyDropItemRate),
-            document.GetDecimal(PalworldConfigKey.PalEggDefaultHatchingTime),
-            document.GetRaw(PalworldConfigKey.DeathPenalty),
-            document.GetInteger(PalworldConfigKey.GuildPlayerMaxNum),
-            document.GetInteger(PalworldConfigKey.BaseCampMaxNum),
-            document.GetInteger(PalworldConfigKey.BaseCampWorkerMaxNum));
+            PalworldSettingSchema.Settings
+                .Select(definition => definition.ToResponse(
+                    document.GetDisplayValue(definition),
+                    document.HasValue(definition.Key)))
+                .ToArray());
     }
 
     private static string SerializeQuotedString(string value)
@@ -467,24 +530,10 @@ public sealed class PalworldConfigService : IPalworldConfigService
                 comparison);
     }
 
-    private static class PalworldConfigKey
-    {
-        public const string ServerName = nameof(ServerName);
-        public const string ServerPassword = nameof(ServerPassword);
-        public const string ExpRate = nameof(ExpRate);
-        public const string PlayerDamageRateAttack = nameof(PlayerDamageRateAttack);
-        public const string PalCaptureRate = nameof(PalCaptureRate);
-        public const string PlayerStomachDecreaceRate = nameof(PlayerStomachDecreaceRate);
-        public const string PlayerStaminaDecreaceRate = nameof(PlayerStaminaDecreaceRate);
-        public const string WorkSpeedRate = nameof(WorkSpeedRate);
-        public const string CollectionDropRate = nameof(CollectionDropRate);
-        public const string EnemyDropItemRate = nameof(EnemyDropItemRate);
-        public const string PalEggDefaultHatchingTime = nameof(PalEggDefaultHatchingTime);
-        public const string DeathPenalty = nameof(DeathPenalty);
-        public const string GuildPlayerMaxNum = nameof(GuildPlayerMaxNum);
-        public const string BaseCampMaxNum = nameof(BaseCampMaxNum);
-        public const string BaseCampWorkerMaxNum = nameof(BaseCampWorkerMaxNum);
-    }
+    private sealed record ValidatedSettingUpdate(
+        PalworldSettingDefinition Definition,
+        string SerializedValue,
+        string ComparableValue);
 
     private sealed class PalworldSettingsDocument
     {
@@ -530,61 +579,70 @@ public sealed class PalworldConfigService : IPalworldConfigService
             return new PalworldSettingsDocument(prefix, suffix, entries);
         }
 
-        public string? GetRaw(string key)
+        public bool HasValue(string key)
         {
-            return _entries.FirstOrDefault(entry => entry.Key == key)?.Value;
+            var rawValue = GetRaw(key);
+
+            return !string.IsNullOrEmpty(rawValue)
+                && !string.Equals(rawValue, "\"\"", StringComparison.Ordinal);
         }
 
-        public string? GetString(string key)
+        public string? GetDisplayValue(PalworldSettingDefinition definition)
         {
-            var value = GetRaw(key);
+            var rawValue = GetRaw(definition.Key);
 
-            return value is null ? null : DeserializeQuotedString(value);
-        }
-
-        public decimal? GetDecimal(string key)
-        {
-            var value = GetRaw(key);
-
-            if (value is null)
+            if (rawValue is null)
             {
                 return null;
             }
 
-            return decimal.TryParse(
-                value,
-                NumberStyles.Number,
-                CultureInfo.InvariantCulture,
-                out var result)
-                    ? result
-                    : null;
+            return definition.Type switch
+            {
+                PalworldSettingType.Boolean => TryParseBoolean(rawValue, out var boolValue)
+                    ? boolValue
+                    : rawValue,
+                PalworldSettingType.Decimal => TryParseDecimal(rawValue, out var decimalValue)
+                    ? PalworldSettingSchema.FormatDecimal(decimalValue)
+                    : rawValue,
+                PalworldSettingType.Integer => TryParseInteger(rawValue, out var integerValue)
+                    ? integerValue.ToString(CultureInfo.InvariantCulture)
+                    : rawValue,
+                PalworldSettingType.Password => null,
+                PalworldSettingType.String => DeserializeQuotedString(rawValue),
+                PalworldSettingType.Select => rawValue,
+                _ => rawValue
+            };
         }
 
-        public int? GetInteger(string key)
+        public string? GetComparableValue(PalworldSettingDefinition definition)
         {
-            var value = GetRaw(key);
+            var rawValue = GetRaw(definition.Key);
 
-            if (value is null)
+            if (rawValue is null)
             {
                 return null;
             }
 
-            return int.TryParse(
-                value,
-                NumberStyles.Integer,
-                CultureInfo.InvariantCulture,
-                out var result)
-                    ? result
-                    : null;
+            return definition.Type switch
+            {
+                PalworldSettingType.Boolean => TryParseBoolean(rawValue, out var boolValue)
+                    ? boolValue
+                    : rawValue,
+                PalworldSettingType.Decimal => TryParseDecimal(rawValue, out var decimalValue)
+                    ? PalworldSettingSchema.FormatDecimal(decimalValue)
+                    : rawValue,
+                PalworldSettingType.Integer => TryParseInteger(rawValue, out var integerValue)
+                    ? integerValue.ToString(CultureInfo.InvariantCulture)
+                    : rawValue,
+                PalworldSettingType.Password => DeserializeQuotedString(rawValue),
+                PalworldSettingType.String => DeserializeQuotedString(rawValue),
+                PalworldSettingType.Select => rawValue,
+                _ => rawValue
+            };
         }
 
         public void Set(string key, string value)
         {
-            if (!SupportedKeys.Contains(key))
-            {
-                throw new InvalidOperationException("Only supported Palworld settings can be updated.");
-            }
-
             var existing = _entries.FirstOrDefault(entry => entry.Key == key);
 
             if (existing is not null)
@@ -601,6 +659,41 @@ public sealed class PalworldConfigService : IPalworldConfigService
             return _prefix
                 + string.Join(",", _entries.Select(entry => entry.ToText()))
                 + _suffix;
+        }
+
+        private string? GetRaw(string key)
+        {
+            return _entries.FirstOrDefault(entry => entry.Key == key)?.Value;
+        }
+
+        private static bool TryParseBoolean(string value, out string normalizedValue)
+        {
+            if (bool.TryParse(value, out var boolValue))
+            {
+                normalizedValue = boolValue ? "True" : "False";
+                return true;
+            }
+
+            normalizedValue = string.Empty;
+            return false;
+        }
+
+        private static bool TryParseDecimal(string value, out decimal result)
+        {
+            return decimal.TryParse(
+                value,
+                NumberStyles.Number,
+                CultureInfo.InvariantCulture,
+                out result);
+        }
+
+        private static bool TryParseInteger(string value, out int result)
+        {
+            return int.TryParse(
+                value,
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out result);
         }
 
         private static int FindOptionSettingsEnd(string text, int bodyStart)

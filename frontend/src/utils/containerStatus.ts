@@ -13,11 +13,18 @@ export function findPalworldContainer(
   containers: Container[],
   config: PalworldConfig | null,
 ) {
-  if (config === null) {
+  return findContainerByName(containers, config?.containerName ?? null)
+}
+
+export function findContainerByName(
+  containers: Container[],
+  containerName: string | null,
+) {
+  if (containerName === null) {
     return null
   }
 
-  const expectedName = normalizeContainerName(config.containerName)
+  const expectedName = normalizeContainerName(containerName)
 
   return containers.find((container) => {
     return normalizeContainerName(container.name) === expectedName

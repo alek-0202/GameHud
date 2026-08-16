@@ -10,6 +10,11 @@ services:
       Docker__Endpoint: ${GAMESHUD_DOCKER_ENDPOINT:-unix:///var/run/docker.sock}
       Palworld__ManagedPath: /managed/palworld
       Palworld__ContainerName: ${GAMESHUD_PALWORLD_CONTAINER:-palworld-server-example}
+      Palworld__ConnectionAddress: ${GAMESHUD_PALWORLD_CONNECTION_ADDRESS:-}
+      Palworld__RestApi__BaseUrl: ${GAMESHUD_PALWORLD_REST_BASE_URL:-}
+      Palworld__RestApi__Username: ${GAMESHUD_PALWORLD_REST_USERNAME:-}
+      Palworld__RestApi__Password: ${GAMESHUD_PALWORLD_REST_PASSWORD:-}
+      Palworld__RestApi__TimeoutSeconds: ${GAMESHUD_PALWORLD_REST_TIMEOUT_SECONDS:-5}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${GAMESHUD_PALWORLD_PATH:-./palworld-data}:/managed/palworld

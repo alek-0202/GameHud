@@ -10,6 +10,10 @@ builder.Services.Configure<PalworldOptions>(builder.Configuration.GetSection(Pal
 builder.Services.AddScoped<IContainerService, DockerContainerService>();
 builder.Services.AddSingleton<IPalworldConfigFileSystem, PalworldConfigFileSystem>();
 builder.Services.AddScoped<IPalworldConfigService, PalworldConfigService>();
+builder.Services.AddScoped<IPalworldOverviewService, PalworldOverviewService>();
+builder.Services
+    .AddHttpClient<IPalworldRestService, PalworldRestService>()
+    .ConfigureHttpClient(client => client.Timeout = Timeout.InfiniteTimeSpan);
 builder.Services.AddControllers();
 
 if (builder.Environment.IsDevelopment())

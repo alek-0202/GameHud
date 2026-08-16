@@ -1,38 +1,46 @@
+export type PalworldSettingType =
+  | 'boolean'
+  | 'integer'
+  | 'decimal'
+  | 'string'
+  | 'password'
+  | 'select'
+
+export interface PalworldSettingOption {
+  value: string
+  label: string
+}
+
+export interface PalworldSetting {
+  key: string
+  label: string
+  description: string
+  category: string
+  type: PalworldSettingType
+  min: number | null
+  max: number | null
+  step: number | null
+  options: PalworldSettingOption[]
+  defaultValue: string | null
+  restartRequired: boolean
+  advanced: boolean
+  securitySensitive: boolean
+  value: string | null
+  hasValue: boolean
+}
+
 export interface PalworldConfig {
   containerName: string
-  serverName: string | null
-  hasServerPassword: boolean
-  expRate: number | null
-  playerDamageRateAttack: number | null
-  palCaptureRate: number | null
-  playerStomachDecreaceRate: number | null
-  playerStaminaDecreaceRate: number | null
-  workSpeedRate: number | null
-  collectionDropRate: number | null
-  enemyDropItemRate: number | null
-  palEggDefaultHatchingTime: number | null
-  deathPenalty: string | null
-  guildPlayerMaxNum: number | null
-  baseCampMaxNum: number | null
-  baseCampWorkerMaxNum: number | null
+  settings: PalworldSetting[]
+}
+
+export interface PalworldSettingUpdateRequest {
+  key: string
+  value: string | null
 }
 
 export interface PalworldConfigUpdateRequest {
-  serverName: string | null
-  serverPassword: string | null
-  expRate: number | null
-  playerDamageRateAttack: number | null
-  palCaptureRate: number | null
-  playerStomachDecreaceRate: number | null
-  playerStaminaDecreaceRate: number | null
-  workSpeedRate: number | null
-  collectionDropRate: number | null
-  enemyDropItemRate: number | null
-  palEggDefaultHatchingTime: number | null
-  deathPenalty: string | null
-  guildPlayerMaxNum: number | null
-  baseCampMaxNum: number | null
-  baseCampWorkerMaxNum: number | null
+  settings: PalworldSettingUpdateRequest[]
 }
 
 export interface PalworldConfigUpdateResponse {
@@ -40,6 +48,46 @@ export interface PalworldConfigUpdateResponse {
   containerName: string
   restartRequested: boolean
   lifecycleApplied: boolean
-  backupFileName: string
+  changedSettings: number
+  backupFileName: string | null
   config: PalworldConfig
+}
+
+export interface PalworldPlayer {
+  name: string
+  accountName: string | null
+  publicId: string | null
+  ping: number | null
+  level: number | null
+}
+
+export interface PalworldPlayers {
+  onlineCount: number
+  maxPlayers: number | null
+  players: PalworldPlayer[]
+  retrievedAt: string
+}
+
+export interface PalworldOverview {
+  serverName: string
+  displayName: string
+  containerName: string
+  containerState: string
+  containerStatus: string
+  health: string
+  healthLabel: string
+  version: string | null
+  description: string | null
+  connectionAddress: string | null
+  onlinePlayers: number
+  maxPlayers: number | null
+  uptimeSeconds: number | null
+  serverFps: number | null
+  serverFrameTime: number | null
+  baseCampCount: number | null
+  inGameDays: number | null
+  restApiAvailable: boolean
+  restApiMessage: string | null
+  players: PalworldPlayer[]
+  retrievedAt: string
 }
