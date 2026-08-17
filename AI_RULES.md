@@ -358,7 +358,8 @@ Compose:
 
 - Publish services only on loopback while authentication does not exist.
 - Prefer a Compose-owned GamesHud network.
-- Do not use Palworld or Portainer networks.
+- Do not use Portainer networks or unrelated Palworld project networks.
+- The approved temporary Palworld REST integration uses the external `gameshud-palworld` network on `gameshud-api` only.
 - Do not create a database or persistent volumes until required by real state.
 - Prefer `docker compose up -d --build` for updates.
 - Do not run `docker compose down` unnecessarily.

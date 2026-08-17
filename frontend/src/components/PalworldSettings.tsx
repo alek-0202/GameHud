@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useBeforeUnload, useBlocker } from 'react-router-dom'
+import { useBeforeUnload } from 'react-router-dom'
 import {
   PalworldApiRequestError,
   fetchPalworldConfig,
@@ -78,7 +78,6 @@ export function PalworldSettings({
     () => (config === null ? [] : groupSettings(config.settings, values, baselineValues, mode, searchTerm)),
     [baselineValues, config, mode, searchTerm, values],
   )
-  const blocker = useBlocker(hasPendingChanges)
 
   useBeforeUnload(
     useCallback(
@@ -93,19 +92,6 @@ export function PalworldSettings({
       [hasPendingChanges],
     ),
   )
-
-  useEffect(() => {
-    if (blocker.state !== 'blocked') {
-      return
-    }
-
-    if (window.confirm('You have unsaved Palworld setting changes. Leave this page?')) {
-      blocker.proceed()
-      return
-    }
-
-    blocker.reset()
-  }, [blocker])
 
   useEffect(() => {
     void loadConfig()

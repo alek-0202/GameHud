@@ -42,6 +42,9 @@ services:
       - ${GAMESHUD_PALWORLD_BACKUP_PATH:-./palworld-backups}:/managed/palworld-backups
     expose:
       - "8080"
+    networks:
+      - default
+      - gameshud-palworld
     restart: unless-stopped
 
   gameshud-frontend:
@@ -54,3 +57,8 @@ services:
     ports:
       - "127.0.0.1:${GAMESHUD_FRONTEND_PORT:-8088}:80"
     restart: unless-stopped
+
+networks:
+  gameshud-palworld:
+    external: true
+    name: gameshud-palworld

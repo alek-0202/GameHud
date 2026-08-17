@@ -344,7 +344,7 @@ Suggested loopback publication:
 
 The API is not published to the VPS host by default. The frontend proxies `/api` and `/health` to the API over the private Compose network.
 
-For the temporary Palworld config editor and backup manager, only `gameshud-api` receives the configured Palworld data directory mount and the separate Palworld backup directory mount. The frontend does not receive the Palworld mounts or Docker socket.
+For the temporary Palworld config editor, REST integration and backup manager, only `gameshud-api` receives the configured Palworld data directory mount, the separate Palworld backup directory mount and the external `gameshud-palworld` network. The frontend does not receive the Palworld mounts, Palworld network or Docker socket.
 
 Manual commands:
 

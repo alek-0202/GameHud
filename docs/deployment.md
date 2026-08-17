@@ -35,7 +35,9 @@ The deployment uses:
 - `gameshud-api`
 - `gameshud-frontend`
 
-The Compose project creates its own default network. Do not attach GamesHud to Palworld or Portainer networks.
+The Compose project creates its own default network for frontend-to-API traffic.
+The API service also joins the external Docker network `gameshud-palworld` so it can reach the private Palworld REST API.
+Do not attach GamesHud to Portainer networks or to unrelated Palworld project networks.
 
 ## Ports
 
@@ -138,6 +140,14 @@ Palworld__RestApi__Username=${GAMESHUD_PALWORLD_REST_USERNAME}
 Palworld__RestApi__Password=${GAMESHUD_PALWORLD_REST_PASSWORD}
 Palworld__RestApi__TimeoutSeconds=${GAMESHUD_PALWORLD_REST_TIMEOUT_SECONDS}
 ```
+
+The external Docker network must exist before starting the GamesHud Compose project:
+
+```bash
+docker network create gameshud-palworld
+```
+
+The configured Palworld container must also be attached to `gameshud-palworld` so the API can reach `GAMESHUD_PALWORLD_REST_BASE_URL` through that private network. Keeping this network in `deploy/compose.yaml` prevents future `docker compose up -d --build` runs from removing GamesHud API connectivity to Palworld REST.
 
 The frontend mounts no Docker socket and receives no Docker credentials.
 The frontend does not receive the Palworld data directory.

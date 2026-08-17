@@ -274,9 +274,11 @@ gameshud-api container
 Docker Engine on VPS
 ```
 
-The Compose deployment uses a GamesHud-owned network created by Compose. It must not use Palworld or Portainer networks.
+The Compose deployment uses a GamesHud-owned network created by Compose. It must not use Portainer networks or unrelated Palworld project networks.
 
 The frontend is published only on VPS loopback while authentication does not exist. The API is not published to the host by default and is reached by the frontend over the internal Compose network.
+
+For the temporary Palworld REST integration, `gameshud-api` also joins the external Docker network `gameshud-palworld`. This preserves private API-to-Palworld connectivity across redeploys. The frontend does not join that network.
 
 ### Deployment Security Rules
 
