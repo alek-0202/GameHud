@@ -356,6 +356,12 @@
   color: #bbf7d0;
 }
 
+.state-message-warning {
+  border-color: rgb(245 158 11 / 0.42);
+  background: var(--color-warning-muted);
+  color: #fde68a;
+}
+
 .status-badge {
   display: inline-flex;
   align-items: center;
@@ -422,6 +428,306 @@
   background:
     linear-gradient(135deg, rgb(56 189 248 / 0.055), transparent 18rem),
     var(--color-card);
+}
+
+.dashboard-server-section,
+.dashboard-system-section,
+.dashboard-activity-section,
+.dashboard-infrastructure-section {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.dashboard-server-card {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+  padding: var(--space-6);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(135deg, rgb(52 211 153 / 0.1), transparent 20rem),
+    linear-gradient(315deg, rgb(56 189 248 / 0.08), transparent 18rem),
+    var(--color-card);
+  box-shadow: var(--shadow-panel);
+}
+
+.dashboard-server-card-loading {
+  min-height: 15rem;
+  align-content: center;
+}
+
+.dashboard-server-card-topline,
+.dashboard-server-card-main,
+.dashboard-health-card-heading,
+.dashboard-infrastructure-card,
+.dashboard-activity-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.dashboard-server-card-main {
+  align-items: flex-end;
+}
+
+.dashboard-server-card-main h2 {
+  color: var(--color-text-primary);
+  font-size: 1.8rem;
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-server-card-main p {
+  max-width: 52rem;
+  margin-top: var(--space-2);
+}
+
+.dashboard-game-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: fit-content;
+  min-height: 1.9rem;
+  padding: 0 var(--space-3);
+  border: 1px solid rgb(52 211 153 / 0.24);
+  border-radius: var(--radius-md);
+  background: rgb(52 211 153 / 0.08);
+  color: var(--color-success);
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.dashboard-server-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.dashboard-server-stats div {
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: rgb(9 11 16 / 0.34);
+}
+
+.dashboard-server-stats dt,
+.dashboard-player-strip-label {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.dashboard-server-stats dd {
+  margin: var(--space-1) 0 0;
+  overflow-wrap: anywhere;
+  color: var(--color-text-primary);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.dashboard-player-strip {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-1);
+}
+
+.dashboard-player-strip p {
+  width: fit-content;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: rgb(9 11 16 / 0.28);
+  color: var(--color-text-muted);
+  font-size: 0.88rem;
+}
+
+.dashboard-more-players {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-text-muted);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.dashboard-inline-warning {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: fit-content;
+  min-height: 2.3rem;
+  padding: 0 var(--space-3);
+  border: 1px solid rgb(245 158 11 / 0.32);
+  border-radius: var(--radius-md);
+  background: var(--color-warning-muted);
+  color: #fde68a;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.dashboard-health-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.dashboard-health-card {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  min-height: 10rem;
+  padding: var(--space-5);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-card);
+  box-shadow: var(--shadow-panel);
+}
+
+.dashboard-health-card-heading {
+  justify-content: flex-start;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.dashboard-health-card strong {
+  color: var(--color-text-primary);
+  font-size: 1.55rem;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-health-card p {
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
+}
+
+.dashboard-health-icon,
+.dashboard-infrastructure-icon,
+.dashboard-activity-icon {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-background-panel);
+  color: var(--color-accent);
+}
+
+.dashboard-health-card-success .metric-progress span {
+  background: linear-gradient(90deg, var(--color-success), var(--color-accent));
+}
+
+.dashboard-health-card-warning .metric-progress span {
+  background: var(--color-warning);
+}
+
+.dashboard-health-card-danger .metric-progress span {
+  background: var(--color-danger);
+}
+
+.dashboard-health-card-muted .metric-progress span {
+  background: var(--color-text-muted);
+}
+
+.dashboard-activity-list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.dashboard-activity-item {
+  justify-content: flex-start;
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-card);
+}
+
+.dashboard-activity-item div {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.dashboard-activity-item strong {
+  color: var(--color-text-primary);
+  font-size: 0.94rem;
+}
+
+.dashboard-activity-item span,
+.dashboard-activity-item time {
+  color: var(--color-text-muted);
+  font-size: 0.84rem;
+}
+
+.dashboard-activity-item time {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.dashboard-activity-icon-automation {
+  border-color: rgb(167 139 250 / 0.32);
+  background: var(--color-automation-muted);
+  color: var(--color-automation);
+}
+
+.dashboard-activity-icon-info {
+  border-color: rgb(96 165 250 / 0.32);
+  background: var(--color-info-muted);
+  color: var(--color-info);
+}
+
+.dashboard-activity-icon-warning {
+  border-color: rgb(245 158 11 / 0.32);
+  background: var(--color-warning-muted);
+  color: var(--color-warning);
+}
+
+.dashboard-infrastructure-card {
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  box-shadow: var(--shadow-panel);
+}
+
+.dashboard-docker-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.dashboard-docker-summary div {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.dashboard-docker-summary span {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.dashboard-docker-summary strong {
+  color: var(--color-text-primary);
+  font-size: 1rem;
+}
+
+.dashboard-docker-summary small {
+  color: var(--color-text-muted);
+  font-size: 0.84rem;
 }
 
 .server-card-header,
@@ -1637,6 +1943,7 @@ td > input {
 
   .server-overview-grid,
   .metric-chart-grid,
+  .dashboard-server-stats,
   .notification-grid,
   .settings-status-list,
   .settings-grid {
@@ -1681,6 +1988,8 @@ td > input {
 
   .server-meta,
   .server-overview-grid,
+  .dashboard-health-grid,
+  .dashboard-server-stats,
   .compact-players-list,
   .metric-chart-grid,
   .notification-grid,
@@ -1730,6 +2039,7 @@ td > input {
   }
 
   .section-header,
+  .dashboard-server-card-main,
   .server-card-header,
   .details-header,
   .logs-heading,
@@ -1749,6 +2059,7 @@ td > input {
   .palworld-update-actions,
   .settings-category-header,
   .settings-category-actions,
+  .dashboard-infrastructure-card,
   .modal-actions {
     align-items: stretch;
     flex-direction: column;
@@ -1768,8 +2079,19 @@ td > input {
 
   .connection-panel,
   .palworld-update-panel,
+  .dashboard-health-grid,
+  .dashboard-server-stats,
   .player-row {
     grid-template-columns: 1fr;
+  }
+
+  .dashboard-activity-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .dashboard-activity-item time {
+    margin-left: 0;
   }
 
   .player-row dl {

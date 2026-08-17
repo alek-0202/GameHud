@@ -15,7 +15,14 @@ export function StatusBadge({ state }: StatusBadgeProps) {
 }
 
 function getTone(state: string) {
-  if (['running', 'online', 'healthy', 'success', 'completed'].includes(state)) {
+  if ([
+    'running',
+    'online',
+    'healthy',
+    'success',
+    'completed',
+    'all systems operational',
+  ].includes(state)) {
     return 'success'
   }
 
@@ -29,6 +36,7 @@ function getTone(state: string) {
     'failed',
     'error',
     'unhealthy',
+    'needs attention',
   ].includes(state)) {
     return 'danger'
   }
@@ -42,6 +50,7 @@ function getTone(state: string) {
     'update available',
     'attention',
     'warning',
+    'partial telemetry',
   ].includes(state)) {
     return 'warning'
   }
@@ -50,7 +59,7 @@ function getTone(state: string) {
     return 'automation'
   }
 
-  if (['info', 'unknown', 'checking'].includes(state)) {
+  if (['info', 'unknown', 'checking', 'checking systems'].includes(state)) {
     return 'info'
   }
 
