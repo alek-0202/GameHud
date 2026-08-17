@@ -1,5 +1,21 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import type { ReactNode } from 'react'
+import {
+  Activity,
+  Clock,
+  Copy,
+  Gauge,
+  Globe2,
+  HeartPulse,
+  Network,
+  RefreshCw,
+  Server,
+  ShieldCheck,
+  Users,
+  Wifi,
+  Zap,
+} from 'lucide-react'
+import { Link, useParams } from 'react-router-dom'
 import { ContainerLifecycleActions } from '../components/ContainerLifecycleActions'
 import { MetricProgressCard } from '../components/MetricProgressCard'
 import { MiniMetricChart } from '../components/MiniMetricChart'
@@ -11,7 +27,7 @@ import { usePalworldOverview } from '../hooks/usePalworldOverview'
 import { usePalworldUpdate } from '../hooks/usePalworldUpdate'
 import type { ContainerDetails } from '../types/container'
 import type { MetricsHistoryWindow } from '../types/metrics'
-import type { PalworldUpdateStatus } from '../types/palworld'
+import type { PalworldOverview, PalworldUpdateStatus } from '../types/palworld'
 import { formatDuration, formatPlayerLimit, getInitials } from '../utils/palworldDisplay'
 import { toFriendlyState } from '../utils/containerStatus'
 import { formatBytePair, formatPercent, toPercent } from '../utils/metricsDisplay'
@@ -49,24 +65,152 @@ export function PalworldOverviewPage() {
   }
 
   const overview = overviewState.overview
+  const serverState = toFriendlyState(visibleContainer?.state ?? overview.containerState)
+  const playersPath = `/servers/${encodeURIComponent(serverId)}/players`
 
   return (
-    <div className="page-section">
-      <SectionHeader
-        eyebrow="Overview"
-        title={overview.displayName}
-        description={overview.description ?? 'Friendly summary using Palworld REST API and Docker status.'}
-      />
+    <div className="page-section palworld-overview-page">
+      <PalworldServerHero overview={overview} serverState={serverState} />
 
-      <div className="server-overview-grid">
-        <OverviewCard label="Players" value={formatPlayerLimit(overview.onlinePlayers, overview.maxPlayers)} />
-        <OverviewCard label="Uptime" value={formatDuration(overview.uptimeSeconds)} />
-        <OverviewCard label="Server Version" value={overview.version ?? 'Unknown'} />
-        <div className="server-overview-card">
-          <span className="section-eyebrow">Server Health</span>
-          <StatusBadge state={overview.healthLabel} />
-          {overview.restApiMessage && <p>{overview.restApiMessage}</p>}
+      {detailsState.status === 'loading' && (
+        <section className="details-block lifecycle-block lifecycle-block-overview">
+          <h3>Quick Actions</h3>
+          <p className="section-description">Loading server operations...</p>
+        </section>
+      )}
+
+      {detailsState.status !== 'success'
+        && detailsState.status !== 'loading'
+        && detailsState.status !== 'idle' && (
+        <section className="details-block lifecycle-block lifecycle-block-overview">
+          <h3>Quick Actions</h3>
+          <p className="state-message state-message-error">{detailsState.message}</p>
+        </section>
+      )}
+
+      {detailsState.status === 'success' && (
+        <ContainerLifecycleActions
+          container={visibleContainer ?? detailsState.container}
+          description={`Docker state: ${serverState}. Start is available when the server is offline; stop and restart keep the existing confirmations.`}
+          onContainerUpdated={setUpdatedContainer}
+          title="Quick Actions"
+          variant="overview"
+        />
+      )}
+
+      <section className="details-block palworld-status-panel" aria-labelledby="palworld-server-status">
+        <SectionHeader
+          titleId="palworld-server-status"
+          title="Server Status"
+          description="Live Palworld REST data paired with the managed Docker container state."
+        />
+        <div className="palworld-status-grid">
+          <StatusTile
+            detail={`${overview.onlinePlayers} currently online`}
+            icon={<Users aria-hidden="true" size={18} />}
+            label="Players"
+            tone="success"
+            value={formatPlayerLimit(overview.onlinePlayers, overview.maxPlayers)}
+          />
+          <StatusTile
+            detail={overview.containerStatus || overview.containerName}
+            icon={<HeartPulse aria-hidden="true" size={18} />}
+            label="Health"
+            value={<StatusBadge state={overview.healthLabel} />}
+          />
+          <StatusTile
+            detail="Current session"
+            icon={<Clock aria-hidden="true" size={18} />}
+            label="Uptime"
+            value={formatDuration(overview.uptimeSeconds)}
+          />
+          <StatusTile
+            detail={overview.restApiMessage ?? 'Palworld REST API is reachable'}
+            icon={<Wifi aria-hidden="true" size={18} />}
+            label="Connection"
+            tone={overview.restApiAvailable ? 'success' : 'warning'}
+            value={overview.restApiAvailable ? 'REST online' : 'REST unavailable'}
+          />
+          <StatusTile
+            detail="Installed server build"
+            icon={<ShieldCheck aria-hidden="true" size={18} />}
+            label="Version"
+            value={overview.version ?? 'Unknown'}
+          />
+          <StatusTile
+            detail="World progression"
+            icon={<Globe2 aria-hidden="true" size={18} />}
+            label="In-game Days"
+            value={formatNullableNumber(overview.inGameDays)}
+          />
         </div>
+      </section>
+
+      <div className="palworld-overview-split">
+        <section className="details-block palworld-players-panel" aria-labelledby="palworld-online-players">
+          <div className="palworld-section-heading">
+            <div>
+              <span className="section-eyebrow">Players Online</span>
+              <h3 id="palworld-online-players">{formatPlayerLimit(overview.onlinePlayers, overview.maxPlayers)}</h3>
+            </div>
+            <Link className="ghost-button" to={playersPath}>
+              View all players
+            </Link>
+          </div>
+          {overview.players.length === 0 ? (
+            <p className="empty-message">No players online</p>
+          ) : (
+            <div className="players-list palworld-players-list">
+              {overview.players.slice(0, 5).map((player) => (
+                <article className="player-row palworld-player-row" key={player.publicId ?? player.name}>
+                  <div className="player-avatar" aria-hidden="true">
+                    {getInitials(player.name)}
+                  </div>
+                  <div>
+                    <strong>{player.name}</strong>
+                    <span>{player.publicId ?? player.accountName ?? 'Player'}</span>
+                  </div>
+                  <span className="palworld-player-ping">
+                    {player.ping === null ? 'Ping unavailable' : `${Math.round(player.ping)} ms`}
+                  </span>
+                </article>
+              ))}
+              {overview.players.length > 5 && (
+                <p className="table-subtext">+{overview.players.length - 5} more online</p>
+              )}
+            </div>
+          )}
+        </section>
+
+        <section className="details-block palworld-connection-card" aria-labelledby="palworld-connection">
+          <div className="palworld-section-heading">
+            <div>
+              <span className="section-eyebrow">Connection</span>
+              <h3 id="palworld-connection">Join Details</h3>
+            </div>
+            <Network aria-hidden="true" size={20} />
+          </div>
+          <dl className="details-grid compact-details-grid">
+            <dt>Server address</dt>
+            <dd>{overview.connectionAddress ?? 'Not configured'}</dd>
+            <dt>REST API</dt>
+            <dd>{overview.restApiAvailable ? 'Available' : 'Unavailable'}</dd>
+            <dt>Docker container</dt>
+            <dd>{overview.containerName}</dd>
+          </dl>
+          <button
+            className="secondary-button"
+            disabled={overview.connectionAddress === null}
+            type="button"
+            onClick={() => {
+              void copyConnectionAddress(overview.connectionAddress, setCopyFeedback)
+            }}
+          >
+            <Copy aria-hidden="true" size={16} />
+            Copy Address
+          </button>
+          {copyFeedback && <p className="state-message state-message-success">{copyFeedback}</p>}
+        </section>
       </div>
 
       <PalworldUpdatePanel
@@ -100,7 +244,7 @@ export function PalworldOverviewPage() {
       )}
 
       {metricsState.status === 'success' && (
-        <section className="details-block" aria-labelledby="palworld-resource-usage">
+        <section className="details-block palworld-resource-panel" aria-labelledby="palworld-resource-usage">
           <SectionHeader
             titleId="palworld-resource-usage"
             title="Resource Usage"
@@ -158,77 +302,42 @@ export function PalworldOverviewPage() {
         </section>
       )}
 
+      {metricsState.status === 'loading' && (
+        <p className="state-message">Loading resource usage...</p>
+      )}
+
       {metricsState.status !== 'success' && metricsState.status !== 'loading' && (
         <p className="state-message state-message-error">{metricsState.message}</p>
       )}
 
-      <section className="details-block" aria-labelledby="palworld-online-players">
-        <SectionHeader titleId="palworld-online-players" title="Players Online" />
-        {overview.players.length === 0 ? (
-          <p className="empty-message">No players online</p>
-        ) : (
-          <div className="players-list compact-players-list">
-            {overview.players.map((player) => (
-              <article className="player-row" key={player.publicId ?? player.name}>
-                <div className="player-avatar" aria-hidden="true">
-                  {getInitials(player.name)}
-                </div>
-                <div>
-                  <strong>{player.name}</strong>
-                  <span>
-                    {player.ping === null ? 'Ping unavailable' : `${Math.round(player.ping)} ms`}
-                  </span>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="details-block" aria-labelledby="palworld-connection">
-        <SectionHeader titleId="palworld-connection" title="Connection" />
-        <div className="summary-panel connection-panel">
-          <div>
-            <span className="section-eyebrow">Server address</span>
-            <strong>{overview.connectionAddress ?? 'Not configured'}</strong>
-          </div>
-          <button
-            className="secondary-button"
-            disabled={overview.connectionAddress === null}
-            type="button"
-            onClick={() => {
-              void copyConnectionAddress(overview.connectionAddress, setCopyFeedback)
-            }}
-          >
-            Copy
-          </button>
-        </div>
-        {copyFeedback && <p className="state-message state-message-success">{copyFeedback}</p>}
-      </section>
-
-      <section className="details-block" aria-labelledby="palworld-controls">
+      <section className="details-block palworld-world-panel" aria-labelledby="palworld-world-info">
         <SectionHeader
-          titleId="palworld-controls"
-          title="Server Controls"
-          description={`Docker state: ${toFriendlyState(visibleContainer?.state ?? overview.containerState)}.`}
+          titleId="palworld-world-info"
+          title="World Information"
+          description="Operational details reported by the Palworld server when available."
         />
-
-        {detailsState.status === 'loading' && (
-          <p className="state-message">Loading server operations...</p>
-        )}
-
-        {detailsState.status !== 'success'
-          && detailsState.status !== 'loading'
-          && detailsState.status !== 'idle' && (
-          <p className="state-message state-message-error">{detailsState.message}</p>
-        )}
-
-        {detailsState.status === 'success' && (
-          <ContainerLifecycleActions
-            container={visibleContainer ?? detailsState.container}
-            onContainerUpdated={setUpdatedContainer}
+        <div className="palworld-world-grid">
+          <WorldMetric
+            icon={<Globe2 aria-hidden="true" size={18} />}
+            label="In-game days"
+            value={formatNullableNumber(overview.inGameDays)}
           />
-        )}
+          <WorldMetric
+            icon={<Gauge aria-hidden="true" size={18} />}
+            label="Server FPS"
+            value={formatFps(overview.serverFps)}
+          />
+          <WorldMetric
+            icon={<Activity aria-hidden="true" size={18} />}
+            label="Frame time"
+            value={formatFrameTime(overview.serverFrameTime)}
+          />
+          <WorldMetric
+            icon={<Server aria-hidden="true" size={18} />}
+            label="Base camps"
+            value={formatNullableNumber(overview.baseCampCount)}
+          />
+        </div>
       </section>
 
       {showUpdateModal && updateState.update !== null && (
@@ -300,17 +409,91 @@ export function PalworldOverviewPage() {
   )
 }
 
-interface OverviewCardProps {
-  label: string
-  value: string
+interface PalworldServerHeroProps {
+  overview: PalworldOverview
+  serverState: string
 }
 
-function OverviewCard({ label, value }: OverviewCardProps) {
+function PalworldServerHero({ overview, serverState }: PalworldServerHeroProps) {
   return (
-    <div className="server-overview-card">
-      <span className="section-eyebrow">{label}</span>
+    <section className="palworld-overview-hero" aria-labelledby="palworld-overview-title">
+      <div className="palworld-overview-hero-main">
+        <div className="palworld-overview-hero-icon" aria-hidden="true">
+          <Zap size={22} />
+        </div>
+        <div>
+          <span className="section-eyebrow">Palworld Server</span>
+          <h2 id="palworld-overview-title">{overview.displayName}</h2>
+          <p>{overview.description ?? overview.serverName}</p>
+        </div>
+      </div>
+      <div className="palworld-overview-hero-aside">
+        <StatusBadge state={overview.healthLabel} />
+        <dl className="palworld-hero-stats">
+          <div>
+            <dt>Players</dt>
+            <dd>{formatPlayerLimit(overview.onlinePlayers, overview.maxPlayers)}</dd>
+          </div>
+          <div>
+            <dt>Uptime</dt>
+            <dd>{formatDuration(overview.uptimeSeconds)}</dd>
+          </div>
+          <div>
+            <dt>Version</dt>
+            <dd>{overview.version ?? 'Unknown'}</dd>
+          </div>
+          <div>
+            <dt>State</dt>
+            <dd>{serverState}</dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+  )
+}
+
+interface StatusTileProps {
+  label: string
+  value: ReactNode
+  detail: string
+  icon: ReactNode
+  tone?: 'neutral' | 'success' | 'warning'
+}
+
+function StatusTile({
+  label,
+  value,
+  detail,
+  icon,
+  tone = 'neutral',
+}: StatusTileProps) {
+  return (
+    <article className={`palworld-status-tile palworld-status-tile-${tone}`}>
+      <div className="palworld-status-tile-heading">
+        <span className="palworld-status-icon">{icon}</span>
+        <span>{label}</span>
+      </div>
       <strong>{value}</strong>
-    </div>
+      <p>{detail}</p>
+    </article>
+  )
+}
+
+interface WorldMetricProps {
+  label: string
+  value: string
+  icon: ReactNode
+}
+
+function WorldMetric({ label, value, icon }: WorldMetricProps) {
+  return (
+    <article className="palworld-world-metric">
+      <span className="palworld-status-icon">{icon}</span>
+      <div>
+        <span>{label}</span>
+        <strong>{value}</strong>
+      </div>
+    </article>
   )
 }
 
@@ -332,28 +515,32 @@ function PalworldUpdatePanel({
   onOpenUpdate,
 }: PalworldUpdatePanelProps) {
   const updateAvailable = update?.updateStatus === 'update-available'
+  const updateStatus = update?.updateStatus ?? 'unknown'
+  const statusLabel = formatUpdateStatus(updateStatus)
 
   return (
-    <section className="details-block" aria-labelledby="palworld-update-status">
-      <SectionHeader
-        titleId="palworld-update-status"
-        title="Server Version"
-        description="Manual update checks use SteamCMD metadata from the configured Palworld container."
-      />
-      <div className="summary-panel palworld-update-panel">
-        <dl className="details-grid compact-details-grid">
-          <dt>Installed</dt>
-          <dd>{update?.installedVersion ?? 'Unknown'}</dd>
-          <dt>Latest/status</dt>
-          <dd>
-            <StatusBadge state={formatUpdateStatus(update?.updateStatus ?? 'unknown')} />
-            <span className="table-subtext">
-              {update?.availableVersion ?? update?.message ?? 'Not checked yet'}
-            </span>
-          </dd>
-          <dt>Last Checked</dt>
-          <dd>{update === null ? 'Never' : formatDate(update.lastCheckedAt)}</dd>
-        </dl>
+    <section
+      className={`details-block palworld-version-panel palworld-version-panel-${getUpdateTone(updateStatus)}`}
+      aria-labelledby="palworld-update-status"
+    >
+      <div className="palworld-version-header">
+        <div>
+          <span className="section-eyebrow">Server Version</span>
+          <h3 id="palworld-update-status">Installed and Available Build</h3>
+          <p>Manual update checks use SteamCMD metadata from the configured Palworld container.</p>
+        </div>
+        <StatusBadge state={statusLabel} />
+      </div>
+      <div className="palworld-version-body">
+        <div className="palworld-version-grid">
+          <VersionField label="Installed" value={update?.installedVersion ?? 'Unknown'} />
+          <VersionField
+            label="Latest/status"
+            value={update?.availableVersion ?? statusLabel}
+            detail={update?.message ?? 'Not checked yet'}
+          />
+          <VersionField label="Last Checked" value={update === null ? 'Never' : formatDate(update.lastCheckedAt)} />
+        </div>
         <div className="palworld-update-actions">
           <button
             className="secondary-button"
@@ -361,6 +548,7 @@ function PalworldUpdatePanel({
             onClick={onCheck}
             type="button"
           >
+            <RefreshCw aria-hidden="true" size={16} />
             {isChecking ? 'Checking...' : 'Check for Updates'}
           </button>
           {updateAvailable && (
@@ -380,6 +568,22 @@ function PalworldUpdatePanel({
   )
 }
 
+interface VersionFieldProps {
+  label: string
+  value: string
+  detail?: string
+}
+
+function VersionField({ label, value, detail }: VersionFieldProps) {
+  return (
+    <div className="palworld-version-field">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      {detail && <p>{detail}</p>}
+    </div>
+  )
+}
+
 function formatUpdateStatus(status: string) {
   if (status === 'update-available') {
     return 'Update available'
@@ -394,6 +598,34 @@ function formatUpdateStatus(status: string) {
   }
 
   return 'Unknown'
+}
+
+function getUpdateTone(status: string) {
+  if (status === 'update-available') {
+    return 'warning'
+  }
+
+  if (status === 'up-to-date') {
+    return 'success'
+  }
+
+  if (status === 'check-unavailable') {
+    return 'warning'
+  }
+
+  return 'neutral'
+}
+
+function formatNullableNumber(value: number | null) {
+  return value === null ? 'Unknown' : new Intl.NumberFormat().format(value)
+}
+
+function formatFps(value: number | null) {
+  return value === null ? 'Unknown' : `${Math.round(value)} FPS`
+}
+
+function formatFrameTime(value: number | null) {
+  return value === null ? 'Unknown' : `${value.toFixed(1)} ms`
 }
 
 function formatDate(value: string) {
@@ -411,6 +643,15 @@ async function copyConnectionAddress(
     return
   }
 
-  await navigator.clipboard.writeText(connectionAddress)
-  setCopyFeedback('Connection address copied.')
+  if (!navigator.clipboard) {
+    setCopyFeedback('Clipboard is unavailable in this browser.')
+    return
+  }
+
+  try {
+    await navigator.clipboard.writeText(connectionAddress)
+    setCopyFeedback('Connection address copied.')
+  } catch {
+    setCopyFeedback('Unable to copy connection address.')
+  }
 }

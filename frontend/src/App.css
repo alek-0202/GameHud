@@ -331,6 +331,12 @@
   max-width: 48rem;
 }
 
+.section-description {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.92rem;
+}
+
 .section-aside {
   flex: 0 0 auto;
   color: var(--color-text-muted);
@@ -1441,6 +1447,293 @@ input[type='checkbox']:disabled {
   font-size: 0.9rem;
 }
 
+.palworld-overview-page {
+  gap: var(--space-5);
+}
+
+.palworld-overview-hero,
+.palworld-connection-card,
+.palworld-version-panel,
+.lifecycle-block-overview {
+  padding: var(--space-5);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-card);
+  box-shadow: var(--shadow-panel);
+}
+
+.palworld-status-panel,
+.palworld-players-panel,
+.palworld-resource-panel,
+.palworld-world-panel {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.palworld-overview-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(21rem, 0.48fr);
+  gap: var(--space-5);
+  align-items: stretch;
+  background:
+    linear-gradient(135deg, rgb(56 189 248 / 0.09), transparent 38%),
+    linear-gradient(315deg, rgb(251 191 36 / 0.08), transparent 42%),
+    var(--color-card);
+}
+
+.palworld-overview-hero-main {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.palworld-overview-hero-icon,
+.palworld-status-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 2.35rem;
+  height: 2.35rem;
+  border: 1px solid rgb(56 189 248 / 0.24);
+  border-radius: var(--radius-md);
+  background: rgb(56 189 248 / 0.1);
+  color: var(--color-accent);
+}
+
+.palworld-overview-hero h2 {
+  margin-top: var(--space-1);
+  overflow-wrap: anywhere;
+  color: var(--color-text-primary);
+  font-size: 1.8rem;
+  line-height: 1.12;
+}
+
+.palworld-overview-hero p {
+  max-width: 48rem;
+  margin-top: var(--space-2);
+  color: var(--color-text-secondary);
+}
+
+.palworld-overview-hero-aside {
+  display: grid;
+  gap: var(--space-4);
+  align-content: start;
+  justify-items: end;
+  min-width: 0;
+}
+
+.palworld-hero-stats,
+.palworld-status-grid,
+.palworld-world-grid,
+.palworld-version-grid {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.palworld-hero-stats {
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.palworld-world-metric,
+.palworld-status-tile {
+  min-width: 0;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: rgb(15 23 42 / 0.42);
+}
+
+.palworld-hero-stats div {
+  padding: var(--space-3);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.palworld-hero-stats dt,
+.palworld-version-field span,
+.palworld-world-metric span,
+.palworld-status-tile-heading {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.palworld-hero-stats dd {
+  margin: var(--space-1) 0 0;
+  overflow-wrap: anywhere;
+  color: var(--color-text-primary);
+  font-size: 0.98rem;
+  font-weight: 800;
+}
+
+.lifecycle-block-overview h3,
+.palworld-section-heading h3,
+.palworld-version-header h3 {
+  margin-top: var(--space-1);
+  color: var(--color-text-primary);
+  font-size: 1.18rem;
+  line-height: 1.2;
+}
+
+.lifecycle-block-overview .lifecycle-actions {
+  align-items: stretch;
+}
+
+.lifecycle-block-overview .primary-button {
+  border-color: rgb(52 211 153 / 0.34);
+  background: var(--color-success);
+  color: #03130c;
+}
+
+.lifecycle-restart-button {
+  border-color: rgb(251 191 36 / 0.34);
+  background: rgb(251 191 36 / 0.1);
+  color: #fde68a;
+}
+
+.palworld-status-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.palworld-status-tile {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  min-height: 9rem;
+  padding: var(--space-4);
+}
+
+.palworld-status-tile-success {
+  border-color: rgb(52 211 153 / 0.22);
+}
+
+.palworld-status-tile-warning {
+  border-color: rgb(251 191 36 / 0.26);
+}
+
+.palworld-status-tile-heading,
+.palworld-section-heading,
+.palworld-version-header,
+.palworld-version-body {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.palworld-status-tile-heading {
+  justify-content: flex-start;
+}
+
+.palworld-status-tile strong {
+  overflow-wrap: anywhere;
+  color: var(--color-text-primary);
+  font-size: 1.15rem;
+}
+
+.palworld-status-tile p,
+.palworld-version-header p,
+.palworld-version-field p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.88rem;
+}
+
+.palworld-overview-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(18rem, 0.92fr);
+  gap: var(--space-4);
+}
+
+.palworld-section-heading svg {
+  color: var(--color-accent);
+}
+
+.palworld-players-list {
+  gap: var(--space-2);
+}
+
+.palworld-player-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: var(--space-3);
+  background: var(--color-background-panel);
+}
+
+.palworld-player-ping {
+  justify-self: end;
+  color: var(--color-text-secondary);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.palworld-connection-card {
+  align-content: start;
+}
+
+.palworld-connection-card .details-grid {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.palworld-connection-card .secondary-button {
+  width: fit-content;
+}
+
+.palworld-version-panel-warning {
+  border-color: rgb(251 191 36 / 0.3);
+}
+
+.palworld-version-panel-success {
+  border-color: rgb(52 211 153 / 0.26);
+}
+
+.palworld-version-body {
+  align-items: stretch;
+}
+
+.palworld-version-grid {
+  flex: 1 1 auto;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.palworld-version-field {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-4);
+  border-left: 1px solid var(--color-border-subtle);
+}
+
+.palworld-version-field strong {
+  overflow-wrap: anywhere;
+  color: var(--color-text-primary);
+  font-size: 1rem;
+}
+
+.palworld-world-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.palworld-world-metric {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.palworld-world-metric strong {
+  display: block;
+  margin-top: var(--space-1);
+  overflow-wrap: anywhere;
+  color: var(--color-text-primary);
+  font-size: 1.05rem;
+}
+
 .server-overview-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1944,6 +2237,8 @@ td > input {
   .server-overview-grid,
   .metric-chart-grid,
   .dashboard-server-stats,
+  .palworld-status-grid,
+  .palworld-world-grid,
   .notification-grid,
   .settings-status-list,
   .settings-grid {
@@ -1988,6 +2283,9 @@ td > input {
 
   .server-meta,
   .server-overview-grid,
+  .palworld-status-grid,
+  .palworld-world-grid,
+  .palworld-version-grid,
   .dashboard-health-grid,
   .dashboard-server-stats,
   .compact-players-list,
@@ -1999,6 +2297,15 @@ td > input {
   .settings-grid-server,
   .settings-grid-editor {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .palworld-overview-hero,
+  .palworld-overview-split {
+    grid-template-columns: 1fr;
+  }
+
+  .palworld-overview-hero-aside {
+    justify-items: start;
   }
 
   .palworld-toolbar {
@@ -2020,6 +2327,10 @@ td > input {
   .backup-summary-grid,
   .server-overview-grid,
   .resource-usage-grid,
+  .palworld-status-grid,
+  .palworld-world-grid,
+  .palworld-version-grid,
+  .palworld-hero-stats,
   .server-meta,
   .compact-players-list,
   .metric-chart-grid,
@@ -2040,6 +2351,10 @@ td > input {
 
   .section-header,
   .dashboard-server-card-main,
+  .palworld-overview-hero-main,
+  .palworld-section-heading,
+  .palworld-version-header,
+  .palworld-version-body,
   .server-card-header,
   .details-header,
   .logs-heading,
@@ -2057,6 +2372,7 @@ td > input {
   .logs-actions,
   .backup-actions,
   .palworld-update-actions,
+  .lifecycle-block-overview .lifecycle-actions,
   .settings-category-header,
   .settings-category-actions,
   .dashboard-infrastructure-card,
@@ -2073,7 +2389,8 @@ td > input {
 
   .secondary-button,
   .primary-button,
-  .danger-button {
+  .danger-button,
+  .palworld-connection-card .secondary-button {
     width: 100%;
   }
 

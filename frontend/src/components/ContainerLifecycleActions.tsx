@@ -22,11 +22,17 @@ type Feedback = {
 interface ContainerLifecycleActionsProps {
   container: ContainerDetails
   onContainerUpdated: (container: ContainerDetails) => void
+  title?: string
+  description?: string
+  variant?: 'default' | 'overview'
 }
 
 export function ContainerLifecycleActions({
   container,
   onContainerUpdated,
+  title = 'Lifecycle',
+  description,
+  variant = 'default',
 }: ContainerLifecycleActionsProps) {
   const [pendingAction, setPendingAction] = useState<ContainerLifecycleAction | null>(null)
   const [confirmationAction, setConfirmationAction] = useState<ContainerLifecycleAction | null>(null)
@@ -92,21 +98,29 @@ export function ContainerLifecycleActions({
 
   if (availableActions.length === 0) {
     return (
-      <section className="details-block lifecycle-block" aria-labelledby="lifecycle-title">
-        <h3 id="lifecycle-title">Lifecycle</h3>
+      <section
+        className={variant === 'overview' ? 'details-block lifecycle-block lifecycle-block-overview' : 'details-block lifecycle-block'}
+        aria-labelledby="lifecycle-title"
+      >
+        <h3 id="lifecycle-title">{title}</h3>
+        {description && <p className="section-description">{description}</p>}
         <p className="empty-message">No lifecycle action is available for the current state.</p>
       </section>
     )
   }
 
   return (
-    <section className="details-block lifecycle-block" aria-labelledby="lifecycle-title">
-      <h3 id="lifecycle-title">Lifecycle</h3>
+    <section
+      className={variant === 'overview' ? 'details-block lifecycle-block lifecycle-block-overview' : 'details-block lifecycle-block'}
+      aria-labelledby="lifecycle-title"
+    >
+      <h3 id="lifecycle-title">{title}</h3>
+      {description && <p className="section-description">{description}</p>}
 
       <div className="lifecycle-actions">
         {availableActions.map((action) => (
           <button
-            className={getActionButtonClass(action)}
+            className={getActionButtonClass(action, variant)}
             disabled={isProcessing}
             key={action}
             type="button"
@@ -273,7 +287,11 @@ function getProcessingText(action: ContainerLifecycleAction) {
   return 'Restarting...'
 }
 
-function getActionButtonClass(action: ContainerLifecycleAction) {
+function getActionButtonClass(action: ContainerLifecycleAction, variant: 'default' | 'overview' = 'default') {
+  if (variant === 'overview' && action === 'restart') {
+    return 'secondary-button lifecycle-restart-button'
+  }
+
   return action === 'start' ? 'primary-button' : 'danger-button'
 }
 
