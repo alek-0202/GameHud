@@ -15,20 +15,43 @@ export function StatusBadge({ state }: StatusBadgeProps) {
 }
 
 function getTone(state: string) {
-  if (state === 'running' || state === 'online') {
+  if (['running', 'online', 'healthy', 'success', 'completed'].includes(state)) {
     return 'success'
   }
 
-  if (['created', 'exited', 'stopped', 'offline'].includes(state)) {
-    return 'muted'
+  if ([
+    'created',
+    'exited',
+    'stopped',
+    'offline',
+    'dead',
+    'not found',
+    'failed',
+    'error',
+    'unhealthy',
+  ].includes(state)) {
+    return 'danger'
   }
 
-  if (['restarting', 'paused', 'starting', 'rest unavailable'].includes(state)) {
+  if ([
+    'restarting',
+    'paused',
+    'starting',
+    'pending',
+    'rest unavailable',
+    'update available',
+    'attention',
+    'warning',
+  ].includes(state)) {
     return 'warning'
   }
 
-  if (state === 'dead' || state === 'not found') {
-    return 'danger'
+  if (['backup', 'backups', 'scheduler', 'scheduled', 'automation'].includes(state)) {
+    return 'automation'
+  }
+
+  if (['info', 'unknown', 'checking'].includes(state)) {
+    return 'info'
   }
 
   return 'neutral'

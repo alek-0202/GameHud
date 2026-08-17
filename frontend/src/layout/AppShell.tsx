@@ -1,5 +1,14 @@
 import type { ReactNode } from 'react'
+import {
+  Boxes,
+  Gamepad2,
+  Gauge,
+  LayoutDashboard,
+  Settings,
+  type LucideIcon,
+} from 'lucide-react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { PageHeader } from '../components/PageHeader'
 
 interface AppShellProps {
   children?: ReactNode
@@ -30,19 +39,19 @@ function Sidebar() {
 
       <nav className="sidebar-nav">
         <SidebarGroup title="General">
-          <SidebarLink glyph="D" label="Dashboard" to="/" end />
+          <SidebarLink icon={LayoutDashboard} label="Dashboard" to="/" end />
         </SidebarGroup>
 
         <SidebarGroup title="Game Servers">
-          <SidebarLink glyph="P" label="Palworld" to="/servers/palworld" />
+          <SidebarLink icon={Gamepad2} label="Palworld" to="/servers/palworld" />
         </SidebarGroup>
 
         <SidebarGroup title="Infrastructure">
-          <SidebarLink glyph="C" label="Containers" to="/containers" />
+          <SidebarLink icon={Boxes} label="Containers" to="/containers" />
         </SidebarGroup>
 
         <SidebarGroup title="System">
-          <SidebarLink glyph="S" label="Settings" to="/settings" />
+          <SidebarLink icon={Settings} label="Settings" to="/settings" />
         </SidebarGroup>
       </nav>
     </aside>
@@ -64,14 +73,14 @@ function SidebarGroup({ title, children }: SidebarGroupProps) {
 }
 
 interface SidebarLinkProps {
-  glyph: string
+  icon: LucideIcon
   label: string
   to: string
   end?: boolean
 }
 
 function SidebarLink({
-  glyph,
+  icon: Icon,
   label,
   to,
   end = false,
@@ -84,7 +93,9 @@ function SidebarLink({
       end={end}
       to={to}
     >
-      <span aria-hidden="true" className="sidebar-glyph">{glyph}</span>
+      <span aria-hidden="true" className="sidebar-glyph">
+        <Icon size={17} strokeWidth={2.2} />
+      </span>
       {label}
     </NavLink>
   )
@@ -96,13 +107,16 @@ function Topbar() {
 
   return (
     <header className="topbar">
-      <div>
-        <span className="topbar-eyebrow">Private infrastructure panel</span>
-        <h1>{pageTitle}</h1>
-      </div>
-      <div className="topbar-status">
-        <span className="environment-pill">Local / Private</span>
-      </div>
+      <PageHeader
+        actions={(
+          <span className="environment-pill">
+            <Gauge size={14} strokeWidth={2.3} />
+            Local / Private
+          </span>
+        )}
+        eyebrow="Private infrastructure panel"
+        title={pageTitle}
+      />
     </header>
   )
 }
