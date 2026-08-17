@@ -29,7 +29,14 @@ public sealed class PalworldRestService : IPalworldRestService
 
     public async Task<PalworldRestInfo> GetInfoAsync(CancellationToken cancellationToken)
     {
-        var response = await GetJsonAsync<PalworldRestInfoDto>("info", cancellationToken);
+        return await GetInfoAsync(_options.Value.RestApi, cancellationToken);
+    }
+
+    public async Task<PalworldRestInfo> GetInfoAsync(
+        PalworldRestApiOptions restOptions,
+        CancellationToken cancellationToken)
+    {
+        var response = await GetJsonAsync<PalworldRestInfoDto>("info", restOptions, cancellationToken);
 
         return new PalworldRestInfo(
             response.Version,
@@ -40,7 +47,14 @@ public sealed class PalworldRestService : IPalworldRestService
 
     public async Task<PalworldRestPlayers> GetPlayersAsync(CancellationToken cancellationToken)
     {
-        var response = await GetJsonAsync<PalworldRestPlayersDto>("players", cancellationToken);
+        return await GetPlayersAsync(_options.Value.RestApi, cancellationToken);
+    }
+
+    public async Task<PalworldRestPlayers> GetPlayersAsync(
+        PalworldRestApiOptions restOptions,
+        CancellationToken cancellationToken)
+    {
+        var response = await GetJsonAsync<PalworldRestPlayersDto>("players", restOptions, cancellationToken);
 
         return new PalworldRestPlayers(
             response.Players
@@ -60,7 +74,14 @@ public sealed class PalworldRestService : IPalworldRestService
 
     public async Task<PalworldRestSettings> GetSettingsAsync(CancellationToken cancellationToken)
     {
-        var response = await GetJsonAsync<PalworldRestSettingsDto>("settings", cancellationToken);
+        return await GetSettingsAsync(_options.Value.RestApi, cancellationToken);
+    }
+
+    public async Task<PalworldRestSettings> GetSettingsAsync(
+        PalworldRestApiOptions restOptions,
+        CancellationToken cancellationToken)
+    {
+        var response = await GetJsonAsync<PalworldRestSettingsDto>("settings", restOptions, cancellationToken);
 
         return new PalworldRestSettings(
             response.ServerPlayerMaxNum,
@@ -70,7 +91,14 @@ public sealed class PalworldRestService : IPalworldRestService
 
     public async Task<PalworldRestMetrics> GetMetricsAsync(CancellationToken cancellationToken)
     {
-        var response = await GetJsonAsync<PalworldRestMetricsDto>("metrics", cancellationToken);
+        return await GetMetricsAsync(_options.Value.RestApi, cancellationToken);
+    }
+
+    public async Task<PalworldRestMetrics> GetMetricsAsync(
+        PalworldRestApiOptions restOptions,
+        CancellationToken cancellationToken)
+    {
+        var response = await GetJsonAsync<PalworldRestMetricsDto>("metrics", restOptions, cancellationToken);
 
         return new PalworldRestMetrics(
             response.ServerFps,
@@ -84,10 +112,25 @@ public sealed class PalworldRestService : IPalworldRestService
 
     public async Task SaveWorldAsync(CancellationToken cancellationToken)
     {
-        using var _ = await SendAsync(HttpMethod.Post, "save", cancellationToken);
+        await SaveWorldAsync(_options.Value.RestApi, cancellationToken);
+    }
+
+    public async Task SaveWorldAsync(
+        PalworldRestApiOptions restOptions,
+        CancellationToken cancellationToken)
+    {
+        using var _ = await SendAsync(HttpMethod.Post, "save", restOptions, cancellationToken);
     }
 
     public async Task AnnounceAsync(
+        string message,
+        CancellationToken cancellationToken)
+    {
+        await AnnounceAsync(_options.Value.RestApi, message, cancellationToken);
+    }
+
+    public async Task AnnounceAsync(
+        PalworldRestApiOptions restOptions,
         string message,
         CancellationToken cancellationToken)
     {
@@ -98,6 +141,61 @@ public sealed class PalworldRestService : IPalworldRestService
         using var _ = await SendAsync(
             HttpMethod.Post,
             "announce",
+            restOptions,
+            cancellationToken,
+            requestContent);
+    }
+
+    public async Task KickAsync(
+        PalworldRestApiOptions restOptions,
+        string userId,
+        string? message,
+        CancellationToken cancellationToken)
+    {
+        await SendPlayerActionAsync("kick", restOptions, userId, message, cancellationToken);
+    }
+
+    public async Task BanAsync(
+        PalworldRestApiOptions restOptions,
+        string userId,
+        string? message,
+        CancellationToken cancellationToken)
+    {
+        await SendPlayerActionAsync("ban", restOptions, userId, message, cancellationToken);
+    }
+
+    public async Task UnbanAsync(
+        PalworldRestApiOptions restOptions,
+        string userId,
+        CancellationToken cancellationToken)
+    {
+        using var requestContent = new StringContent(
+            JsonSerializer.Serialize(new PalworldRestUnbanRequest(userId), JsonOptions),
+            Encoding.UTF8,
+            "application/json");
+        using var _ = await SendAsync(
+            HttpMethod.Post,
+            "unban",
+            restOptions,
+            cancellationToken,
+            requestContent);
+    }
+
+    private async Task SendPlayerActionAsync(
+        string endpoint,
+        PalworldRestApiOptions restOptions,
+        string userId,
+        string? message,
+        CancellationToken cancellationToken)
+    {
+        using var requestContent = new StringContent(
+            JsonSerializer.Serialize(new PalworldRestPlayerActionRequest(userId, message), JsonOptions),
+            Encoding.UTF8,
+            "application/json");
+        using var _ = await SendAsync(
+            HttpMethod.Post,
+            endpoint,
+            restOptions,
             cancellationToken,
             requestContent);
     }
@@ -106,7 +204,15 @@ public sealed class PalworldRestService : IPalworldRestService
         string endpoint,
         CancellationToken cancellationToken)
     {
-        using var response = await SendAsync(HttpMethod.Get, endpoint, cancellationToken);
+        return await GetJsonAsync<TResponse>(endpoint, _options.Value.RestApi, cancellationToken);
+    }
+
+    private async Task<TResponse> GetJsonAsync<TResponse>(
+        string endpoint,
+        PalworldRestApiOptions restOptions,
+        CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(HttpMethod.Get, endpoint, restOptions, cancellationToken);
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
 
         try
@@ -128,13 +234,14 @@ public sealed class PalworldRestService : IPalworldRestService
     private async Task<HttpResponseMessage> SendAsync(
         HttpMethod method,
         string endpoint,
+        PalworldRestApiOptions restOptions,
         CancellationToken cancellationToken,
         HttpContent? content = null)
     {
-        var restOptions = ResolveRestOptions();
+        var resolvedRestOptions = ResolveRestOptions(restOptions);
         using var timeoutCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutCancellationTokenSource.CancelAfter(TimeSpan.FromSeconds(restOptions.TimeoutSeconds));
-        using var request = new HttpRequestMessage(method, ResolveEndpoint(restOptions.BaseUrl, endpoint));
+        timeoutCancellationTokenSource.CancelAfter(TimeSpan.FromSeconds(resolvedRestOptions.TimeoutSeconds));
+        using var request = new HttpRequestMessage(method, ResolveEndpoint(resolvedRestOptions.BaseUrl, endpoint));
 
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         request.Content = content;
@@ -143,7 +250,7 @@ public sealed class PalworldRestService : IPalworldRestService
             Convert.ToBase64String(Encoding.UTF8.GetBytes(
                 string.Create(
                     CultureInfo.InvariantCulture,
-                    $"{restOptions.Username}:{restOptions.Password}"))));
+                    $"{resolvedRestOptions.Username}:{resolvedRestOptions.Password}"))));
 
         try
         {
@@ -179,10 +286,8 @@ public sealed class PalworldRestService : IPalworldRestService
         }
     }
 
-    private ResolvedRestOptions ResolveRestOptions()
+    private static ResolvedRestOptions ResolveRestOptions(PalworldRestApiOptions restOptions)
     {
-        var restOptions = _options.Value.RestApi;
-
         if (string.IsNullOrWhiteSpace(restOptions.BaseUrl))
         {
             throw new PalworldRestConfigurationException("Palworld REST API base URL is not configured.");
@@ -230,6 +335,16 @@ public sealed class PalworldRestService : IPalworldRestService
     private sealed record PalworldRestAnnounceRequest(
         [property: JsonPropertyName("message")]
         string Message);
+
+    private sealed record PalworldRestPlayerActionRequest(
+        [property: JsonPropertyName("userid")]
+        string UserId,
+        [property: JsonPropertyName("message")]
+        string? Message);
+
+    private sealed record PalworldRestUnbanRequest(
+        [property: JsonPropertyName("userid")]
+        string UserId);
 
     private sealed record PalworldRestInfoDto(
         string? Version,

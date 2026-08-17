@@ -40,11 +40,13 @@ type ChangedSetting = PalworldSetting & {
 interface PalworldSettingsProps {
   initialConfig?: PalworldConfig | null
   onConfigLoaded?: (config: PalworldConfig) => void
+  serverId?: string
 }
 
 export function PalworldSettings({
   initialConfig = null,
   onConfigLoaded,
+  serverId,
 }: PalworldSettingsProps) {
   const [state, setState] = useState<LoadState>(
     initialConfig === null
@@ -94,13 +96,14 @@ export function PalworldSettings({
   )
 
   useEffect(() => {
+    isMountedRef.current = true
     void loadConfig()
 
     return () => {
       isMountedRef.current = false
       activeAbortControllerRef.current?.abort()
     }
-  }, [])
+  }, [serverId])
 
   useEffect(() => {
     if (config === null) {
@@ -125,7 +128,7 @@ export function PalworldSettings({
     try {
       setState({ status: 'loading' })
 
-      const loadedConfig = await fetchPalworldConfig(abortController.signal)
+      const loadedConfig = await fetchPalworldConfig(abortController.signal, serverId)
 
       if (isMountedRef.current) {
         acceptConfig(loadedConfig)
@@ -158,6 +161,7 @@ export function PalworldSettings({
         request,
         operation === 'restart',
         abortController.signal,
+        serverId,
       )
 
       if (isMountedRef.current) {

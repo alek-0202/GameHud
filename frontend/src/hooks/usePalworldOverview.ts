@@ -8,7 +8,10 @@ type PalworldOverviewState =
   | { status: 'unavailable'; overview: null; message: string }
   | { status: 'error'; overview: null; message: string }
 
-export function usePalworldOverview(pollIntervalMs = 15000): PalworldOverviewState {
+export function usePalworldOverview(
+  pollIntervalMs = 15000,
+  serverId?: string,
+): PalworldOverviewState {
   const [state, setState] = useState<PalworldOverviewState>({
     status: 'loading',
     overview: null,
@@ -33,7 +36,7 @@ export function usePalworldOverview(pollIntervalMs = 15000): PalworldOverviewSta
           setState({ status: 'loading', overview: null })
         }
 
-        const overview = await fetchPalworldOverview(abortController.signal)
+        const overview = await fetchPalworldOverview(abortController.signal, serverId)
 
         if (isMounted) {
           setState({ status: 'success', overview })
@@ -81,7 +84,7 @@ export function usePalworldOverview(pollIntervalMs = 15000): PalworldOverviewSta
         window.clearTimeout(timeoutId)
       }
     }
-  }, [pollIntervalMs])
+  }, [pollIntervalMs, serverId])
 
   return state
 }

@@ -11,4 +11,5 @@ public sealed record PalworldPlayerResponse(
     string? AccountName,
     string? PublicId,
     double? Ping,
-    int? Level);
+    int? Level,
+    string? UserId = null);

@@ -33,6 +33,9 @@ Implemented:
 - Short in-memory metrics history
 - Temporary personal Palworld settings editor isolated outside Docker Core
 - Temporary Palworld REST overview and players view isolated outside Docker Core
+- Server registry foundation with legacy Palworld fallback
+- Palworld player administration through the backend REST integration
+- Palworld mod inventory only, without install/enable/disable automation
 - Temporary Palworld backup management isolated outside Docker Core
 - Temporary manual Palworld update check/apply flow isolated outside Docker Core
 - Improved logs snapshot tools
@@ -49,7 +52,8 @@ Planned:
 
 - Authentication and authorization
 - Public deployment after authentication
-- Plugin foundation
+- Durable server registration UI
+- Full plugin migration for every temporary Palworld feature
 - Game-specific plugins
 
 Not implemented yet:
@@ -57,7 +61,8 @@ Not implemented yet:
 - Real-time log streaming
 - Authentication
 - Authorization
-- Plugins
+- Generic server creation
+- Automated Palworld mod install/enable/disable
 
 Development and deployment strategy:
 
@@ -212,6 +217,29 @@ The managed path must point to the Palworld data directory. The backup path must
 
 Manual Palworld update apply requires the configured Palworld container to already use `UPDATE_ON_BOOT=true`. GamesHud checks this before starting the maintenance flow and does not change Palworld container environment variables.
 
+Optional multi-server configuration can be introduced with a `Servers` collection. When no collection is configured, GamesHud creates a legacy `palworld` server from the `Palworld__...` values above.
+
+```json
+{
+  "Servers": [
+    {
+      "Id": "amigos",
+      "Type": "palworld",
+      "DisplayName": "Amigos",
+      "ContainerName": "palworld-amigos",
+      "ManagedPath": "/managed/palworld",
+      "BackupPath": "/managed/palworld-backups",
+      "ConnectionAddress": "example.test:8211",
+      "RestApi": {
+        "BaseUrl": "http://internal-palworld-rest:8212",
+        "Username": "admin",
+        "Password": "use-environment-values"
+      }
+    }
+  ]
+}
+```
+
 ---
 
 ## API
@@ -283,6 +311,17 @@ Metrics are lightweight snapshots. Docker stats are read as one-shot snapshots, 
 Temporary Palworld integration:
 
 ```text
+GET /api/servers
+GET /api/servers/{serverId}
+GET /api/servers/{serverId}/overview
+GET /api/servers/{serverId}/players
+POST /api/servers/{serverId}/announcements
+POST /api/servers/{serverId}/players/{userId}/kick
+POST /api/servers/{serverId}/players/{userId}/ban
+POST /api/servers/{serverId}/players/unban
+GET /api/servers/{serverId}/settings
+PUT /api/servers/{serverId}/settings
+GET /api/servers/{serverId}/mods
 GET /api/palworld/config
 PUT /api/palworld/config
 PUT /api/palworld/config?restart=true
@@ -301,6 +340,8 @@ POST /api/palworld/update
 `GET` returns a typed settings list with metadata, current values and `hasValue` for protected password settings. It does not return plaintext passwords or raw INI content. Empty password values on `PUT` preserve the current password.
 
 The Palworld overview, players, backups and update endpoints use GamesHud contracts and sanitize external data before returning it to the frontend. Backup restore and server update are destructive maintenance flows and require strong confirmation.
+
+Server-scoped Palworld player actions use the Palworld REST API through the backend only. Player IPs and REST credentials are never returned to the frontend. Mod management is currently local inventory only.
 
 Operations:
 

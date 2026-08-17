@@ -8,7 +8,10 @@ type PalworldPlayersState =
   | { status: 'unavailable'; players: null; message: string }
   | { status: 'error'; players: null; message: string }
 
-export function usePalworldPlayers(pollIntervalMs = 15000): PalworldPlayersState {
+export function usePalworldPlayers(
+  pollIntervalMs = 15000,
+  serverId?: string,
+): PalworldPlayersState {
   const [state, setState] = useState<PalworldPlayersState>({
     status: 'loading',
     players: null,
@@ -33,7 +36,7 @@ export function usePalworldPlayers(pollIntervalMs = 15000): PalworldPlayersState
           setState({ status: 'loading', players: null })
         }
 
-        const players = await fetchPalworldPlayers(abortController.signal)
+        const players = await fetchPalworldPlayers(abortController.signal, serverId)
 
         if (isMounted) {
           setState({ status: 'success', players })
@@ -81,7 +84,7 @@ export function usePalworldPlayers(pollIntervalMs = 15000): PalworldPlayersState
         window.clearTimeout(timeoutId)
       }
     }
-  }, [pollIntervalMs])
+  }, [pollIntervalMs, serverId])
 
   return state
 }

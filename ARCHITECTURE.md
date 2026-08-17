@@ -52,9 +52,25 @@ The Docker Core must not contain behavior specific to Palworld, Minecraft, Terra
 
 ## Plugin Responsibilities
 
-Plugins are planned for application-specific features.
+Plugins are now introduced as a minimal foundation for application-specific features.
 
-Examples of future plugin responsibilities:
+Current minimal plugin contract:
+
+- Id
+- Game type
+- Display name
+- Capabilities
+
+Current capabilities:
+
+- overview
+- settings
+- players
+- backups
+- update
+- logs
+
+Examples of plugin responsibilities:
 
 - Game server status
 - Player lists
@@ -63,11 +79,11 @@ Examples of future plugin responsibilities:
 - Game-specific backup and restore workflows
 - Controlled restart or update workflows
 
-Plugins are not implemented yet.
+The first plugin type is Palworld. This is not a full plugin SDK and must stay small until another real game server requires more surface area.
 
 ## Temporary Palworld Integration
 
-A temporary personal Palworld settings editor, REST overview, backup manager and manual update flow exist before the planned plugin system.
+A temporary personal Palworld settings editor, REST overview, backup manager and manual update flow exist while the plugin system is being introduced incrementally.
 
 This feature is intentionally isolated under Palworld-specific backend and frontend boundaries. It is not part of Docker Core and must not add Palworld rules to `DockerContainerService`.
 
@@ -80,12 +96,14 @@ Current responsibilities:
 - Never return plaintext `ServerPassword` or raw INI content.
 - Optionally stop and start only the configured Palworld container after saving.
 - Read native Palworld REST API info, players, settings and metrics through the backend only.
+- Send Palworld REST announcements and player kick, ban and unban requests through the backend only.
 - Create, list, download, restore and delete Palworld backups from configured backend paths only.
 - Create a pre-restore backup before every restore.
 - Check and apply Palworld server updates only for the configured Palworld container.
 - Never expose Palworld REST API credentials, player IP addresses or raw external contracts.
+- Detect local mod files as inventory only. GamesHud must not download, enable, disable or execute mods in the current Linux container setup.
 
-This temporary integration should migrate into a future plugin when the plugin foundation exists.
+This temporary integration should keep migrating onto server-scoped Palworld plugin contracts.
 
 ---
 
@@ -178,6 +196,8 @@ Temporary Palworld configuration uses environment-specific values:
 - `Palworld:RestApi:*`
 - `Palworld__RestApi__*`
 
+The optional multi-server registry uses a `Servers` collection. If the collection is empty, GamesHud creates a legacy `palworld` server from the singular `Palworld` configuration. Server descriptors returned to the frontend must not include REST usernames, passwords, base URLs or filesystem paths.
+
 The client must never provide filesystem paths.
 
 The Docker socket is high privilege and must be accessible only to the backend process. Frontend code must never access Docker Engine, Docker sockets, credentials or certificates directly.
@@ -210,7 +230,8 @@ Not implemented yet:
 
 - Authentication
 - Authorization
-- Plugins
+- Full plugin SDK
+- Generic server creation
 - Real-time logs
 - SignalR or WebSockets
 
@@ -232,6 +253,17 @@ The temporary Palworld config endpoints are separate from Docker Core:
 - `DELETE /api/palworld/backups/{backupId}`
 - `GET /api/palworld/update`
 - `POST /api/palworld/update`
+- `GET /api/servers`
+- `GET /api/servers/{serverId}`
+- `GET /api/servers/{serverId}/overview`
+- `GET /api/servers/{serverId}/players`
+- `POST /api/servers/{serverId}/announcements`
+- `POST /api/servers/{serverId}/players/{userId}/kick`
+- `POST /api/servers/{serverId}/players/{userId}/ban`
+- `POST /api/servers/{serverId}/players/unban`
+- `GET /api/servers/{serverId}/settings`
+- `PUT /api/servers/{serverId}/settings`
+- `GET /api/servers/{serverId}/mods`
 
 Operational endpoints:
 

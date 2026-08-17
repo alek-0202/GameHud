@@ -922,7 +922,7 @@ tbody tr:last-child td {
 
 .player-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   gap: var(--space-3);
   align-items: center;
   min-width: 0;
@@ -955,6 +955,13 @@ tbody tr:last-child td {
   justify-content: flex-end;
   gap: var(--space-4);
   margin: 0;
+}
+
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: flex-end;
 }
 
 .player-row dt {
@@ -1606,6 +1613,10 @@ td > input {
   }
 
   .player-row dl {
+    justify-content: flex-start;
+  }
+
+  .inline-actions {
     justify-content: flex-start;
   }
 }

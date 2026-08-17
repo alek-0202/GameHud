@@ -9,7 +9,10 @@ type PalworldConfigState =
   | { status: 'unavailable'; config: null; message: string }
   | { status: 'error'; config: null; message: string }
 
-export function usePalworldConfig(refreshToken = 0): PalworldConfigState {
+export function usePalworldConfig(
+  refreshToken = 0,
+  serverId?: string,
+): PalworldConfigState {
   const [state, setState] = useState<PalworldConfigState>({
     status: 'loading',
     config: null,
@@ -22,7 +25,7 @@ export function usePalworldConfig(refreshToken = 0): PalworldConfigState {
       try {
         setState({ status: 'loading', config: null })
 
-        const config = await fetchPalworldConfig(abortController.signal)
+        const config = await fetchPalworldConfig(abortController.signal, serverId)
 
         setState({ status: 'success', config })
       } catch (error) {
@@ -39,7 +42,7 @@ export function usePalworldConfig(refreshToken = 0): PalworldConfigState {
     return () => {
       abortController.abort()
     }
-  }, [refreshToken])
+  }, [refreshToken, serverId])
 
   return state
 }

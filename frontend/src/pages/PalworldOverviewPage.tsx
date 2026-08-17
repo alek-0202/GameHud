@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useParams } from 'react-router-dom'
 import { ContainerLifecycleActions } from '../components/ContainerLifecycleActions'
 import { MetricProgressCard } from '../components/MetricProgressCard'
 import { MiniMetricChart } from '../components/MiniMetricChart'
@@ -19,7 +20,8 @@ import { PalworldUnavailableState } from './PalworldLayout'
 const updateConfirmation = 'UPDATE PALWORLD SERVER'
 
 export function PalworldOverviewPage() {
-  const overviewState = usePalworldOverview()
+  const { serverId = 'palworld' } = useParams()
+  const overviewState = usePalworldOverview(15000, serverId)
   const [historyWindow, setHistoryWindow] = useState<MetricsHistoryWindow>(1)
   const metricsState = usePalworldMetrics(historyWindow)
   const updateState = usePalworldUpdate()

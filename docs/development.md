@@ -150,6 +150,8 @@ Temporary Palworld settings, REST and backups are configured separately:
 
 Use local environment variables for local testing. The backup path must be separate from the managed path. Keep `DISABLE_GENERATE_SETTINGS=true` in the Palworld deployment when testing direct file edits. Do not commit real Palworld paths, container names, passwords, REST credentials, tokens or VPS details.
 
+Optional multi-server development can use a `Servers` collection with `Id`, `Type`, `DisplayName`, `ContainerName`, `ManagedPath`, `BackupPath`, `ConnectionAddress`, and `RestApi`. If this collection is empty, GamesHud uses the singular `Palworld` configuration as a legacy server with id `palworld`.
+
 ---
 
 ## Backend Endpoints
@@ -219,6 +221,17 @@ Start returns a friendly success response when the container is already running.
 Temporary Palworld integration:
 
 ```text
+GET http://localhost:5258/api/servers
+GET http://localhost:5258/api/servers/{serverId}
+GET http://localhost:5258/api/servers/{serverId}/overview
+GET http://localhost:5258/api/servers/{serverId}/players
+POST http://localhost:5258/api/servers/{serverId}/announcements
+POST http://localhost:5258/api/servers/{serverId}/players/{userId}/kick
+POST http://localhost:5258/api/servers/{serverId}/players/{userId}/ban
+POST http://localhost:5258/api/servers/{serverId}/players/unban
+GET http://localhost:5258/api/servers/{serverId}/settings
+PUT http://localhost:5258/api/servers/{serverId}/settings
+GET http://localhost:5258/api/servers/{serverId}/mods
 GET http://localhost:5258/api/palworld/config
 PUT http://localhost:5258/api/palworld/config
 PUT http://localhost:5258/api/palworld/config?restart=true
@@ -239,6 +252,8 @@ The GET response returns supported settings as a typed metadata list. Password v
 The overview and players endpoints use the Palworld REST API through the backend only. They must not return REST credentials, player IP addresses or raw external contracts.
 
 When `restart=true`, GamesHud stops and starts only the configured Palworld container. Backup restore and manual update also stop and start only the configured Palworld container after strong confirmation and after creating a required backup. These flows must not call compose down, Docker daemon restart, remove, kill, recreate or lifecycle actions for any other container.
+
+Palworld player administration is limited to supported REST actions: announce, kick, ban and unban. Destructive player actions require exact confirmation text. Palworld mod support is inventory-only until a safe and predictable Linux container mod workflow exists.
 
 Operational tools:
 

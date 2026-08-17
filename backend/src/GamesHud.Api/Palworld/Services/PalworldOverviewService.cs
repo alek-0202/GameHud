@@ -1,5 +1,6 @@
 using GamesHud.Api.Docker.Contracts;
 using GamesHud.Api.Docker.Services;
+using GamesHud.Api.GameServers.Services;
 using GamesHud.Api.Palworld.Configuration;
 using GamesHud.Api.Palworld.Contracts;
 using Microsoft.Extensions.Options;
@@ -11,31 +12,57 @@ public sealed class PalworldOverviewService : IPalworldOverviewService
     private const string DefaultServerName = "Palworld";
 
     private readonly IOptions<PalworldOptions> _options;
+    private readonly IGameServerRegistry? _gameServerRegistry;
     private readonly IContainerService _containerService;
     private readonly IPalworldRestService _palworldRestService;
     private readonly ILogger<PalworldOverviewService> _logger;
 
     public PalworldOverviewService(
         IOptions<PalworldOptions> options,
+        IGameServerRegistry? gameServerRegistry,
         IContainerService containerService,
         IPalworldRestService palworldRestService,
         ILogger<PalworldOverviewService> logger)
     {
         _options = options;
+        _gameServerRegistry = gameServerRegistry;
         _containerService = containerService;
         _palworldRestService = palworldRestService;
         _logger = logger;
     }
 
+    public PalworldOverviewService(
+        IOptions<PalworldOptions> options,
+        IContainerService containerService,
+        IPalworldRestService palworldRestService,
+        ILogger<PalworldOverviewService> logger)
+        : this(
+            options,
+            null,
+            containerService,
+            palworldRestService,
+            logger)
+    {
+    }
+
     public async Task<PalworldOverviewResponse> GetOverviewAsync(CancellationToken cancellationToken)
     {
-        var containerName = ResolveContainerName();
+        return await GetOverviewAsync(null, cancellationToken);
+    }
+
+    public async Task<PalworldOverviewResponse> GetOverviewAsync(
+        string? serverId,
+        CancellationToken cancellationToken)
+    {
+        var options = ResolveOptions(serverId);
+        var containerName = ResolveContainerName(options);
         var container = await _containerService.GetContainerDetailsAsync(containerName, cancellationToken);
         var retrievedAt = DateTimeOffset.UtcNow.ToString("O");
 
         if (container is null)
         {
             return CreateUnavailableOverview(
+                options,
                 containerName,
                 "not-found",
                 "Container not found",
@@ -48,6 +75,7 @@ public sealed class PalworldOverviewService : IPalworldOverviewService
         if (IsStopped(containerState))
         {
             return CreateContainerOverview(
+                options,
                 container,
                 "container-stopped",
                 "Offline",
@@ -58,6 +86,7 @@ public sealed class PalworldOverviewService : IPalworldOverviewService
         if (IsStarting(containerState))
         {
             return CreateContainerOverview(
+                options,
                 container,
                 "container-starting",
                 "Starting",
@@ -67,10 +96,10 @@ public sealed class PalworldOverviewService : IPalworldOverviewService
 
         try
         {
-            var infoTask = _palworldRestService.GetInfoAsync(cancellationToken);
-            var playersTask = _palworldRestService.GetPlayersAsync(cancellationToken);
-            var settingsTask = _palworldRestService.GetSettingsAsync(cancellationToken);
-            var metricsTask = _palworldRestService.GetMetricsAsync(cancellationToken);
+            var infoTask = _palworldRestService.GetInfoAsync(options.RestApi, cancellationToken);
+            var playersTask = _palworldRestService.GetPlayersAsync(options.RestApi, cancellationToken);
+            var settingsTask = _palworldRestService.GetSettingsAsync(options.RestApi, cancellationToken);
+            var metricsTask = _palworldRestService.GetMetricsAsync(options.RestApi, cancellationToken);
 
             await Task.WhenAll(infoTask, playersTask, settingsTask, metricsTask);
 
@@ -91,7 +120,7 @@ public sealed class PalworldOverviewService : IPalworldOverviewService
                 "Online",
                 info.Version,
                 FirstNotBlank(info.Description, settings.ServerDescription),
-                ResolveConnectionAddress(),
+                ResolveConnectionAddress(options),
                 metrics.CurrentPlayerNum ?? mappedPlayers.Count,
                 metrics.MaxPlayerNum ?? settings.ServerPlayerMaxNum,
                 metrics.Uptime,
@@ -109,6 +138,7 @@ public sealed class PalworldOverviewService : IPalworldOverviewService
             _logger.LogWarning(exception, "Palworld REST API is unavailable while building overview.");
 
             return CreateContainerOverview(
+                options,
                 container,
                 "rest-unavailable",
                 "REST unavailable",
@@ -119,9 +149,17 @@ public sealed class PalworldOverviewService : IPalworldOverviewService
 
     public async Task<PalworldPlayersResponse> GetPlayersAsync(CancellationToken cancellationToken)
     {
-        var playersTask = _palworldRestService.GetPlayersAsync(cancellationToken);
-        var metricsTask = _palworldRestService.GetMetricsAsync(cancellationToken);
-        var settingsTask = _palworldRestService.GetSettingsAsync(cancellationToken);
+        return await GetPlayersAsync(null, cancellationToken);
+    }
+
+    public async Task<PalworldPlayersResponse> GetPlayersAsync(
+        string? serverId,
+        CancellationToken cancellationToken)
+    {
+        var options = ResolveOptions(serverId);
+        var playersTask = _palworldRestService.GetPlayersAsync(options.RestApi, cancellationToken);
+        var metricsTask = _palworldRestService.GetMetricsAsync(options.RestApi, cancellationToken);
+        var settingsTask = _palworldRestService.GetSettingsAsync(options.RestApi, cancellationToken);
 
         await Task.WhenAll(playersTask, metricsTask, settingsTask);
 
@@ -137,6 +175,7 @@ public sealed class PalworldOverviewService : IPalworldOverviewService
     }
 
     private PalworldOverviewResponse CreateContainerOverview(
+        PalworldOptions options,
         ContainerDetailsResponse container,
         string health,
         string healthLabel,
@@ -153,7 +192,7 @@ public sealed class PalworldOverviewService : IPalworldOverviewService
             healthLabel,
             null,
             null,
-            ResolveConnectionAddress(),
+                ResolveConnectionAddress(options),
             0,
             null,
             null,
@@ -168,6 +207,7 @@ public sealed class PalworldOverviewService : IPalworldOverviewService
     }
 
     private PalworldOverviewResponse CreateUnavailableOverview(
+        PalworldOptions options,
         string containerName,
         string health,
         string healthLabel,
@@ -184,7 +224,7 @@ public sealed class PalworldOverviewService : IPalworldOverviewService
             healthLabel,
             null,
             null,
-            ResolveConnectionAddress(),
+                ResolveConnectionAddress(options),
             0,
             null,
             null,
@@ -198,9 +238,17 @@ public sealed class PalworldOverviewService : IPalworldOverviewService
             retrievedAt);
     }
 
-    private string ResolveContainerName()
+    private PalworldOptions ResolveOptions(string? serverId)
     {
-        var containerName = _options.Value.ContainerName;
+        return string.IsNullOrWhiteSpace(serverId)
+            ? _options.Value
+            : (_gameServerRegistry ?? throw new GameServerNotFoundException(serverId))
+                .GetPalworldOptions(serverId);
+    }
+
+    private static string ResolveContainerName(PalworldOptions options)
+    {
+        var containerName = options.ContainerName;
 
         if (string.IsNullOrWhiteSpace(containerName))
         {
@@ -210,9 +258,9 @@ public sealed class PalworldOverviewService : IPalworldOverviewService
         return containerName.Trim();
     }
 
-    private string? ResolveConnectionAddress()
+    private static string? ResolveConnectionAddress(PalworldOptions options)
     {
-        var connectionAddress = _options.Value.ConnectionAddress;
+        var connectionAddress = options.ConnectionAddress;
 
         return string.IsNullOrWhiteSpace(connectionAddress)
             ? null
@@ -227,7 +275,8 @@ public sealed class PalworldOverviewService : IPalworldOverviewService
                 string.IsNullOrWhiteSpace(player.AccountName) ? null : player.AccountName.Trim(),
                 ToPublicId(player.PlayerId),
                 player.Ping,
-                player.Level))
+                player.Level,
+                string.IsNullOrWhiteSpace(player.UserId) ? null : player.UserId.Trim()))
             .ToArray();
     }
 

@@ -20,7 +20,7 @@ function App() {
       <Route element={<AppShell />}>
         <Route index element={<DashboardPage />} />
         <Route path="servers" element={<GameServersPage />} />
-        <Route path="servers/palworld" element={<PalworldLayout />}>
+        <Route path="servers/:serverId" element={<PalworldLayout />}>
           <Route index element={<PalworldOverviewPage />} />
           <Route path="players" element={<PalworldPlayersPage />} />
           <Route path="settings" element={<PalworldSettingsPage />} />

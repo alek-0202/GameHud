@@ -1,5 +1,6 @@
 using System.Globalization;
 using GamesHud.Api.Docker.Services;
+using GamesHud.Api.GameServers.Services;
 using GamesHud.Api.Palworld.Configuration;
 using GamesHud.Api.Palworld.Contracts;
 using Microsoft.Extensions.Options;
@@ -21,29 +22,54 @@ public sealed class PalworldConfigService : IPalworldConfigService
     ];
 
     private readonly IOptions<PalworldOptions> _options;
+    private readonly IGameServerRegistry? _gameServerRegistry;
     private readonly IPalworldConfigFileSystem _fileSystem;
     private readonly IContainerService _containerService;
     private readonly ILogger<PalworldConfigService> _logger;
 
     public PalworldConfigService(
         IOptions<PalworldOptions> options,
+        IGameServerRegistry? gameServerRegistry,
         IPalworldConfigFileSystem fileSystem,
         IContainerService containerService,
         ILogger<PalworldConfigService> logger)
     {
         _options = options;
+        _gameServerRegistry = gameServerRegistry;
         _fileSystem = fileSystem;
         _containerService = containerService;
         _logger = logger;
     }
 
+    public PalworldConfigService(
+        IOptions<PalworldOptions> options,
+        IPalworldConfigFileSystem fileSystem,
+        IContainerService containerService,
+        ILogger<PalworldConfigService> logger)
+        : this(
+            options,
+            null,
+            fileSystem,
+            containerService,
+            logger)
+    {
+    }
+
     public async Task<PalworldConfigResponse> GetConfigAsync(CancellationToken cancellationToken)
     {
-        var settingsFile = ResolveSettingsFile();
+        return await GetConfigAsync(null, cancellationToken);
+    }
+
+    public async Task<PalworldConfigResponse> GetConfigAsync(
+        string? serverId,
+        CancellationToken cancellationToken)
+    {
+        var options = ResolveOptions(serverId);
+        var settingsFile = ResolveSettingsFile(options);
         var currentText = await _fileSystem.ReadAllTextAsync(settingsFile, cancellationToken);
         var document = PalworldSettingsDocument.Parse(currentText);
 
-        return CreateResponse(document, ResolveContainerName());
+        return CreateResponse(document, ResolveContainerName(options));
     }
 
     public async Task<PalworldConfigUpdateResponse> UpdateConfigAsync(
@@ -51,8 +77,18 @@ public sealed class PalworldConfigService : IPalworldConfigService
         bool restart,
         CancellationToken cancellationToken)
     {
-        var containerName = ResolveContainerName();
-        var settingsFile = ResolveSettingsFile();
+        return await UpdateConfigAsync(null, request, restart, cancellationToken);
+    }
+
+    public async Task<PalworldConfigUpdateResponse> UpdateConfigAsync(
+        string? serverId,
+        PalworldConfigUpdateRequest request,
+        bool restart,
+        CancellationToken cancellationToken)
+    {
+        var options = ResolveOptions(serverId);
+        var containerName = ResolveContainerName(options);
+        var settingsFile = ResolveSettingsFile(options);
         var currentText = await _fileSystem.ReadAllTextAsync(settingsFile, cancellationToken);
         var document = PalworldSettingsDocument.Parse(currentText);
         var changedSettings = ApplyRequest(document, request);
@@ -96,9 +132,17 @@ public sealed class PalworldConfigService : IPalworldConfigService
             CreateResponse(document, containerName));
     }
 
-    private string ResolveManagedPath()
+    private PalworldOptions ResolveOptions(string? serverId)
     {
-        var managedPath = _options.Value.ManagedPath;
+        return string.IsNullOrWhiteSpace(serverId)
+            ? _options.Value
+            : (_gameServerRegistry ?? throw new GameServerNotFoundException(serverId))
+                .GetPalworldOptions(serverId);
+    }
+
+    private string ResolveManagedPath(PalworldOptions options)
+    {
+        var managedPath = options.ManagedPath;
 
         if (string.IsNullOrWhiteSpace(managedPath))
         {
@@ -115,9 +159,9 @@ public sealed class PalworldConfigService : IPalworldConfigService
         return fullPath;
     }
 
-    private string ResolveContainerName()
+    private static string ResolveContainerName(PalworldOptions options)
     {
-        var containerName = _options.Value.ContainerName;
+        var containerName = options.ContainerName;
 
         if (string.IsNullOrWhiteSpace(containerName))
         {
@@ -127,9 +171,9 @@ public sealed class PalworldConfigService : IPalworldConfigService
         return containerName.Trim();
     }
 
-    private string ResolveSettingsFile()
+    private string ResolveSettingsFile(PalworldOptions options)
     {
-        var managedPath = ResolveManagedPath();
+        var managedPath = ResolveManagedPath(options);
 
         foreach (var candidate in SettingsFileCandidates)
         {

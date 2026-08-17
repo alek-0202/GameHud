@@ -1,11 +1,13 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useParams } from 'react-router-dom'
 import { SectionHeader } from '../components/SectionHeader'
 import { StatusBadge } from '../components/StatusBadge'
 import { usePalworldOverview } from '../hooks/usePalworldOverview'
 
 export function PalworldLayout() {
-  const overviewState = usePalworldOverview(20000)
+  const { serverId = 'palworld' } = useParams()
+  const overviewState = usePalworldOverview(20000, serverId)
   const overview = overviewState.status === 'success' ? overviewState.overview : null
+  const basePath = `/servers/${encodeURIComponent(serverId)}`
 
   return (
     <section className="palworld-section" aria-labelledby="palworld-title">
@@ -19,12 +21,12 @@ export function PalworldLayout() {
       </div>
 
       <nav className="tab-strip" aria-label="Palworld sections">
-        <PalworldTab label="Overview" to="/servers/palworld" end />
-        <PalworldTab label="Players" to="/servers/palworld/players" />
-        <PalworldTab label="Settings" to="/servers/palworld/settings" />
-        <PalworldTab label="Backups" to="/servers/palworld/backups" />
-        <PalworldTab label="Logs" to="/servers/palworld/logs" />
-        <PalworldTab label="Advanced" to="/servers/palworld/advanced" />
+        <PalworldTab label="Overview" to={basePath} end />
+        <PalworldTab label="Players" to={`${basePath}/players`} />
+        <PalworldTab label="Settings" to={`${basePath}/settings`} />
+        <PalworldTab label="Backups" to={`${basePath}/backups`} />
+        <PalworldTab label="Logs" to={`${basePath}/logs`} />
+        <PalworldTab label="Advanced" to={`${basePath}/advanced`} />
       </nav>
 
       <Outlet />

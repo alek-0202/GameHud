@@ -1,13 +1,48 @@
+import { useEffect, useState } from 'react'
+import { useParams } from 'react-router-dom'
+import { fetchPalworldMods } from '../api/palworld'
 import { SectionHeader } from '../components/SectionHeader'
 import { StatusBadge } from '../components/StatusBadge'
 import { useContainerDetails } from '../hooks/useContainerDetails'
 import { usePalworldConfig } from '../hooks/usePalworldConfig'
+import type { PalworldMods } from '../types/palworld'
 import { PalworldUnavailableState } from './PalworldLayout'
 
 export function PalworldAdvancedPage() {
-  const palworldState = usePalworldConfig()
+  const { serverId = 'palworld' } = useParams()
+  const palworldState = usePalworldConfig(0, serverId)
   const config = palworldState.status === 'success' ? palworldState.config : null
   const detailsState = useContainerDetails(config?.containerName ?? null)
+  const [modsState, setModsState] = useState<
+    | { status: 'loading'; mods: null; message?: undefined }
+    | { status: 'success'; mods: PalworldMods; message?: undefined }
+    | { status: 'error'; mods: null; message: string }
+  >({ status: 'loading', mods: null })
+
+  useEffect(() => {
+    const abortController = new AbortController()
+
+    async function loadMods() {
+      try {
+        const mods = await fetchPalworldMods(serverId, abortController.signal)
+        setModsState({ status: 'success', mods })
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          return
+        }
+
+        setModsState({
+          status: 'error',
+          mods: null,
+          message: 'Unable to load Palworld mod inventory.',
+        })
+      }
+    }
+
+    void loadMods()
+
+    return () => abortController.abort()
+  }, [serverId])
 
   if (palworldState.status === 'loading' || detailsState.status === 'loading') {
     return <p className="state-message">Loading Palworld technical information...</p>
@@ -84,6 +119,48 @@ export function PalworldAdvancedPage() {
         ])}
         title="Networks"
       />
+
+      <section className="details-block" aria-labelledby="palworld-mods">
+        <SectionHeader
+          titleId="palworld-mods"
+          title="Mods"
+          description={modsState.status === 'success'
+            ? modsState.mods.message
+            : 'Local inventory only. Installation and enable/disable are reserved for a safer workflow.'}
+        />
+        {modsState.status === 'loading' && (
+          <p className="state-message">Loading mod inventory...</p>
+        )}
+        {modsState.status === 'error' && (
+          <p className="state-message state-message-error">{modsState.message}</p>
+        )}
+        {modsState.status === 'success' && (
+          modsState.mods.detectedMods.length === 0 ? (
+            <p className="empty-message">No local mod files detected in known Palworld paths.</p>
+          ) : (
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Relative path</th>
+                    <th>Size</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {modsState.mods.detectedMods.map((mod) => (
+                    <tr key={mod.relativePath}>
+                      <td>{mod.name}</td>
+                      <td>{mod.relativePath}</td>
+                      <td>{Math.round(mod.sizeBytes / 1024)} KB</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        )}
+      </section>
     </div>
   )
 }

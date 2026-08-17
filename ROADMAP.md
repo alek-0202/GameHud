@@ -210,35 +210,48 @@ Status: Planned
 
 ## v0.12 - Plugin Foundation
 
-Status: Planned
+Status: In progress
 
 - Minimal plugin contract
 - Generic Docker integration
 - No speculative full SDK
+- Game server registry with legacy Palworld fallback
+- `GET /api/servers`
+- `GET /api/servers/{serverId}`
+- Server capabilities for overview, settings, players, backups, update and logs
+- Frontend Game Servers page backed by configured servers
+
+Remaining:
+
+- Durable server registration UI
+- Non-Palworld plugin implementation
+- Migration of all temporary Palworld features onto server-scoped contracts
 
 ---
 
 ## v0.13 - Palworld Plugin
 
-Status: Planned
+Status: In progress
 
 - Server status
 - Players online
 - REST API
-- RCON
 - Configuration editing
 - Controlled restart
 - Update workflow
 - Backup and restore
+- Announce
+- Kick
+- Ban
+- Unban
+- Strong confirmation for destructive player actions
+- Local mod inventory only
 
 Temporary note:
 
-- A personal Palworld settings editor exists before the plugin foundation.
-- A personal Palworld REST overview and players view exists before the plugin foundation.
-- A personal Palworld backup manager exists before the plugin foundation.
-- A personal Palworld update flow exists before the plugin foundation.
-- Advanced operational tools exist before the plugin foundation.
-- It is not the plugin system and should be migrated after v0.12.
+- The Palworld plugin foundation is incremental and still reuses some temporary Palworld services.
+- Backups, updates, metrics and scheduler flows still need full server-scoped migration before multiple Palworld servers are considered complete.
+- Mod management is inventory-only until the current Linux container environment has a safe, predictable install and enable/disable mechanism.
 
 ---
 

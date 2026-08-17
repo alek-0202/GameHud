@@ -1,6 +1,6 @@
 # Palworld REST API Integration
 
-GamesHud uses the native Palworld REST API for server status, player information, metrics, world-save requests and update announcements. RCON is not used for this integration.
+GamesHud uses the native Palworld REST API for server status, player information, metrics, world-save requests, announcements and supported player administration. RCON is not used for this integration.
 
 ## Sources Checked
 
@@ -10,6 +10,9 @@ GamesHud uses the native Palworld REST API for server status, player information
 - Official `settings` endpoint: `https://docs.palworldgame.com/api/rest-api/settings/`
 - Official `metrics` endpoint: `https://docs.palworldgame.com/api/rest-api/metrics/`
 - Official `announce` endpoint: `https://docs.palworldgame.com/api/rest-api/announce/`
+- Official `kick` endpoint: `https://docs.palworldgame.com/api/rest-api/kick/`
+- Official `ban` endpoint: `https://docs.palworldgame.com/api/rest-api/ban/`
+- Official `unban` endpoint: `https://docs.palworldgame.com/api/rest-api/unban/`
 - Official `save` endpoint: `https://docs.palworldgame.com/api/rest-api/save/`
 - `thijsvanloef/palworld-server-docker` README: `https://github.com/thijsvanloef/palworld-server-docker`
 
@@ -25,10 +28,13 @@ GET /v1/api/players
 GET /v1/api/settings
 GET /v1/api/metrics
 POST /v1/api/announce
+POST /v1/api/kick
+POST /v1/api/ban
+POST /v1/api/unban
 POST /v1/api/save
 ```
 
-Administrative REST operations such as kick, ban, shutdown and force stop are intentionally not implemented.
+Only announce, kick, ban and unban are implemented for player administration. Shutdown and force stop are intentionally not exposed as player tools.
 
 ## GamesHud Endpoints
 
@@ -38,6 +44,11 @@ GamesHud exposes internal contracts:
 GET /api/palworld/overview
 GET /api/palworld/players
 GET /api/palworld/metrics
+GET /api/servers/{serverId}/players
+POST /api/servers/{serverId}/announcements
+POST /api/servers/{serverId}/players/{userId}/kick
+POST /api/servers/{serverId}/players/{userId}/ban
+POST /api/servers/{serverId}/players/unban
 POST /api/palworld/backups
 POST /api/palworld/update
 ```
@@ -100,11 +111,27 @@ Player entries include:
 
 - name
 - platform account name when available
+- user ID for explicit admin actions
 - shortened public ID
 - ping
 - level
 
-Player IP addresses, raw user IDs and credentials are not returned.
+Player IP addresses and credentials are not returned. The Palworld `userId` is returned because the official kick, ban and unban endpoints require it; it must not be used as a secret.
+
+## Player Administration
+
+Supported actions:
+
+- Announce: plain text only, 200 characters or fewer, no HTML-like angle brackets.
+- Kick: requires exact confirmation text `KICK {userId}`.
+- Ban: requires exact confirmation text `BAN {userId}`.
+- Unban: requires exact confirmation text `UNBAN {userId}`.
+
+GamesHud does not expose a banned players list because no reliable source is currently wired into the backend contract.
+
+## Mod Management
+
+GamesHud does not install, download, enable, disable or execute Palworld mods. The current implementation only inventories local files in known Palworld directories when a managed path is configured. Server-side mod management for the current Linux container environment remains future work until there is a safe and predictable workflow.
 
 ## Frontend Polling
 
@@ -116,4 +143,4 @@ The frontend polls overview and players every 15 seconds by default and pauses r
 - Do not send Palworld REST credentials to the frontend.
 - Do not log the `Authorization` header or credentials.
 - Do not use RCON for this integration.
-- Keep additional write/admin REST actions for separate reviewed tasks.
+- Keep any additional write/admin REST actions for separate reviewed tasks.

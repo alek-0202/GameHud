@@ -2,12 +2,14 @@ import type {
   PalworldConfig,
   PalworldConfigUpdateRequest,
   PalworldConfigUpdateResponse,
+  PalworldAdminActionResponse,
   PalworldBackupSummary,
   PalworldCreateBackupResponse,
   PalworldDeleteBackupResponse,
   PalworldOverview,
   PalworldPlayers,
   PalworldRestoreBackupResponse,
+  PalworldMods,
   PalworldUpdateResponse,
   PalworldUpdateStatus,
 } from '../types/palworld'
@@ -24,16 +26,25 @@ export class PalworldApiRequestError extends Error {
   }
 }
 
-export async function fetchPalworldConfig(signal?: AbortSignal): Promise<PalworldConfig> {
-  return fetchJson<PalworldConfig>('/api/palworld/config', signal)
+export async function fetchPalworldConfig(
+  signal?: AbortSignal,
+  serverId?: string,
+): Promise<PalworldConfig> {
+  return fetchJson<PalworldConfig>(resolvePalworldPath('/config', serverId, '/settings'), signal)
 }
 
-export async function fetchPalworldOverview(signal?: AbortSignal): Promise<PalworldOverview> {
-  return fetchJson<PalworldOverview>('/api/palworld/overview', signal)
+export async function fetchPalworldOverview(
+  signal?: AbortSignal,
+  serverId?: string,
+): Promise<PalworldOverview> {
+  return fetchJson<PalworldOverview>(resolvePalworldPath('/overview', serverId, '/overview'), signal)
 }
 
-export async function fetchPalworldPlayers(signal?: AbortSignal): Promise<PalworldPlayers> {
-  return fetchJson<PalworldPlayers>('/api/palworld/players', signal)
+export async function fetchPalworldPlayers(
+  signal?: AbortSignal,
+  serverId?: string,
+): Promise<PalworldPlayers> {
+  return fetchJson<PalworldPlayers>(resolvePalworldPath('/players', serverId, '/players'), signal)
 }
 
 export async function fetchPalworldUpdateStatus(signal?: AbortSignal): Promise<PalworldUpdateStatus> {
@@ -114,13 +125,14 @@ export async function updatePalworldConfig(
   request: PalworldConfigUpdateRequest,
   restart: boolean,
   signal?: AbortSignal,
+  serverId?: string,
 ): Promise<PalworldConfigUpdateResponse> {
   const parameters = new URLSearchParams({
     restart: restart.toString(),
   })
 
   return fetchJson<PalworldConfigUpdateResponse>(
-    `/api/palworld/config?${parameters.toString()}`,
+    `${resolvePalworldPath('/config', serverId, '/settings')}?${parameters.toString()}`,
     signal,
     {
       body: JSON.stringify(request),
@@ -130,6 +142,93 @@ export async function updatePalworldConfig(
       method: 'PUT',
     },
   )
+}
+
+export async function sendPalworldAnnouncement(
+  message: string,
+  serverId: string,
+  signal?: AbortSignal,
+): Promise<PalworldAdminActionResponse> {
+  return fetchJson<PalworldAdminActionResponse>(
+    `/api/servers/${encodeURIComponent(serverId)}/announcements`,
+    signal,
+    jsonPost({ message }),
+  )
+}
+
+export async function kickPalworldPlayer(
+  serverId: string,
+  userId: string,
+  confirmationText: string,
+  message: string | null,
+  signal?: AbortSignal,
+): Promise<PalworldAdminActionResponse> {
+  return postPalworldPlayerAction(serverId, userId, 'kick', confirmationText, message, signal)
+}
+
+export async function banPalworldPlayer(
+  serverId: string,
+  userId: string,
+  confirmationText: string,
+  message: string | null,
+  signal?: AbortSignal,
+): Promise<PalworldAdminActionResponse> {
+  return postPalworldPlayerAction(serverId, userId, 'ban', confirmationText, message, signal)
+}
+
+export async function unbanPalworldPlayer(
+  serverId: string,
+  userId: string,
+  confirmationText: string,
+  signal?: AbortSignal,
+): Promise<PalworldAdminActionResponse> {
+  return fetchJson<PalworldAdminActionResponse>(
+    `/api/servers/${encodeURIComponent(serverId)}/players/unban`,
+    signal,
+    jsonPost({ userId, confirmationText }),
+  )
+}
+
+export async function fetchPalworldMods(
+  serverId: string,
+  signal?: AbortSignal,
+): Promise<PalworldMods> {
+  return fetchJson<PalworldMods>(`/api/servers/${encodeURIComponent(serverId)}/mods`, signal)
+}
+
+function postPalworldPlayerAction(
+  serverId: string,
+  userId: string,
+  action: 'kick' | 'ban',
+  confirmationText: string,
+  message: string | null,
+  signal?: AbortSignal,
+): Promise<PalworldAdminActionResponse> {
+  return fetchJson<PalworldAdminActionResponse>(
+    `/api/servers/${encodeURIComponent(serverId)}/players/${encodeURIComponent(userId)}/${action}`,
+    signal,
+    jsonPost({ confirmationText, message }),
+  )
+}
+
+function jsonPost(body: unknown): RequestInit {
+  return {
+    body: JSON.stringify(body),
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    method: 'POST',
+  }
+}
+
+function resolvePalworldPath(
+  legacyPath: string,
+  serverId: string | undefined,
+  serverPath: string,
+): string {
+  return serverId === undefined
+    ? `/api/palworld${legacyPath}`
+    : `/api/servers/${encodeURIComponent(serverId)}${serverPath}`
 }
 
 async function fetchJson<TResponse>(

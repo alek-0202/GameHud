@@ -1,5 +1,8 @@
+import { useParams } from 'react-router-dom'
 import { PalworldSettings } from '../components/PalworldSettings'
 
 export function PalworldSettingsPage() {
-  return <PalworldSettings />
+  const { serverId = 'palworld' } = useParams()
+
+  return <PalworldSettings serverId={serverId} />
 }

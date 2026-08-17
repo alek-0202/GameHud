@@ -6,13 +6,21 @@ import { getPalworldServerName } from '../utils/palworldSettings'
 import { StatusBadge } from './StatusBadge'
 
 interface ServerCardProps {
+  serverId?: string
+  displayName?: string
   config: PalworldConfig | null
   container: Container | null
   overview?: PalworldOverview | null
 }
 
-export function ServerCard({ config, container, overview = null }: ServerCardProps) {
-  const serverName = overview?.displayName || getPalworldServerName(config)
+export function ServerCard({
+  serverId = 'palworld',
+  displayName,
+  config,
+  container,
+  overview = null,
+}: ServerCardProps) {
+  const serverName = overview?.displayName || displayName || getPalworldServerName(config)
   const state = overview?.healthLabel || container?.state || 'Unknown'
   const onlinePlayers = overview?.onlinePlayers ?? 0
   const maxPlayers = overview?.maxPlayers ?? null
@@ -63,7 +71,9 @@ export function ServerCard({ config, container, overview = null }: ServerCardPro
       </dl>
 
       <div className="server-card-actions">
-        <Link className="secondary-button" to="/servers/palworld">Manage Server</Link>
+        <Link className="secondary-button" to={`/servers/${encodeURIComponent(serverId)}`}>
+          Manage Server
+        </Link>
       </div>
     </article>
   )

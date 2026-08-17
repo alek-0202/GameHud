@@ -1,10 +1,12 @@
+import { useParams } from 'react-router-dom'
 import { ContainerLogs } from '../components/ContainerLogs'
 import { SectionHeader } from '../components/SectionHeader'
 import { usePalworldConfig } from '../hooks/usePalworldConfig'
 import { PalworldUnavailableState } from './PalworldLayout'
 
 export function PalworldLogsPage() {
-  const palworldState = usePalworldConfig()
+  const { serverId = 'palworld' } = useParams()
+  const palworldState = usePalworldConfig(0, serverId)
 
   if (palworldState.status === 'loading') {
     return <p className="state-message">Loading Palworld logs...</p>

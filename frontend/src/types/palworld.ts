@@ -56,6 +56,7 @@ export interface PalworldConfigUpdateResponse {
 export interface PalworldPlayer {
   name: string
   accountName: string | null
+  userId: string | null
   publicId: string | null
   ping: number | null
   level: number | null
@@ -170,4 +171,24 @@ export interface PalworldUpdateResponse {
   startStatus: string
   healthCheckStatus: string
   completedAt: string
+}
+
+export interface PalworldAdminActionResponse {
+  message: string
+  action: string
+  userId: string
+  completedAt: string
+}
+
+export interface PalworldDetectedMod {
+  name: string
+  relativePath: string
+  sizeBytes: number
+}
+
+export interface PalworldMods {
+  serverId: string
+  managementSupported: boolean
+  message: string
+  detectedMods: PalworldDetectedMod[]
 }
