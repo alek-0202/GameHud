@@ -49,6 +49,23 @@ Local configuration belongs in ignored files or environment variables.
 
 ---
 
+## 2.1 Git Branch and Synchronization Rules
+
+`main` represents production. `develop` is the integration and development branch.
+
+Before an implementation task, the AI must:
+
+- Identify the repository root.
+- Inspect the working tree and current branch.
+- Stop and report when local uncommitted changes exist.
+- Never discard, restore, clean, reset or stash local changes automatically.
+- Fetch the remote and update `develop` using fast-forward only.
+- Implement on `develop`, unless the user explicitly requests another non-production branch.
+
+The AI must not implement directly on `main`, merge into `main`, commit, push or deploy unless explicitly requested.
+
+---
+
 ## 3. Plan Before Implementation
 
 Before changing files, the AI must provide a brief technical plan containing:

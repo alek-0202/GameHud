@@ -220,9 +220,14 @@ Status: In progress
 - `GET /api/servers/{serverId}`
 - Server capabilities for overview, settings, players, backups, update and logs
 - Frontend Game Servers page backed by configured servers
+- GH-01 minimal game server domain model (Completed)
+- Explicit game server id, extensible game id, runtime and installation ownership
+- Legacy/external projection for the existing `Servers` collection and singular Palworld fallback
+- Deterministic duplicate server id rejection
 
 Remaining:
 
+- GH-02 game definition system
 - Durable server registration UI
 - Non-Palworld plugin implementation
 - Migration of all temporary Palworld features onto server-scoped contracts

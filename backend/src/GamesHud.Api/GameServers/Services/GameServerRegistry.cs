@@ -1,4 +1,5 @@
 using GamesHud.Api.GameServers.Configuration;
+using GamesHud.Api.GameServers.Domain;
 using GamesHud.Api.Palworld.Configuration;
 using Microsoft.Extensions.Options;
 
@@ -42,6 +43,23 @@ public sealed class GameServerRegistry : IGameServerRegistry
             : ToDescriptor(server);
     }
 
+    public IReadOnlyCollection<GameServer> GetGameServers()
+    {
+        return GetConfiguredServers()
+            .Select(GameServerCompatibilityAdapter.ToDomain)
+            .ToArray();
+    }
+
+    public GameServer GetGameServer(GameServerId serverId)
+    {
+        var server = GetConfiguredServers()
+            .FirstOrDefault(candidate => new GameServerId(candidate.Id) == serverId);
+
+        return server is null
+            ? throw new GameServerNotFoundException(serverId.ToString())
+            : GameServerCompatibilityAdapter.ToDomain(server);
+    }
+
     public PalworldOptions GetPalworldOptions(string? serverId = null)
     {
         var servers = GetConfiguredServers();
@@ -82,10 +100,20 @@ public sealed class GameServerRegistry : IGameServerRegistry
             validServers.Add(CreateLegacyPalworldServer());
         }
 
-        return validServers
+        var duplicateIds = validServers
             .GroupBy(server => server.Id, StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.First())
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+
+        if (duplicateIds.Length > 0)
+        {
+            throw new GameServerConfigurationException(
+                $"Duplicate game server ids are not allowed: {string.Join(", ", duplicateIds)}.");
+        }
+
+        return validServers;
     }
 
     private GameServerDescriptor ToDescriptor(GameServerOptions server)

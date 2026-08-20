@@ -1,3 +1,5 @@
+using GamesHud.Api.GameServers.Contracts;
+using GamesHud.Api.GameServers.Domain;
 using GamesHud.Api.GameServers.Services;
 using GamesHud.Api.Palworld.Configuration;
 using Microsoft.Extensions.Configuration;
@@ -30,6 +32,102 @@ public sealed class GameServerRegistryTests
         Assert.Equal("palworld", server.GameType);
         Assert.Equal("palworld", server.ContainerName);
         Assert.Contains(GameServerCapabilities.Players, server.Capabilities);
+    }
+
+    [Fact]
+    public void GetGameServersProjectsLegacyPalworldAsExternalDockerRuntime()
+    {
+        var registry = CreateRegistry(
+            [],
+            new PalworldOptions
+            {
+                ContainerName = "palworld-live",
+                ManagedPath = "/private/palworld",
+                BackupPath = "/private/backups",
+                RestApi = new PalworldRestApiOptions
+                {
+                    BaseUrl = "http://private-rest:8212",
+                    Username = "admin",
+                    Password = "secret"
+                }
+            });
+
+        var server = Assert.Single(registry.GetGameServers());
+
+        Assert.Equal(new GameServerId("palworld"), server.Id);
+        Assert.Equal(new GameId("palworld"), server.GameId);
+        Assert.Equal(GameServerRuntime.DockerType, server.Runtime.Type);
+        Assert.Equal("palworld-live", server.Runtime.ExternalReference);
+        Assert.Equal(GameServerInstallationType.LegacyExternal, server.Installation.Type);
+    }
+
+    [Fact]
+    public void GetGameServersProjectsEveryConfiguredServer()
+    {
+        var registry = CreateRegistry(new Dictionary<string, string?>
+        {
+            ["Servers:0:Id"] = "amigos",
+            ["Servers:0:Type"] = "palworld",
+            ["Servers:0:DisplayName"] = "Amigos",
+            ["Servers:0:ContainerName"] = "palworld-amigos",
+            ["Servers:1:Id"] = "solo",
+            ["Servers:1:Type"] = "palworld",
+            ["Servers:1:DisplayName"] = "Solo",
+            ["Servers:1:ContainerName"] = "palworld-solo"
+        });
+
+        var servers = registry.GetGameServers();
+
+        Assert.Equal(2, servers.Count);
+        Assert.Contains(servers, server => server.Id == new GameServerId("amigos"));
+        Assert.Contains(servers, server => server.Id == new GameServerId("solo"));
+        Assert.All(servers, server =>
+            Assert.Equal(GameServerInstallationType.LegacyExternal, server.Installation.Type));
+    }
+
+    [Fact]
+    public void DuplicateServerIdsFailClearlyAndCaseInsensitively()
+    {
+        var registry = CreateRegistry(new Dictionary<string, string?>
+        {
+            ["Servers:0:Id"] = "amigos",
+            ["Servers:0:Type"] = "palworld",
+            ["Servers:0:ContainerName"] = "palworld-a",
+            ["Servers:1:Id"] = "AMIGOS",
+            ["Servers:1:Type"] = "palworld",
+            ["Servers:1:ContainerName"] = "palworld-b"
+        });
+
+        var exception = Assert.Throws<GameServerConfigurationException>(() => registry.GetGameServers());
+
+        Assert.Contains("amigos", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void UnknownDomainServerThrowsNotFoundException()
+    {
+        var registry = CreateRegistry([], new PalworldOptions { ContainerName = "palworld" });
+
+        Assert.Throws<GameServerNotFoundException>(() =>
+            registry.GetGameServer(new GameServerId("missing")));
+    }
+
+    [Fact]
+    public void PublicServerContractRemainsLimitedToExistingFields()
+    {
+        var propertyNames = typeof(GameServerResponse)
+            .GetProperties()
+            .Select(property => property.Name)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(
+            ["BrandingImage", "Capabilities", "ContainerName", "DisplayName", "GameType", "Id"],
+            propertyNames);
+        Assert.DoesNotContain(propertyNames, name =>
+            name.Contains("Password", StringComparison.OrdinalIgnoreCase)
+            || name.Contains("Path", StringComparison.OrdinalIgnoreCase)
+            || name.Contains("Rest", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

@@ -50,6 +50,25 @@ The Docker Core must not contain behavior specific to Palworld, Minecraft, Terra
 
 ---
 
+## Game Server Domain
+
+The game server domain separates four concepts:
+
+- A game identifies a game type, such as `palworld`.
+- A game server identifies one configured server instance, such as `amigos-e-amigos`.
+- A runtime identifies how that instance currently runs and contains the runtime's external reference.
+- An installation identifies whether GamesHud owns the installed resources.
+
+These concepts must not be treated as interchangeable. A game server is not a Docker container and is not a Palworld configuration.
+
+Docker is the first supported runtime, but the domain does not depend on Docker.DotNet. Runtime-specific operations remain behind infrastructure services.
+
+The existing `Servers` configuration and singular `Palworld` fallback are compatibility sources. Servers projected from those sources use a Docker runtime and a `LegacyExternal` installation because GamesHud did not create their resources. Existing Palworld services continue to consume their current configuration while migration proceeds incrementally.
+
+Game server operational status is currently derived by overview and health services. It is not part of the domain model until a concrete domain consumer requires a normalized status.
+
+---
+
 ## Plugin Responsibilities
 
 Plugins are now introduced as a minimal foundation for application-specific features.
