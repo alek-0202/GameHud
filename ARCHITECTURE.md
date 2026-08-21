@@ -67,6 +67,19 @@ The existing `Servers` configuration and singular `Palworld` fallback are compat
 
 Game server operational status is currently derived by overview and health services. It is not part of the domain model until a concrete domain consumer requires a normalized status.
 
+### Game Definitions
+
+`GameDefinition` contains static, versioned product knowledge about a game: its game id, display metadata, supported runtime types and declared capabilities. It does not represent a configured server, runtime state, allocated resources, local paths or credentials.
+
+Definitions are initially code-backed and registered explicitly through dependency injection. `PalworldGameDefinition` is the first definition and declares only capabilities already implemented by GamesHud. There is no external plugin SDK, assembly discovery or dynamic plugin loading.
+
+The registries have separate responsibilities:
+
+- `GameServerRegistry` resolves configured server instances.
+- `GameDefinitionRegistry` resolves games known by the product.
+
+A `GameServer` stores only its `GameId`. Consumers may use that id to resolve a definition without embedding the full definition in the server instance.
+
 ---
 
 ## Plugin Responsibilities
@@ -98,7 +111,7 @@ Examples of plugin responsibilities:
 - Game-specific backup and restore workflows
 - Controlled restart or update workflows
 
-The first plugin type is Palworld. This is not a full plugin SDK and must stay small until another real game server requires more surface area.
+The first plugin type is Palworld. Its current compatibility plugin consumes `PalworldGameDefinition` so capability metadata has one source. This is not a full plugin SDK and must stay small until another real game server requires more surface area.
 
 ## Temporary Palworld Integration
 

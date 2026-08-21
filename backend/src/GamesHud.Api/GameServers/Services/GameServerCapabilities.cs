@@ -8,4 +8,6 @@ public static class GameServerCapabilities
     public const string Backups = "backups";
     public const string Update = "update";
     public const string Logs = "logs";
+    public const string PlayerManagement = "player-management";
+    public const string Mods = "mods";
 }

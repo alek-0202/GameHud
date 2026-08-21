@@ -1,4 +1,5 @@
 using GamesHud.Api.GameServers.Contracts;
+using GamesHud.Api.GameServers.Definitions;
 using GamesHud.Api.GameServers.Domain;
 using GamesHud.Api.GameServers.Services;
 using GamesHud.Api.Palworld.Configuration;
@@ -176,6 +177,6 @@ public sealed class GameServerRegistryTests
         return new GameServerRegistry(
             configuration,
             Options.Create(legacyOptions ?? new PalworldOptions()),
-            [new PalworldGameServerPlugin()]);
+            [new PalworldGameServerPlugin(new PalworldGameDefinition())]);
     }
 }

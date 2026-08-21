@@ -224,10 +224,13 @@ Status: In progress
 - Explicit game server id, extensible game id, runtime and installation ownership
 - Legacy/external projection for the existing `Servers` collection and singular Palworld fallback
 - Deterministic duplicate server id rejection
+- GH-02 game definition system (Completed)
+- Code-backed Palworld definition with static metadata, Docker runtime support and implemented capabilities
+- Separate game definition registry with deterministic duplicate and unknown-id behavior
 
 Remaining:
 
-- GH-02 game definition system
+- GH-03 game catalog
 - Durable server registration UI
 - Non-Palworld plugin implementation
 - Migration of all temporary Palworld features onto server-scoped contracts

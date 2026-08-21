@@ -1,3 +1,4 @@
+using GamesHud.Api.GameServers.Definitions;
 using GamesHud.Api.GameServers.Services;
 using GamesHud.Api.Palworld.Configuration;
 using GamesHud.Api.Palworld.Contracts;
@@ -99,7 +100,7 @@ public sealed class PalworldAdminServiceTests
         return new GameServerRegistry(
             configuration,
             Options.Create(new PalworldOptions()),
-            [new PalworldGameServerPlugin()]);
+            [new PalworldGameServerPlugin(new PalworldGameDefinition())]);
     }
 
     private sealed class RecordingRestService : IPalworldRestService

@@ -1,5 +1,6 @@
 using GamesHud.Api.Configuration;
 using GamesHud.Api.Docker.Services;
+using GamesHud.Api.GameServers.Definitions;
 using GamesHud.Api.GameServers.Services;
 using GamesHud.Api.Metrics.Configuration;
 using GamesHud.Api.Metrics.Services;
@@ -18,6 +19,10 @@ builder.Services.Configure<MetricsOptions>(builder.Configuration.GetSection(Metr
 builder.Services.Configure<NotificationOptions>(builder.Configuration.GetSection(NotificationOptions.SectionName));
 builder.Services.Configure<ScheduledOperationOptions>(builder.Configuration.GetSection(ScheduledOperationOptions.SectionName));
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<PalworldGameDefinition>();
+builder.Services.AddSingleton<GameDefinition>(serviceProvider =>
+    serviceProvider.GetRequiredService<PalworldGameDefinition>());
+builder.Services.AddSingleton<IGameDefinitionRegistry, GameDefinitionRegistry>();
 builder.Services.AddSingleton<IGameServerPlugin, PalworldGameServerPlugin>();
 builder.Services.AddSingleton<IGameServerRegistry, GameServerRegistry>();
 builder.Services.AddScoped<IContainerService, DockerContainerService>();
