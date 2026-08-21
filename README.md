@@ -33,6 +33,7 @@ Implemented:
 - Short in-memory metrics history
 - Read-only host capability detection for OS, CPU, memory, storage, network and Docker runtime readiness
 - Game requirements model and read-only compatibility check between registered game definitions and host capabilities
+- Game port requirements, read-only host port checks and advisory port planning
 - Temporary personal Palworld settings editor isolated outside Docker Core
 - Temporary Palworld REST overview and players view isolated outside Docker Core
 - Server registry foundation with legacy Palworld fallback
@@ -326,11 +327,22 @@ Game catalog:
 GET /api/games
 GET /api/games/{gameId}
 GET /api/games/{gameId}/compatibility
+POST /api/games/{gameId}/ports/plan
 ```
 
 The game catalog is sourced from `GameDefinitionRegistry` and lists games known by GamesHud. Configured server instances are sourced separately from `GameServerRegistry`.
 
 Game compatibility is computed from static `GameDefinition` requirements and the current `HostCapabilitySnapshot`. Compatibility responses report requirement checks, blocking issues and warnings. They do not create servers, reserve ports, install runtimes, create directories or mutate host state.
+
+Game port planning is computed from static `GameDefinition` port metadata and current host port availability. It can suggest an alternative candidate in a small bounded range, but availability is advisory until durable reservation exists. It does not open firewall rules, publish Docker ports, create containers or provision servers.
+
+Ports:
+
+```text
+GET /api/system/ports/{protocol}/{port}
+```
+
+Supported protocols are `tcp` and `udp`. The endpoint reports whether a host port appears available now and whether Docker has a matching published port for diagnostic purposes. It does not expose process names, PIDs, owners or container identifiers.
 
 Temporary Palworld integration:
 

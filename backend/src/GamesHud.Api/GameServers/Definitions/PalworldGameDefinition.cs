@@ -1,12 +1,19 @@
 using GamesHud.Api.GameServers.Domain;
+using GamesHud.Api.GameServers.Ports;
 using GamesHud.Api.GameServers.Requirements;
 using GamesHud.Api.GameServers.Services;
 
 namespace GamesHud.Api.GameServers.Definitions;
 
-public sealed class PalworldGameDefinition : GameDefinition, IGameRequirementsDefinition
+public sealed class PalworldGameDefinition :
+    GameDefinition,
+    IGameRequirementsDefinition,
+    IGamePortDefinition
 {
     private const string RequirementsSource = "https://docs.palworldgame.com/getting-started/requirements/";
+    private const string ServerArgumentsSource = "https://docs.palworldgame.com/settings-and-operation/arguments/";
+    private const string ServerConfigurationSource = "https://docs.palworldgame.com/settings-and-operation/configuration/";
+    private const string RestApiSource = "https://docs.palworldgame.com/api/rest-api/info/";
 
     public PalworldGameDefinition()
         : base(
@@ -25,11 +32,14 @@ public sealed class PalworldGameDefinition : GameDefinition, IGameRequirementsDe
                 GameServerCapabilities.PlayerManagement,
                 GameServerCapabilities.Mods
             ],
-            CreateRequirements())
+            CreateRequirements(),
+            CreatePorts())
     {
     }
 
     public new GameRequirements Requirements => base.Requirements!;
+
+    public new IReadOnlyCollection<GamePortDefinition> Ports => base.Ports;
 
     private static GameRequirements CreateRequirements()
     {
@@ -45,5 +55,42 @@ public sealed class PalworldGameDefinition : GameDefinition, IGameRequirementsDe
             storage: null,
             source: RequirementsSource,
             notes: "Pocketpair's server guide lists Windows/Linux 64-bit, 4 CPU cores recommended, 16 GB memory, and states 8 GB can boot with higher out-of-memory crash risk. It recommends faster SSD storage but does not publish a numeric storage minimum.");
+    }
+
+    private static IReadOnlyCollection<GamePortDefinition> CreatePorts()
+    {
+        return
+        [
+            new GamePortDefinition(
+                "game",
+                "Game port",
+                8211,
+                PortProtocols.Udp,
+                required: true,
+                allowAlternative: true,
+                exposure: PortExposures.Public,
+                purpose: "Player traffic",
+                source: ServerArgumentsSource),
+            new GamePortDefinition(
+                "query",
+                "Query port",
+                27015,
+                PortProtocols.Udp,
+                required: false,
+                allowAlternative: true,
+                exposure: PortExposures.Public,
+                purpose: "Community server discovery",
+                source: ServerConfigurationSource),
+            new GamePortDefinition(
+                "rest-api",
+                "REST API",
+                8212,
+                PortProtocols.Tcp,
+                required: false,
+                allowAlternative: true,
+                exposure: PortExposures.Internal,
+                purpose: "Private management API",
+                source: RestApiSource)
+        ];
     }
 }

@@ -1,4 +1,5 @@
 using GamesHud.Api.GameServers.Domain;
+using GamesHud.Api.GameServers.Ports;
 using GamesHud.Api.GameServers.Requirements;
 
 namespace GamesHud.Api.GameServers.Definitions;
@@ -12,7 +13,8 @@ public class GameDefinition
         GameDefinitionBranding branding,
         IEnumerable<string> supportedRuntimes,
         IEnumerable<string> capabilities,
-        GameRequirements? requirements = null)
+        GameRequirements? requirements = null,
+        IEnumerable<GamePortDefinition>? ports = null)
     {
         if (string.IsNullOrWhiteSpace(gameId.Value))
         {
@@ -32,6 +34,7 @@ public class GameDefinition
         SupportedRuntimes = NormalizeIdentifiers(supportedRuntimes, nameof(supportedRuntimes));
         Capabilities = NormalizeIdentifiers(capabilities, nameof(capabilities));
         Requirements = requirements;
+        Ports = NormalizePorts(ports);
     }
 
     public GameId GameId { get; }
@@ -48,6 +51,8 @@ public class GameDefinition
 
     public GameRequirements? Requirements { get; }
 
+    public IReadOnlyCollection<GamePortDefinition> Ports { get; }
+
     private static IReadOnlyCollection<string> NormalizeIdentifiers(
         IEnumerable<string> values,
         string parameterName)
@@ -62,5 +67,28 @@ public class GameDefinition
         return normalized.Length == 0
             ? throw new ArgumentException("At least one identifier is required.", parameterName)
             : normalized;
+    }
+
+    private static IReadOnlyCollection<GamePortDefinition> NormalizePorts(
+        IEnumerable<GamePortDefinition>? ports)
+    {
+        if (ports is null)
+        {
+            return [];
+        }
+
+        var normalized = ports.ToArray();
+        var duplicate = normalized
+            .GroupBy(port => port.Id, StringComparer.Ordinal)
+            .FirstOrDefault(group => group.Count() > 1);
+
+        if (duplicate is not null)
+        {
+            throw new ArgumentException(
+                $"Duplicate game port definition id '{duplicate.Key}'.",
+                nameof(ports));
+        }
+
+        return normalized;
     }
 }

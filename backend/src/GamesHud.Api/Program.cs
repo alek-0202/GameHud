@@ -1,6 +1,7 @@
 using GamesHud.Api.Configuration;
 using GamesHud.Api.Docker.Services;
 using GamesHud.Api.GameServers.Definitions;
+using GamesHud.Api.GameServers.Ports;
 using GamesHud.Api.GameServers.Requirements;
 using GamesHud.Api.GameServers.Services;
 using GamesHud.Api.HostCapabilities.Services;
@@ -28,6 +29,10 @@ builder.Services.AddSingleton<IGameDefinitionRegistry, GameDefinitionRegistry>()
 builder.Services.AddSingleton<IGameServerPlugin, PalworldGameServerPlugin>();
 builder.Services.AddSingleton<IGameServerRegistry, GameServerRegistry>();
 builder.Services.AddSingleton<IGameRequirementEvaluator, GameRequirementEvaluator>();
+builder.Services.AddSingleton<IPortAllocator, PortAllocator>();
+builder.Services.AddSingleton<IDockerPublishedPortProvider, DockerPublishedPortProvider>();
+builder.Services.AddSingleton<IPortAvailabilityService, PortAvailabilityService>();
+builder.Services.AddScoped<IPortPlanner, PortPlanner>();
 builder.Services.AddScoped<IContainerService, DockerContainerService>();
 builder.Services.AddSingleton<IHostMetricsFileSystem, HostMetricsFileSystem>();
 builder.Services.AddSingleton<IHostSystemInfoProvider, RuntimeHostSystemInfoProvider>();

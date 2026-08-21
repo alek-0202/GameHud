@@ -2,6 +2,7 @@ import type {
   GameCatalogGame,
   GameCatalogResponse,
   GameCompatibilityAssessment,
+  GamePortPlan,
 } from '../types/games'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
@@ -39,13 +40,27 @@ export async function fetchGameCompatibility(
   )
 }
 
+export async function fetchGamePortPlan(
+  gameId: string,
+  signal?: AbortSignal,
+): Promise<GamePortPlan> {
+  return fetchJson<GamePortPlan>(
+    `/api/games/${encodeURIComponent(gameId)}/ports/plan`,
+    signal,
+    { method: 'POST' },
+  )
+}
+
 async function fetchJson<TResponse>(
   path: string,
   signal?: AbortSignal,
+  init: RequestInit = {},
 ): Promise<TResponse> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
+    ...init,
     headers: {
       Accept: 'application/json',
+      ...init.headers,
     },
     signal,
   })

@@ -237,6 +237,12 @@ Status: In progress
 - Palworld requirements declared from the official server guide
 - `GET /api/games/{gameId}/compatibility` combines static game requirements with read-only host capabilities
 - Frontend Game Catalog can check host fit on demand without creating or provisioning servers
+- GH-06 port management foundation (Completed)
+- Game definitions can declare logical ports with protocol, exposure and alternative policy
+- Palworld declares game, query and private REST/admin ports
+- `GET /api/system/ports/{protocol}/{port}` checks host port availability without mutation
+- `POST /api/games/{gameId}/ports/plan` previews preferred and alternative port candidates
+- Port availability remains advisory until durable reservation exists
 
 Remaining:
 

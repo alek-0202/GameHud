@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
-import { ListChecks } from 'lucide-react'
+import { ListChecks, Network } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { fetchGameCatalog, fetchGameCompatibility } from '../api/games'
+import { fetchGameCatalog, fetchGameCompatibility, fetchGamePortPlan } from '../api/games'
 import { SectionHeader } from '../components/SectionHeader'
 import type {
   GameCatalogGame,
   GameCompatibilityAssessment,
   GameCompatibilityCheck,
+  GamePortPlan,
+  GamePortPlanItem,
+  NetworkPort,
 } from '../types/games'
 
 export function GameCatalogPage() {
@@ -82,16 +85,24 @@ function GameCatalogCard({ game }: GameCatalogCardProps) {
   const visibleCapabilities = game.capabilities.slice(0, 5)
   const hiddenCapabilityCount = Math.max(0, game.capabilities.length - visibleCapabilities.length)
   const abortControllerRef = useRef<AbortController | null>(null)
+  const portPlanAbortControllerRef = useRef<AbortController | null>(null)
   const [compatibilityState, setCompatibilityState] = useState<
     | { status: 'idle'; assessment?: undefined; message?: undefined }
     | { status: 'loading'; assessment?: undefined; message?: undefined }
     | { status: 'success'; assessment: GameCompatibilityAssessment; message?: undefined }
     | { status: 'error'; assessment?: undefined; message: string }
   >({ status: 'idle' })
+  const [portPlanState, setPortPlanState] = useState<
+    | { status: 'idle'; plan?: undefined; message?: undefined }
+    | { status: 'loading'; plan?: undefined; message?: undefined }
+    | { status: 'success'; plan: GamePortPlan; message?: undefined }
+    | { status: 'error'; plan?: undefined; message: string }
+  >({ status: 'idle' })
 
   useEffect(() => {
     return () => {
       abortControllerRef.current?.abort()
+      portPlanAbortControllerRef.current?.abort()
     }
   }, [])
 
@@ -112,6 +123,27 @@ function GameCatalogCard({ game }: GameCatalogCardProps) {
       setCompatibilityState({
         status: 'error',
         message: 'Unable to check host requirements.',
+      })
+    }
+  }
+
+  async function checkPortPlan() {
+    portPlanAbortControllerRef.current?.abort()
+    const abortController = new AbortController()
+    portPlanAbortControllerRef.current = abortController
+    setPortPlanState({ status: 'loading' })
+
+    try {
+      const plan = await fetchGamePortPlan(game.id, abortController.signal)
+      setPortPlanState({ status: 'success', plan })
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return
+      }
+
+      setPortPlanState({
+        status: 'error',
+        message: 'Unable to check network requirements.',
       })
     }
   }
@@ -172,6 +204,17 @@ function GameCatalogCard({ game }: GameCatalogCardProps) {
           <ListChecks size={16} strokeWidth={2.2} />
           {getCompatibilityButtonLabel(compatibilityState.status)}
         </button>
+        <button
+          className="secondary-button"
+          disabled={portPlanState.status === 'loading'}
+          type="button"
+          onClick={() => {
+            void checkPortPlan()
+          }}
+        >
+          <Network size={16} strokeWidth={2.2} />
+          {getPortPlanButtonLabel(portPlanState.status)}
+        </button>
         <Link className="secondary-button" to="/servers">
           Manage Existing Servers
         </Link>
@@ -189,6 +232,20 @@ function GameCatalogCard({ game }: GameCatalogCardProps) {
 
       {compatibilityState.status === 'success' && (
         <GameCompatibilityPanel assessment={compatibilityState.assessment} />
+      )}
+
+      {portPlanState.status === 'loading' && (
+        <p className="game-compatibility-message">Checking network requirements...</p>
+      )}
+
+      {portPlanState.status === 'error' && (
+        <p className="game-compatibility-message game-compatibility-message-error">
+          {portPlanState.message}
+        </p>
+      )}
+
+      {portPlanState.status === 'success' && (
+        <GamePortPlanPanel plan={portPlanState.plan} />
       )}
     </article>
   )
@@ -240,6 +297,63 @@ function CompatibilityCheckRow({ check }: CompatibilityCheckRowProps) {
         </dl>
         <p>{check.message}</p>
       </div>
+    </div>
+  )
+}
+
+interface GamePortPlanPanelProps {
+  plan: GamePortPlan
+}
+
+function GamePortPlanPanel({ plan }: GamePortPlanPanelProps) {
+  return (
+    <div className="game-port-panel" aria-live="polite">
+      <div className="game-compatibility-summary">
+        <div>
+          <span className="section-eyebrow">Network requirements</span>
+          <strong>{formatPortPlanHeadline(plan.status)}</strong>
+        </div>
+        <StatusPill status={plan.status} />
+      </div>
+
+      <div className="game-port-list">
+        {plan.ports.map((port) => (
+          <GamePortRow port={port} key={port.definitionId} />
+        ))}
+      </div>
+      <p>{plan.message}</p>
+    </div>
+  )
+}
+
+interface GamePortRowProps {
+  port: GamePortPlanItem
+}
+
+function GamePortRow({ port }: GamePortRowProps) {
+  const suggestedPort = port.allocation.allocatedPort
+
+  return (
+    <div className="game-port-row">
+      <div>
+        <strong>{port.label}</strong>
+        <span>{formatExposure(port.exposure)}</span>
+      </div>
+      <dl>
+        <div>
+          <dt>Default</dt>
+          <dd>{formatNetworkPort(port.availability)}</dd>
+        </div>
+        <div>
+          <dt>Status</dt>
+          <dd>{formatStatus(port.availability.status)}</dd>
+        </div>
+        <div>
+          <dt>Suggested</dt>
+          <dd>{suggestedPort ? formatNetworkPort(suggestedPort) : 'None'}</dd>
+        </div>
+      </dl>
+      <StatusPill status={port.availability.status} />
     </div>
   )
 }
@@ -308,6 +422,14 @@ function getCompatibilityButtonLabel(status: 'idle' | 'loading' | 'success' | 'e
   return status === 'success' ? 'Recheck Requirements' : 'Check Requirements'
 }
 
+function getPortPlanButtonLabel(status: 'idle' | 'loading' | 'success' | 'error') {
+  if (status === 'loading') {
+    return 'Checking...'
+  }
+
+  return status === 'success' ? 'Recheck Network' : 'Check Network'
+}
+
 function formatCompatibilityHeadline(status: string) {
   const labels: Record<string, string> = {
     compatible: 'Ready to host',
@@ -319,16 +441,35 @@ function formatCompatibilityHeadline(status: string) {
   return labels[status] ?? formatStatus(status)
 }
 
+function formatPortPlanHeadline(status: string) {
+  const labels: Record<string, string> = {
+    conflict: 'Network needs attention',
+    ready: 'Ports look available',
+    ready_with_alternatives: 'Alternatives suggested',
+    unknown: 'Network requirements unknown',
+  }
+
+  return labels[status] ?? formatStatus(status)
+}
+
 function getStatusClassName(status: string) {
-  if (status === 'compatible' || status === 'passed') {
+  if (status === 'available'
+    || status === 'compatible'
+    || status === 'passed'
+    || status === 'ready') {
     return 'status-badge-success'
   }
 
-  if (status === 'compatible_with_warnings' || status === 'warning') {
+  if (status === 'compatible_with_warnings'
+    || status === 'ready_with_alternatives'
+    || status === 'warning') {
     return 'status-badge-warning'
   }
 
-  if (status === 'incompatible' || status === 'failed') {
+  if (status === 'conflict'
+    || status === 'failed'
+    || status === 'in_use'
+    || status === 'incompatible') {
     return 'status-badge-danger'
   }
 
@@ -341,14 +482,35 @@ function getStatusClassName(status: string) {
 
 function formatStatus(status: string) {
   const labels: Record<string, string> = {
+    allocated: 'Allocated',
+    available: 'Available',
     compatible: 'Compatible',
     compatible_with_warnings: 'Warnings',
+    conflict: 'Conflict',
     failed: 'Failed',
+    in_use: 'In use',
     incompatible: 'Incompatible',
     passed: 'Passed',
+    ready: 'Ready',
+    ready_with_alternatives: 'Alternatives',
     unknown: 'Unknown',
     warning: 'Warning',
   }
 
   return labels[status] ?? formatIdentifier(status)
+}
+
+function formatExposure(exposure: string) {
+  const labels: Record<string, string> = {
+    internal: 'Internal',
+    public: 'Public',
+  }
+
+  return labels[exposure] ?? formatIdentifier(exposure)
+}
+
+function formatNetworkPort(port: NetworkPort | { port: number; protocol: string }) {
+  const number = 'number' in port ? port.number : port.port
+
+  return `${number} ${port.protocol.toUpperCase()}`
 }

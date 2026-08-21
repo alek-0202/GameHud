@@ -72,7 +72,7 @@ Game server operational status is currently derived by overview and health servi
 
 `GameDefinition` contains static, versioned product knowledge about a game: its game id, display metadata, supported runtime types and declared capabilities. It does not represent a configured server, runtime state, allocated resources, local paths or credentials.
 
-Definitions are initially code-backed and registered explicitly through dependency injection. `PalworldGameDefinition` is the first definition and declares only capabilities already implemented by GamesHud plus its read-only host requirements. There is no external plugin SDK, assembly discovery or dynamic plugin loading.
+Definitions are initially code-backed and registered explicitly through dependency injection. `PalworldGameDefinition` is the first definition and declares only capabilities already implemented by GamesHud plus its read-only host requirements and port metadata. There is no external plugin SDK, assembly discovery or dynamic plugin loading.
 
 The registries have separate responsibilities:
 
@@ -86,10 +86,17 @@ The Game Catalog API exposes definitions from `GameDefinitionRegistry` through d
 - `GET /api/games`
 - `GET /api/games/{gameId}`
 - `GET /api/games/{gameId}/compatibility`
+- `POST /api/games/{gameId}/ports/plan`
 
 The catalog represents static game knowledge only. It does not expose configured server instances, credentials, runtime references, local paths, allocated ports, container names or provisioning state.
 
 Game requirements are static definition metadata and are separate from host capability detection. The compatibility evaluator combines a `GameDefinition` with the current `HostCapabilitySnapshot` and returns a GamesHud assessment containing passed checks, warnings, blocking failures or unknown checks. Unknown host facts are reported as unknown or warnings and must not be silently treated as passing. The compatibility endpoint is read-only and must not install software, create containers, reserve ports, create directories, edit firewall rules or provision game servers.
+
+Game port definitions are static network requirements. They describe logical ports, default number, protocol, purpose, whether the port is required, whether an alternative may be chosen and intended exposure. Exposure is metadata only; it must not open firewall rules or publish Docker ports.
+
+Port availability is a current host observation. TCP and UDP must be evaluated separately because they can share the same numeric port. Docker published ports may be used as diagnostic context, but Docker state is not the source of truth because non-Docker processes can use host ports.
+
+Port allocation is candidate selection. It may choose the preferred port or a bounded alternative. The current bounded alternative window is `preferredPort + 10`, using the same protocol. In-process coordination can reduce duplicate choices while the API process is running. Durable reservation is a future persistence responsibility; availability remains advisory until that exists.
 
 ---
 
@@ -285,6 +292,7 @@ The game catalog endpoints are separate from Docker Core and configured server i
 - `GET /api/games`
 - `GET /api/games/{gameId}`
 - `GET /api/games/{gameId}/compatibility`
+- `POST /api/games/{gameId}/ports/plan`
 
 The temporary Palworld config endpoints are separate from Docker Core:
 
@@ -332,6 +340,7 @@ The metrics endpoints are part of the generic operational surface:
 The host capability endpoint is read-only and must not mutate the host:
 
 - `GET /api/system/capabilities`
+- `GET /api/system/ports/{protocol}/{port}`
 
 Host capabilities describe what the current machine exposes to GamesHud, including OS, CPU, memory, primary storage, network inspection and Docker runtime reachability. They are not game requirements by themselves. Game-specific compatibility belongs to the game requirements evaluator and the game compatibility endpoint.
 
