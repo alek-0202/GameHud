@@ -41,6 +41,7 @@ The Docker Core owns generic infrastructure features only:
 - Recent logs snapshots
 - Manual container lifecycle actions
 - Host, Docker summary and container metrics
+- Read-only host capability detection
 - Safe operational schedules for supported actions
 - Optional backend-only operational notifications
 - Future image, network and volume views
@@ -323,6 +324,12 @@ The metrics endpoints are part of the generic operational surface:
 
 - `GET /api/system/metrics`
 - `GET /api/containers/{containerId}/metrics`
+
+The host capability endpoint is read-only and must not mutate the host:
+
+- `GET /api/system/capabilities`
+
+Host capabilities describe what the current machine exposes to GamesHud, including OS, CPU, memory, primary storage, network inspection and Docker runtime reachability. They are not game requirements and must not claim that a specific game is compatible. Requirement matching belongs to a later requirements feature.
 
 ---
 

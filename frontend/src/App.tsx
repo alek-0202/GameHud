@@ -5,6 +5,7 @@ import { ContainersPage } from './pages/ContainersPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { GameCatalogPage } from './pages/GameCatalogPage'
 import { GameServersPage } from './pages/GameServersPage'
+import { HostCapabilitiesPage } from './pages/HostCapabilitiesPage'
 import { PalworldAdvancedPage } from './pages/PalworldAdvancedPage'
 import { PalworldBackupsPage } from './pages/PalworldBackupsPage'
 import { PalworldLayout } from './pages/PalworldLayout'
@@ -32,6 +33,7 @@ function App() {
         </Route>
         <Route path="containers" element={<ContainersPage />} />
         <Route path="containers/:containerId" element={<ContainerDetailsPage />} />
+        <Route path="host" element={<HostCapabilitiesPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate replace to="/" />} />
       </Route>

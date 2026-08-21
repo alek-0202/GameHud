@@ -31,6 +31,7 @@ Implemented:
 - Local Docker Compose deployment foundation
 - Host, Docker and Palworld metrics
 - Short in-memory metrics history
+- Read-only host capability detection for OS, CPU, memory, storage, network and Docker runtime readiness
 - Temporary personal Palworld settings editor isolated outside Docker Core
 - Temporary Palworld REST overview and players view isolated outside Docker Core
 - Server registry foundation with legacy Palworld fallback
@@ -309,6 +310,14 @@ GET /api/palworld/metrics?historyHours=24
 ```
 
 Metrics are lightweight snapshots. Docker stats are read as one-shot snapshots, and short history is kept in memory.
+
+Host capabilities:
+
+```text
+GET /api/system/capabilities
+```
+
+Host capability detection inspects the machine running GamesHud without installing software, opening ports, changing firewall rules, creating directories or creating containers. It reports host facts and runtime readiness only. Game-specific requirement matching is not implemented yet.
 
 Game catalog:
 

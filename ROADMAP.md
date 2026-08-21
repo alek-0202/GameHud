@@ -230,9 +230,13 @@ Status: In progress
 - GH-03 game catalog (Completed)
 - `GET /api/games` and `GET /api/games/{gameId}` backed by `GameDefinitionRegistry`
 - Frontend Game Catalog page separated from configured game servers
+- GH-04 host capability detection (Completed)
+- `GET /api/system/capabilities` for read-only OS, CPU, memory, storage, network and Docker runtime inspection
+- Host capabilities are separate from game requirements and do not perform provisioning
 
 Remaining:
 
+- Game requirements engine
 - Durable server registration UI
 - Non-Palworld plugin implementation
 - Migration of all temporary Palworld features onto server-scoped contracts

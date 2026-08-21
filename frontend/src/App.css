@@ -344,6 +344,14 @@
   font-weight: 800;
 }
 
+.section-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
 .state-message,
 .empty-message {
   padding: var(--space-4);
@@ -549,6 +557,135 @@
   border-color: var(--color-border);
   background: var(--color-surface-muted);
   color: var(--color-text-muted);
+}
+
+.host-capabilities-layout {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.host-readiness-panel {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(135deg, rgb(52 211 153 / 0.08), transparent 18rem),
+    var(--color-card);
+  box-shadow: var(--shadow-panel);
+}
+
+.host-readiness-panel h3 {
+  margin-top: var(--space-1);
+  color: var(--color-text-primary);
+  font-size: 1.45rem;
+  line-height: 1.15;
+}
+
+.host-readiness-panel p {
+  margin-top: var(--space-2);
+}
+
+.host-capability-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.host-capability-card {
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+  min-width: 0;
+  min-height: 13rem;
+  padding: var(--space-5);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-card);
+  box-shadow: var(--shadow-panel);
+}
+
+.host-card-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.host-card-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid rgb(96 165 250 / 0.3);
+  border-radius: var(--radius-md);
+  background: var(--color-info-muted);
+  color: var(--color-info);
+}
+
+.host-card-heading div {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.host-card-heading span {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.host-card-heading strong {
+  overflow-wrap: anywhere;
+  color: var(--color-text-primary);
+  font-size: 1.06rem;
+}
+
+.host-capability-card ul,
+.host-issue-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+}
+
+.host-capability-card li {
+  list-style: none;
+  overflow-wrap: anywhere;
+  color: var(--color-text-secondary);
+  font-size: 0.88rem;
+}
+
+.host-issue-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+}
+
+.host-issue-row div {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.host-issue-row strong {
+  color: var(--color-text-primary);
+  font-size: 0.94rem;
+}
+
+.host-issue-row p {
+  font-size: 0.88rem;
 }
 
 .dashboard-server-section,
@@ -2352,6 +2489,7 @@ td > input {
   .server-overview-grid,
   .metric-chart-grid,
   .dashboard-server-stats,
+  .host-capability-grid,
   .palworld-status-grid,
   .palworld-world-grid,
   .notification-grid,
@@ -2403,6 +2541,7 @@ td > input {
   .palworld-version-grid,
   .dashboard-health-grid,
   .dashboard-server-stats,
+  .host-capability-grid,
   .compact-players-list,
   .metric-chart-grid,
   .notification-grid,
@@ -2450,6 +2589,7 @@ td > input {
   .server-meta,
   .compact-players-list,
   .metric-chart-grid,
+  .host-capability-grid,
   .notification-grid,
   .settings-status-list,
   .settings-grid,
@@ -2466,6 +2606,8 @@ td > input {
   }
 
   .section-header,
+  .host-readiness-panel,
+  .host-issue-row,
   .game-catalog-card-header,
   .dashboard-server-card-main,
   .palworld-overview-hero-main,
@@ -2489,6 +2631,7 @@ td > input {
   .logs-actions,
   .backup-actions,
   .palworld-update-actions,
+  .section-actions,
   .lifecycle-block-overview .lifecycle-actions,
   .settings-category-header,
   .settings-category-actions,

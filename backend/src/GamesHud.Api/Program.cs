@@ -2,6 +2,7 @@ using GamesHud.Api.Configuration;
 using GamesHud.Api.Docker.Services;
 using GamesHud.Api.GameServers.Definitions;
 using GamesHud.Api.GameServers.Services;
+using GamesHud.Api.HostCapabilities.Services;
 using GamesHud.Api.Metrics.Configuration;
 using GamesHud.Api.Metrics.Services;
 using GamesHud.Api.Operations.Notifications;
@@ -27,7 +28,21 @@ builder.Services.AddSingleton<IGameServerPlugin, PalworldGameServerPlugin>();
 builder.Services.AddSingleton<IGameServerRegistry, GameServerRegistry>();
 builder.Services.AddScoped<IContainerService, DockerContainerService>();
 builder.Services.AddSingleton<IHostMetricsFileSystem, HostMetricsFileSystem>();
-builder.Services.AddSingleton<IHostMetricsService, LinuxHostMetricsService>();
+builder.Services.AddSingleton<IHostSystemInfoProvider, RuntimeHostSystemInfoProvider>();
+builder.Services.AddSingleton<LinuxHostMetricsService>();
+builder.Services.AddSingleton<UnsupportedHostMetricsService>();
+builder.Services.AddSingleton<IHostMetricsService>(serviceProvider =>
+    serviceProvider.GetRequiredService<IHostSystemInfoProvider>().IsLinux
+        ? serviceProvider.GetRequiredService<LinuxHostMetricsService>()
+        : serviceProvider.GetRequiredService<UnsupportedHostMetricsService>());
+builder.Services.AddSingleton<IHostSystemInspector, HostSystemInspector>();
+builder.Services.AddSingleton<IHostStorageInfoProvider, RuntimeHostStorageInfoProvider>();
+builder.Services.AddSingleton<IHostResourceInspector, HostResourceInspector>();
+builder.Services.AddSingleton<IHostNetworkInfoProvider, RuntimeHostNetworkInfoProvider>();
+builder.Services.AddSingleton<IHostNetworkInspector, HostNetworkInspector>();
+builder.Services.AddScoped<IDockerRuntimeClient, DockerRuntimeClient>();
+builder.Services.AddScoped<IHostRuntimeInspector, HostRuntimeInspector>();
+builder.Services.AddScoped<IHostCapabilityService, HostCapabilityService>();
 builder.Services.AddScoped<IDockerMetricsService, DockerMetricsService>();
 builder.Services.AddScoped<IMetricsService, MetricsService>();
 builder.Services.AddScoped<IPalworldMetricsService, PalworldMetricsService>();

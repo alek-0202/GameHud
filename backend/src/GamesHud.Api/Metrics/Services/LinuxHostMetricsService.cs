@@ -29,13 +29,14 @@ public sealed class LinuxHostMetricsService : IHostMetricsService
         {
             var cpuSample = ParseCpuSample(await _fileSystem.ReadAllTextAsync(ProcStatPath, cancellationToken));
             var cpuPercent = CalculateCpuPercent(cpuSample);
-            var memory = ParseMemory(await _fileSystem.ReadAllTextAsync(ProcMemInfoPath, cancellationToken));
+            var memory = LinuxMemoryInfoParser.Parse(
+                await _fileSystem.ReadAllTextAsync(ProcMemInfoPath, cancellationToken));
             var uptimeSeconds = ParseUptime(await _fileSystem.ReadAllTextAsync(ProcUptimePath, cancellationToken));
             var disk = GetDiskUsage();
 
             return new HostMetrics(
                 cpuPercent,
-                memory.UsedBytes,
+                memory.TotalBytes - memory.AvailableBytes,
                 memory.TotalBytes,
                 disk.UsedBytes,
                 disk.TotalBytes,
@@ -105,40 +106,6 @@ public sealed class LinuxHostMetricsService : IHostMetricsService
         return new CpuSample(total, idle);
     }
 
-    private static MemoryUsage ParseMemory(string memInfoText)
-    {
-        var values = memInfoText
-            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
-            .Select(line => line.Split(':', 2))
-            .Where(parts => parts.Length == 2)
-            .ToDictionary(
-                parts => parts[0],
-                parts => ParseKilobytes(parts[1]),
-                StringComparer.Ordinal);
-
-        var total = values.GetValueOrDefault("MemTotal");
-        var available = values.GetValueOrDefault("MemAvailable");
-
-        if (total == 0)
-        {
-            throw new FormatException("/proc/meminfo did not contain MemTotal.");
-        }
-
-        if (available == 0)
-        {
-            available = values.GetValueOrDefault("MemFree");
-        }
-
-        return new MemoryUsage((total - available) * 1024, total * 1024);
-    }
-
-    private static ulong ParseKilobytes(string value)
-    {
-        var numeric = value.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
-
-        return ulong.Parse(numeric, CultureInfo.InvariantCulture);
-    }
-
     private static double ParseUptime(string uptimeText)
     {
         var firstValue = uptimeText.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
@@ -147,8 +114,6 @@ public sealed class LinuxHostMetricsService : IHostMetricsService
     }
 
     private sealed record CpuSample(ulong Total, ulong Idle);
-
-    private sealed record MemoryUsage(ulong UsedBytes, ulong TotalBytes);
 
     private sealed record DiskUsage(ulong UsedBytes, ulong TotalBytes);
 }

@@ -5,6 +5,7 @@ import {
   Gauge,
   LayoutDashboard,
   Library,
+  MonitorCog,
   Settings,
   type LucideIcon,
 } from 'lucide-react'
@@ -53,6 +54,7 @@ function Sidebar() {
         </SidebarGroup>
 
         <SidebarGroup title="System">
+          <SidebarLink icon={MonitorCog} label="Host" to="/host" />
           <SidebarLink icon={Settings} label="Settings" to="/settings" />
         </SidebarGroup>
       </nav>
@@ -142,6 +144,10 @@ function getPageTitle(pathname: string) {
 
   if (pathname.startsWith('/containers')) {
     return 'Containers'
+  }
+
+  if (pathname === '/host') {
+    return 'Host'
   }
 
   if (pathname === '/settings') {

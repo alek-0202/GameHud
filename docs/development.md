@@ -204,6 +204,14 @@ GET http://localhost:5258/api/palworld/metrics?historyHours=24
 
 Metrics use one-shot Docker stats and short in-memory history. They do not expose Docker SDK models.
 
+Host capabilities:
+
+```text
+GET http://localhost:5258/api/system/capabilities
+```
+
+Host capability detection is read-only. It reports operating system, CPU, memory when available, primary storage, network inspection facts, Docker runtime reachability, readiness and friendly capability issues. It must not install Docker, open ports, change firewall rules, create directories, create containers or provision game servers.
+
 Lifecycle actions:
 
 ```text

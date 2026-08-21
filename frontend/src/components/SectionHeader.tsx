@@ -1,9 +1,12 @@
+import type { ReactNode } from 'react'
+
 interface SectionHeaderProps {
   eyebrow?: string
   titleId?: string
   title: string
   description?: string
   aside?: string
+  actions?: ReactNode
 }
 
 export function SectionHeader({
@@ -12,6 +15,7 @@ export function SectionHeader({
   title,
   description,
   aside,
+  actions,
 }: SectionHeaderProps) {
   return (
     <div className="section-header">
@@ -21,6 +25,7 @@ export function SectionHeader({
         {description && <p>{description}</p>}
       </div>
       {aside && <span className="section-aside">{aside}</span>}
+      {actions && <div className="section-actions">{actions}</div>}
     </div>
   )
 }
