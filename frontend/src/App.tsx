@@ -3,6 +3,7 @@ import { AppShell } from './layout/AppShell'
 import { ContainerDetailsPage } from './pages/ContainerDetailsPage'
 import { ContainersPage } from './pages/ContainersPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { GameCatalogPage } from './pages/GameCatalogPage'
 import { GameServersPage } from './pages/GameServersPage'
 import { PalworldAdvancedPage } from './pages/PalworldAdvancedPage'
 import { PalworldBackupsPage } from './pages/PalworldBackupsPage'
@@ -19,6 +20,7 @@ function App() {
     <Routes>
       <Route element={<AppShell />}>
         <Route index element={<DashboardPage />} />
+        <Route path="games" element={<GameCatalogPage />} />
         <Route path="servers" element={<GameServersPage />} />
         <Route path="servers/:serverId" element={<PalworldLayout />}>
           <Route index element={<PalworldOverviewPage />} />

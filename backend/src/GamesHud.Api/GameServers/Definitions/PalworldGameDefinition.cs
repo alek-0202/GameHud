@@ -9,7 +9,7 @@ public sealed class PalworldGameDefinition : GameDefinition
         : base(
             new GameId("palworld"),
             "Palworld",
-            "Create and operate a Palworld dedicated server.",
+            "Operate Palworld dedicated servers with supported management tools.",
             new GameDefinitionBranding("palworld"),
             [GameServerRuntime.DockerType],
             [

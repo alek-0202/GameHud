@@ -34,6 +34,8 @@ Implemented:
 - Temporary personal Palworld settings editor isolated outside Docker Core
 - Temporary Palworld REST overview and players view isolated outside Docker Core
 - Server registry foundation with legacy Palworld fallback
+- Game catalog API backed by the game definition registry
+- Frontend Game Catalog page separated from configured servers
 - Palworld player administration through the backend REST integration
 - Palworld mod inventory only, without install/enable/disable automation
 - Temporary Palworld backup management isolated outside Docker Core
@@ -307,6 +309,15 @@ GET /api/palworld/metrics?historyHours=24
 ```
 
 Metrics are lightweight snapshots. Docker stats are read as one-shot snapshots, and short history is kept in memory.
+
+Game catalog:
+
+```text
+GET /api/games
+GET /api/games/{gameId}
+```
+
+The game catalog is sourced from `GameDefinitionRegistry` and lists games known by GamesHud. Configured server instances are sourced separately from `GameServerRegistry`.
 
 Temporary Palworld integration:
 

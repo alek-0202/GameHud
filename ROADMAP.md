@@ -227,10 +227,12 @@ Status: In progress
 - GH-02 game definition system (Completed)
 - Code-backed Palworld definition with static metadata, Docker runtime support and implemented capabilities
 - Separate game definition registry with deterministic duplicate and unknown-id behavior
+- GH-03 game catalog (Completed)
+- `GET /api/games` and `GET /api/games/{gameId}` backed by `GameDefinitionRegistry`
+- Frontend Game Catalog page separated from configured game servers
 
 Remaining:
 
-- GH-03 game catalog
 - Durable server registration UI
 - Non-Palworld plugin implementation
 - Migration of all temporary Palworld features onto server-scoped contracts

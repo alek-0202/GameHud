@@ -80,6 +80,13 @@ The registries have separate responsibilities:
 
 A `GameServer` stores only its `GameId`. Consumers may use that id to resolve a definition without embedding the full definition in the server instance.
 
+The Game Catalog API exposes definitions from `GameDefinitionRegistry` through dedicated HTTP contracts:
+
+- `GET /api/games`
+- `GET /api/games/{gameId}`
+
+The catalog represents static game knowledge only. It does not expose configured server instances, credentials, runtime references, local paths, allocated ports, container names or provisioning state.
+
 ---
 
 ## Plugin Responsibilities
@@ -268,6 +275,11 @@ Not implemented yet:
 - SignalR or WebSockets
 
 Read-only endpoints must not alter container state. Lifecycle endpoints are explicit manual actions limited to start, stop and restart.
+
+The game catalog endpoints are separate from Docker Core and configured server instances:
+
+- `GET /api/games`
+- `GET /api/games/{gameId}`
 
 The temporary Palworld config endpoints are separate from Docker Core:
 

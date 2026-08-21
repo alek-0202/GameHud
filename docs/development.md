@@ -218,6 +218,15 @@ Lifecycle actions are manual only and must be triggered explicitly. Stop and res
 
 Start returns a friendly success response when the container is already running. Stop returns a friendly success response when the container is already stopped.
 
+Game catalog:
+
+```text
+GET http://localhost:5258/api/games
+GET http://localhost:5258/api/games/{gameId}
+```
+
+The game catalog endpoints return static game metadata from `GameDefinitionRegistry`. They do not return configured server instances, container names, paths, ports, runtime references or credentials.
+
 Temporary Palworld integration:
 
 ```text

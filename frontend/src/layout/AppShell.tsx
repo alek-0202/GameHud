@@ -4,6 +4,7 @@ import {
   Gamepad2,
   Gauge,
   LayoutDashboard,
+  Library,
   Settings,
   type LucideIcon,
 } from 'lucide-react'
@@ -43,6 +44,7 @@ function Sidebar() {
         </SidebarGroup>
 
         <SidebarGroup title="Game Servers">
+          <SidebarLink icon={Library} label="Game Catalog" to="/games" />
           <SidebarLink icon={Gamepad2} label="Palworld" to="/servers/palworld" />
         </SidebarGroup>
 
@@ -127,7 +129,11 @@ function getPageTitle(pathname: string) {
   }
 
   if (pathname === '/servers') {
-    return 'Game Servers'
+    return 'My Servers'
+  }
+
+  if (pathname === '/games') {
+    return 'Game Catalog'
   }
 
   if (pathname.startsWith('/servers/palworld')) {
