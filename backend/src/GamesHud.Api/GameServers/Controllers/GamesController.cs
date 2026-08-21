@@ -1,6 +1,8 @@
 using GamesHud.Api.GameServers.Contracts;
 using GamesHud.Api.GameServers.Definitions;
 using GamesHud.Api.GameServers.Domain;
+using GamesHud.Api.GameServers.Requirements;
+using GamesHud.Api.HostCapabilities.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace GamesHud.Api.GameServers.Controllers;
@@ -10,10 +12,17 @@ namespace GamesHud.Api.GameServers.Controllers;
 public sealed class GamesController : ControllerBase
 {
     private readonly IGameDefinitionRegistry _registry;
+    private readonly IHostCapabilityService _hostCapabilityService;
+    private readonly IGameRequirementEvaluator _requirementEvaluator;
 
-    public GamesController(IGameDefinitionRegistry registry)
+    public GamesController(
+        IGameDefinitionRegistry registry,
+        IHostCapabilityService hostCapabilityService,
+        IGameRequirementEvaluator requirementEvaluator)
     {
         _registry = registry;
+        _hostCapabilityService = hostCapabilityService;
+        _requirementEvaluator = requirementEvaluator;
     }
 
     [HttpGet]
@@ -37,6 +46,27 @@ public sealed class GamesController : ControllerBase
         }
 
         return Ok(Map(definition!));
+    }
+
+    [HttpGet("{gameId}/compatibility")]
+    public async Task<IActionResult> GetGameCompatibility(
+        string gameId,
+        CancellationToken cancellationToken)
+    {
+        if (!TryCreateGameId(gameId, out var id))
+        {
+            return NotFound();
+        }
+
+        if (!_registry.TryGet(id, out var definition))
+        {
+            return NotFound();
+        }
+
+        var hostCapabilities = await _hostCapabilityService.GetCapabilitiesAsync(cancellationToken);
+        var assessment = _requirementEvaluator.Evaluate(definition!, hostCapabilities);
+
+        return Ok(GameCompatibilityContractMapper.Map(assessment));
     }
 
     private static GameCatalogItemResponse Map(GameDefinition definition)

@@ -1,4 +1,8 @@
-import type { GameCatalogGame, GameCatalogResponse } from '../types/games'
+import type {
+  GameCatalogGame,
+  GameCatalogResponse,
+  GameCompatibilityAssessment,
+} from '../types/games'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 
@@ -23,6 +27,16 @@ export async function fetchGame(
   signal?: AbortSignal,
 ): Promise<GameCatalogGame> {
   return fetchJson<GameCatalogGame>(`/api/games/${encodeURIComponent(gameId)}`, signal)
+}
+
+export async function fetchGameCompatibility(
+  gameId: string,
+  signal?: AbortSignal,
+): Promise<GameCompatibilityAssessment> {
+  return fetchJson<GameCompatibilityAssessment>(
+    `/api/games/${encodeURIComponent(gameId)}/compatibility`,
+    signal,
+  )
 }
 
 async function fetchJson<TResponse>(

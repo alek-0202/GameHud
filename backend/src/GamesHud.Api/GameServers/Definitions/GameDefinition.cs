@@ -1,4 +1,5 @@
 using GamesHud.Api.GameServers.Domain;
+using GamesHud.Api.GameServers.Requirements;
 
 namespace GamesHud.Api.GameServers.Definitions;
 
@@ -10,7 +11,8 @@ public class GameDefinition
         string description,
         GameDefinitionBranding branding,
         IEnumerable<string> supportedRuntimes,
-        IEnumerable<string> capabilities)
+        IEnumerable<string> capabilities,
+        GameRequirements? requirements = null)
     {
         if (string.IsNullOrWhiteSpace(gameId.Value))
         {
@@ -29,6 +31,7 @@ public class GameDefinition
         Branding = branding;
         SupportedRuntimes = NormalizeIdentifiers(supportedRuntimes, nameof(supportedRuntimes));
         Capabilities = NormalizeIdentifiers(capabilities, nameof(capabilities));
+        Requirements = requirements;
     }
 
     public GameId GameId { get; }
@@ -42,6 +45,8 @@ public class GameDefinition
     public IReadOnlyCollection<string> SupportedRuntimes { get; }
 
     public IReadOnlyCollection<string> Capabilities { get; }
+
+    public GameRequirements? Requirements { get; }
 
     private static IReadOnlyCollection<string> NormalizeIdentifiers(
         IEnumerable<string> values,

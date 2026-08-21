@@ -1,6 +1,7 @@
 using GamesHud.Api.Configuration;
 using GamesHud.Api.Docker.Services;
 using GamesHud.Api.GameServers.Definitions;
+using GamesHud.Api.GameServers.Requirements;
 using GamesHud.Api.GameServers.Services;
 using GamesHud.Api.HostCapabilities.Services;
 using GamesHud.Api.Metrics.Configuration;
@@ -26,6 +27,7 @@ builder.Services.AddSingleton<GameDefinition>(serviceProvider =>
 builder.Services.AddSingleton<IGameDefinitionRegistry, GameDefinitionRegistry>();
 builder.Services.AddSingleton<IGameServerPlugin, PalworldGameServerPlugin>();
 builder.Services.AddSingleton<IGameServerRegistry, GameServerRegistry>();
+builder.Services.AddSingleton<IGameRequirementEvaluator, GameRequirementEvaluator>();
 builder.Services.AddScoped<IContainerService, DockerContainerService>();
 builder.Services.AddSingleton<IHostMetricsFileSystem, HostMetricsFileSystem>();
 builder.Services.AddSingleton<IHostSystemInfoProvider, RuntimeHostSystemInfoProvider>();

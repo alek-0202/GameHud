@@ -231,9 +231,12 @@ Game catalog:
 ```text
 GET http://localhost:5258/api/games
 GET http://localhost:5258/api/games/{gameId}
+GET http://localhost:5258/api/games/{gameId}/compatibility
 ```
 
 The game catalog endpoints return static game metadata from `GameDefinitionRegistry`. They do not return configured server instances, container names, paths, ports, runtime references or credentials.
+
+The compatibility endpoint combines static game requirements with the current host capability snapshot. It returns requirement checks, warnings and blocking issues only. It must not install software, create containers, reserve ports, create directories or change host configuration.
 
 Temporary Palworld integration:
 

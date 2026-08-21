@@ -233,10 +233,13 @@ Status: In progress
 - GH-04 host capability detection (Completed)
 - `GET /api/system/capabilities` for read-only OS, CPU, memory, storage, network and Docker runtime inspection
 - Host capabilities are separate from game requirements and do not perform provisioning
+- GH-05 game requirements engine (Completed)
+- Palworld requirements declared from the official server guide
+- `GET /api/games/{gameId}/compatibility` combines static game requirements with read-only host capabilities
+- Frontend Game Catalog can check host fit on demand without creating or provisioning servers
 
 Remaining:
 
-- Game requirements engine
 - Durable server registration UI
 - Non-Palworld plugin implementation
 - Migration of all temporary Palworld features onto server-scoped contracts

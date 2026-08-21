@@ -32,6 +32,7 @@ Implemented:
 - Host, Docker and Palworld metrics
 - Short in-memory metrics history
 - Read-only host capability detection for OS, CPU, memory, storage, network and Docker runtime readiness
+- Game requirements model and read-only compatibility check between registered game definitions and host capabilities
 - Temporary personal Palworld settings editor isolated outside Docker Core
 - Temporary Palworld REST overview and players view isolated outside Docker Core
 - Server registry foundation with legacy Palworld fallback
@@ -317,16 +318,19 @@ Host capabilities:
 GET /api/system/capabilities
 ```
 
-Host capability detection inspects the machine running GamesHud without installing software, opening ports, changing firewall rules, creating directories or creating containers. It reports host facts and runtime readiness only. Game-specific requirement matching is not implemented yet.
+Host capability detection inspects the machine running GamesHud without installing software, opening ports, changing firewall rules, creating directories or creating containers. It reports host facts and runtime readiness only.
 
 Game catalog:
 
 ```text
 GET /api/games
 GET /api/games/{gameId}
+GET /api/games/{gameId}/compatibility
 ```
 
 The game catalog is sourced from `GameDefinitionRegistry` and lists games known by GamesHud. Configured server instances are sourced separately from `GameServerRegistry`.
+
+Game compatibility is computed from static `GameDefinition` requirements and the current `HostCapabilitySnapshot`. Compatibility responses report requirement checks, blocking issues and warnings. They do not create servers, reserve ports, install runtimes, create directories or mutate host state.
 
 Temporary Palworld integration:
 

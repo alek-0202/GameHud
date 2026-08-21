@@ -559,6 +559,85 @@
   color: var(--color-text-muted);
 }
 
+.game-compatibility-panel {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.game-compatibility-summary,
+.game-compatibility-check {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.game-compatibility-summary strong {
+  display: block;
+  margin-top: var(--space-1);
+  overflow-wrap: anywhere;
+  color: var(--color-text-primary);
+  font-size: 1rem;
+}
+
+.game-compatibility-checks {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.game-compatibility-check {
+  justify-content: flex-start;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.game-compatibility-check > div {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+}
+
+.game-compatibility-check strong {
+  overflow-wrap: anywhere;
+  color: var(--color-text-primary);
+  font-size: 0.94rem;
+}
+
+.game-compatibility-check dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.game-compatibility-check dt {
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.game-compatibility-check dd {
+  margin: var(--space-1) 0 0;
+  overflow-wrap: anywhere;
+  color: var(--color-text-secondary);
+  font-size: 0.84rem;
+}
+
+.game-compatibility-check p,
+.game-compatibility-message {
+  color: var(--color-text-secondary);
+  font-size: 0.86rem;
+}
+
+.game-compatibility-message-error {
+  color: #fecaca;
+}
+
 .host-capabilities-layout {
   display: grid;
   gap: var(--space-5);
@@ -2535,6 +2614,7 @@ td > input {
   }
 
   .server-meta,
+  .game-compatibility-check dl,
   .server-overview-grid,
   .palworld-status-grid,
   .palworld-world-grid,
@@ -2580,6 +2660,7 @@ td > input {
   .overview-grid,
   .backup-summary-grid,
   .game-catalog-meta,
+  .game-compatibility-check dl,
   .server-overview-grid,
   .resource-usage-grid,
   .palworld-status-grid,

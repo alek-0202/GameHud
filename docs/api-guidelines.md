@@ -78,6 +78,7 @@ These rules apply to the GamesHud .NET backend.
 - Avoid exposing raw inspect payloads, secrets, tokens and unnecessary internal information.
 - Host inspection endpoints must report capabilities without exposing usernames, home directories, arbitrary filesystem paths, Docker socket paths, MAC addresses, hostnames, public IPs or secrets.
 - Host inspection must be read-only. It must not install software, create containers, open firewall rules, reserve ports or provision resources.
+- Game compatibility endpoints must be read-only. They may compare static game requirements with host capabilities, but must not provision servers, create directories, install runtimes, open firewall rules, reserve ports or mutate host/container state.
 
 ---
 
