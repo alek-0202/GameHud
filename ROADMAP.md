@@ -243,9 +243,16 @@ Status: In progress
 - `GET /api/system/ports/{protocol}/{port}` checks host port availability without mutation
 - `POST /api/games/{gameId}/ports/plan` previews preferred and alternative port candidates
 - Port availability remains advisory until durable reservation exists
+- GH-07 storage and volume manager foundation (Completed)
+- Game definitions can declare logical storage entries with purpose, runtime target, persistence and backup eligibility
+- Palworld declares persistent game data at runtime target `/palworld` without a host path
+- `Storage__DataRoot` configures the GamesHud managed data root with an app-local fallback
+- `POST /api/games/{gameId}/storage/plan` previews deterministic managed layout for a supplied `gameServerId`
+- Storage planning is advisory and does not create directories, Docker volumes, bind mounts, compose changes or durable records
 
 Remaining:
 
+- Durable storage ownership and allocation persistence
 - Durable server registration UI
 - Non-Palworld plugin implementation
 - Migration of all temporary Palworld features onto server-scoped contracts

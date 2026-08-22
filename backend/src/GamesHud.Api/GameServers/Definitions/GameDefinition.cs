@@ -1,6 +1,7 @@
 using GamesHud.Api.GameServers.Domain;
 using GamesHud.Api.GameServers.Ports;
 using GamesHud.Api.GameServers.Requirements;
+using GamesHud.Api.GameServers.Storage;
 
 namespace GamesHud.Api.GameServers.Definitions;
 
@@ -14,7 +15,8 @@ public class GameDefinition
         IEnumerable<string> supportedRuntimes,
         IEnumerable<string> capabilities,
         GameRequirements? requirements = null,
-        IEnumerable<GamePortDefinition>? ports = null)
+        IEnumerable<GamePortDefinition>? ports = null,
+        IEnumerable<GameStorageDefinition>? storages = null)
     {
         if (string.IsNullOrWhiteSpace(gameId.Value))
         {
@@ -35,6 +37,7 @@ public class GameDefinition
         Capabilities = NormalizeIdentifiers(capabilities, nameof(capabilities));
         Requirements = requirements;
         Ports = NormalizePorts(ports);
+        Storages = NormalizeStorages(storages);
     }
 
     public GameId GameId { get; }
@@ -52,6 +55,8 @@ public class GameDefinition
     public GameRequirements? Requirements { get; }
 
     public IReadOnlyCollection<GamePortDefinition> Ports { get; }
+
+    public IReadOnlyCollection<GameStorageDefinition> Storages { get; }
 
     private static IReadOnlyCollection<string> NormalizeIdentifiers(
         IEnumerable<string> values,
@@ -87,6 +92,29 @@ public class GameDefinition
             throw new ArgumentException(
                 $"Duplicate game port definition id '{duplicate.Key}'.",
                 nameof(ports));
+        }
+
+        return normalized;
+    }
+
+    private static IReadOnlyCollection<GameStorageDefinition> NormalizeStorages(
+        IEnumerable<GameStorageDefinition>? storages)
+    {
+        if (storages is null)
+        {
+            return [];
+        }
+
+        var normalized = storages.ToArray();
+        var duplicate = normalized
+            .GroupBy(storage => storage.Id, StringComparer.Ordinal)
+            .FirstOrDefault(group => group.Count() > 1);
+
+        if (duplicate is not null)
+        {
+            throw new ArgumentException(
+                $"Duplicate game storage definition id '{duplicate.Key}'.",
+                nameof(storages));
         }
 
         return normalized;

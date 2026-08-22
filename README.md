@@ -34,6 +34,7 @@ Implemented:
 - Read-only host capability detection for OS, CPU, memory, storage, network and Docker runtime readiness
 - Game requirements model and read-only compatibility check between registered game definitions and host capabilities
 - Game port requirements, read-only host port checks and advisory port planning
+- Game storage definitions, configurable managed data root and advisory storage planning
 - Temporary personal Palworld settings editor isolated outside Docker Core
 - Temporary Palworld REST overview and players view isolated outside Docker Core
 - Server registry foundation with legacy Palworld fallback
@@ -174,6 +175,12 @@ Metrics:
 - `Metrics__SnapshotIntervalSeconds`
 - `Metrics__RetentionHours`
 - `Metrics__HostDiskPath`
+
+Storage:
+
+- `Storage__DataRoot`
+
+When this value is empty or unset, GamesHud uses a safe app-local fallback under the backend application base directory. Storage planning uses this root to compute deterministic managed server paths, but it does not create directories, copy files, move existing data or reserve durable state.
 
 Operations:
 
@@ -328,6 +335,7 @@ GET /api/games
 GET /api/games/{gameId}
 GET /api/games/{gameId}/compatibility
 POST /api/games/{gameId}/ports/plan
+POST /api/games/{gameId}/storage/plan
 ```
 
 The game catalog is sourced from `GameDefinitionRegistry` and lists games known by GamesHud. Configured server instances are sourced separately from `GameServerRegistry`.
@@ -335,6 +343,8 @@ The game catalog is sourced from `GameDefinitionRegistry` and lists games known 
 Game compatibility is computed from static `GameDefinition` requirements and the current `HostCapabilitySnapshot`. Compatibility responses report requirement checks, blocking issues and warnings. They do not create servers, reserve ports, install runtimes, create directories or mutate host state.
 
 Game port planning is computed from static `GameDefinition` port metadata and current host port availability. It can suggest an alternative candidate in a small bounded range, but availability is advisory until durable reservation exists. It does not open firewall rules, publish Docker ports, create containers or provision servers.
+
+Game storage planning is computed from static `GameDefinition` storage metadata and a configured GamesHud data root. Clients provide only a stable `gameServerId`; they must not provide arbitrary host paths. The plan reports relative managed layout, runtime-neutral mount metadata, required and available bytes, collision warnings and issues. It does not create directories, Docker volumes, bind mounts, compose changes, backups or persistent server records. Absolute host paths remain backend-internal.
 
 Ports:
 

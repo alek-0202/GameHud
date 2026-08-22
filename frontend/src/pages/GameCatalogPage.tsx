@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { ListChecks, Network } from 'lucide-react'
+import { HardDrive, ListChecks, Network } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { fetchGameCatalog, fetchGameCompatibility, fetchGamePortPlan } from '../api/games'
+import {
+  fetchGameCatalog,
+  fetchGameCompatibility,
+  fetchGamePortPlan,
+  fetchGameStoragePlan,
+} from '../api/games'
 import { SectionHeader } from '../components/SectionHeader'
 import type {
   GameCatalogGame,
@@ -9,6 +14,8 @@ import type {
   GameCompatibilityCheck,
   GamePortPlan,
   GamePortPlanItem,
+  GameStoragePlan,
+  GameStoragePlanEntry,
   NetworkPort,
 } from '../types/games'
 
@@ -86,6 +93,7 @@ function GameCatalogCard({ game }: GameCatalogCardProps) {
   const hiddenCapabilityCount = Math.max(0, game.capabilities.length - visibleCapabilities.length)
   const abortControllerRef = useRef<AbortController | null>(null)
   const portPlanAbortControllerRef = useRef<AbortController | null>(null)
+  const storagePlanAbortControllerRef = useRef<AbortController | null>(null)
   const [compatibilityState, setCompatibilityState] = useState<
     | { status: 'idle'; assessment?: undefined; message?: undefined }
     | { status: 'loading'; assessment?: undefined; message?: undefined }
@@ -98,11 +106,18 @@ function GameCatalogCard({ game }: GameCatalogCardProps) {
     | { status: 'success'; plan: GamePortPlan; message?: undefined }
     | { status: 'error'; plan?: undefined; message: string }
   >({ status: 'idle' })
+  const [storagePlanState, setStoragePlanState] = useState<
+    | { status: 'idle'; plan?: undefined; message?: undefined }
+    | { status: 'loading'; plan?: undefined; message?: undefined }
+    | { status: 'success'; plan: GameStoragePlan; message?: undefined }
+    | { status: 'error'; plan?: undefined; message: string }
+  >({ status: 'idle' })
 
   useEffect(() => {
     return () => {
       abortControllerRef.current?.abort()
       portPlanAbortControllerRef.current?.abort()
+      storagePlanAbortControllerRef.current?.abort()
     }
   }, [])
 
@@ -123,6 +138,31 @@ function GameCatalogCard({ game }: GameCatalogCardProps) {
       setCompatibilityState({
         status: 'error',
         message: 'Unable to check host requirements.',
+      })
+    }
+  }
+
+  async function checkStoragePlan() {
+    storagePlanAbortControllerRef.current?.abort()
+    const abortController = new AbortController()
+    storagePlanAbortControllerRef.current = abortController
+    setStoragePlanState({ status: 'loading' })
+
+    try {
+      const plan = await fetchGameStoragePlan(
+        game.id,
+        `${game.id}-preview`,
+        abortController.signal,
+      )
+      setStoragePlanState({ status: 'success', plan })
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return
+      }
+
+      setStoragePlanState({
+        status: 'error',
+        message: 'Unable to check storage requirements.',
       })
     }
   }
@@ -215,6 +255,17 @@ function GameCatalogCard({ game }: GameCatalogCardProps) {
           <Network size={16} strokeWidth={2.2} />
           {getPortPlanButtonLabel(portPlanState.status)}
         </button>
+        <button
+          className="secondary-button"
+          disabled={storagePlanState.status === 'loading'}
+          type="button"
+          onClick={() => {
+            void checkStoragePlan()
+          }}
+        >
+          <HardDrive size={16} strokeWidth={2.2} />
+          {getStoragePlanButtonLabel(storagePlanState.status)}
+        </button>
         <Link className="secondary-button" to="/servers">
           Manage Existing Servers
         </Link>
@@ -246,6 +297,20 @@ function GameCatalogCard({ game }: GameCatalogCardProps) {
 
       {portPlanState.status === 'success' && (
         <GamePortPlanPanel plan={portPlanState.plan} />
+      )}
+
+      {storagePlanState.status === 'loading' && (
+        <p className="game-compatibility-message">Checking storage requirements...</p>
+      )}
+
+      {storagePlanState.status === 'error' && (
+        <p className="game-compatibility-message game-compatibility-message-error">
+          {storagePlanState.message}
+        </p>
+      )}
+
+      {storagePlanState.status === 'success' && (
+        <GameStoragePlanPanel plan={storagePlanState.plan} />
       )}
     </article>
   )
@@ -358,6 +423,75 @@ function GamePortRow({ port }: GamePortRowProps) {
   )
 }
 
+interface GameStoragePlanPanelProps {
+  plan: GameStoragePlan
+}
+
+function GameStoragePlanPanel({ plan }: GameStoragePlanPanelProps) {
+  return (
+    <div className="game-storage-panel" aria-live="polite">
+      <div className="game-compatibility-summary">
+        <div>
+          <span className="section-eyebrow">Storage requirements</span>
+          <strong>{formatStoragePlanHeadline(plan.status)}</strong>
+        </div>
+        <StatusPill status={plan.status} />
+      </div>
+
+      <dl className="game-storage-summary">
+        <div>
+          <dt>Required</dt>
+          <dd>{formatBytes(plan.requiredBytes)}</dd>
+        </div>
+        <div>
+          <dt>Available</dt>
+          <dd>{formatBytes(plan.availableBytes)}</dd>
+        </div>
+        <div>
+          <dt>Ownership</dt>
+          <dd>{formatStorageOwnership(plan.ownership)}</dd>
+        </div>
+      </dl>
+
+      <div className="game-storage-list">
+        {plan.entries.map((entry) => (
+          <GameStorageRow entry={entry} key={entry.definitionId} />
+        ))}
+      </div>
+      <p>{plan.message}</p>
+    </div>
+  )
+}
+
+interface GameStorageRowProps {
+  entry: GameStoragePlanEntry
+}
+
+function GameStorageRow({ entry }: GameStorageRowProps) {
+  return (
+    <div className="game-storage-row">
+      <div>
+        <strong>{entry.label}</strong>
+        <span>{formatStoragePurpose(entry.purpose)}</span>
+      </div>
+      <dl>
+        <div>
+          <dt>Required</dt>
+          <dd>{entry.required ? 'Required' : 'Optional'}</dd>
+        </div>
+        <div>
+          <dt>Target</dt>
+          <dd>{entry.runtimeTarget ?? 'None'}</dd>
+        </div>
+        <div>
+          <dt>Backup</dt>
+          <dd>{entry.backupEligible ? 'Eligible' : 'No'}</dd>
+        </div>
+      </dl>
+    </div>
+  )
+}
+
 interface StatusPillProps {
   status: string
 }
@@ -430,6 +564,14 @@ function getPortPlanButtonLabel(status: 'idle' | 'loading' | 'success' | 'error'
   return status === 'success' ? 'Recheck Network' : 'Check Network'
 }
 
+function getStoragePlanButtonLabel(status: 'idle' | 'loading' | 'success' | 'error') {
+  if (status === 'loading') {
+    return 'Checking...'
+  }
+
+  return status === 'success' ? 'Recheck Storage' : 'Check Storage'
+}
+
 function formatCompatibilityHeadline(status: string) {
   const labels: Record<string, string> = {
     compatible: 'Ready to host',
@@ -452,6 +594,18 @@ function formatPortPlanHeadline(status: string) {
   return labels[status] ?? formatStatus(status)
 }
 
+function formatStoragePlanHeadline(status: string) {
+  const labels: Record<string, string> = {
+    collision: 'Managed path already exists',
+    insufficient: 'Storage needs attention',
+    ready: 'Storage looks ready',
+    unknown: 'Storage availability unknown',
+    warning: 'Storage has warnings',
+  }
+
+  return labels[status] ?? formatStatus(status)
+}
+
 function getStatusClassName(status: string) {
   if (status === 'available'
     || status === 'compatible'
@@ -469,6 +623,7 @@ function getStatusClassName(status: string) {
   if (status === 'conflict'
     || status === 'failed'
     || status === 'in_use'
+    || status === 'insufficient'
     || status === 'incompatible') {
     return 'status-badge-danger'
   }
@@ -484,11 +639,13 @@ function formatStatus(status: string) {
   const labels: Record<string, string> = {
     allocated: 'Allocated',
     available: 'Available',
+    collision: 'Collision',
     compatible: 'Compatible',
     compatible_with_warnings: 'Warnings',
     conflict: 'Conflict',
     failed: 'Failed',
     in_use: 'In use',
+    insufficient: 'Insufficient',
     incompatible: 'Incompatible',
     passed: 'Passed',
     ready: 'Ready',
@@ -513,4 +670,37 @@ function formatNetworkPort(port: NetworkPort | { port: number; protocol: string 
   const number = 'number' in port ? port.number : port.port
 
   return `${number} ${port.protocol.toUpperCase()}`
+}
+
+function formatStorageOwnership(ownership: string) {
+  const labels: Record<string, string> = {
+    external: 'External',
+    managed: 'Managed',
+  }
+
+  return labels[ownership] ?? formatIdentifier(ownership)
+}
+
+function formatStoragePurpose(purpose: string) {
+  const labels: Record<string, string> = {
+    backups: 'Backups',
+    game_data: 'Game data',
+    logs: 'Logs',
+  }
+
+  return labels[purpose] ?? formatIdentifier(purpose)
+}
+
+function formatBytes(value: number | null) {
+  if (value === null) {
+    return 'Not specified'
+  }
+
+  return new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: 0,
+    style: 'unit',
+    unit: 'gigabyte',
+    unitDisplay: 'short',
+  }).format(value / 1_000_000_000)
 }

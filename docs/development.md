@@ -88,6 +88,13 @@ Metrics are configured through:
 - `Metrics:HostDiskPath`
 - `Metrics__HostDiskPath`
 
+Managed game storage planning is configured through:
+
+- `Storage:DataRoot`
+- `Storage__DataRoot`
+
+When no data root is configured, the backend uses an app-local fallback under `AppContext.BaseDirectory`. The storage planner derives deterministic server paths from a stable `gameServerId` and returns only advisory results. It does not create directories, copy saves, move existing data, create Docker volumes, change Compose files or persist allocation state.
+
 Operational tools are configured through:
 
 - `Notifications:Discord:WebhookUrl`
@@ -233,6 +240,7 @@ GET http://localhost:5258/api/games
 GET http://localhost:5258/api/games/{gameId}
 GET http://localhost:5258/api/games/{gameId}/compatibility
 POST http://localhost:5258/api/games/{gameId}/ports/plan
+POST http://localhost:5258/api/games/{gameId}/storage/plan
 ```
 
 The game catalog endpoints return static game metadata from `GameDefinitionRegistry`. They do not return configured server instances, container names, paths, ports, runtime references or credentials.
@@ -240,6 +248,16 @@ The game catalog endpoints return static game metadata from `GameDefinitionRegis
 The compatibility endpoint combines static game requirements with the current host capability snapshot. It returns requirement checks, warnings and blocking issues only. It must not install software, create containers, reserve ports, create directories or change host configuration.
 
 The port plan endpoint combines static game port definitions with current host port observations. It returns default ports, current availability and candidate alternatives only. Alternative search is bounded to `preferredPort + 10` with the same protocol. Port availability is advisory until durable reservation exists.
+
+The storage plan endpoint accepts a body containing only `gameServerId`:
+
+```json
+{
+  "gameServerId": "palworld-preview"
+}
+```
+
+It combines static game storage definitions with the configured GamesHud data root and host free-space inspection. It returns relative managed paths, runtime targets, mount metadata, available bytes, required bytes and issues. It must not accept arbitrary host paths from clients and must not expose absolute backend filesystem paths in the simple game catalog response.
 
 Ports:
 

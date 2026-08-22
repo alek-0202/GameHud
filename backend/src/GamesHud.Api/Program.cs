@@ -4,6 +4,7 @@ using GamesHud.Api.GameServers.Definitions;
 using GamesHud.Api.GameServers.Ports;
 using GamesHud.Api.GameServers.Requirements;
 using GamesHud.Api.GameServers.Services;
+using GamesHud.Api.GameServers.Storage;
 using GamesHud.Api.HostCapabilities.Services;
 using GamesHud.Api.Metrics.Configuration;
 using GamesHud.Api.Metrics.Services;
@@ -21,6 +22,7 @@ builder.Services.Configure<PalworldOptions>(builder.Configuration.GetSection(Pal
 builder.Services.Configure<MetricsOptions>(builder.Configuration.GetSection(MetricsOptions.SectionName));
 builder.Services.Configure<NotificationOptions>(builder.Configuration.GetSection(NotificationOptions.SectionName));
 builder.Services.Configure<ScheduledOperationOptions>(builder.Configuration.GetSection(ScheduledOperationOptions.SectionName));
+builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection(StorageOptions.SectionName));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<PalworldGameDefinition>();
 builder.Services.AddSingleton<GameDefinition>(serviceProvider =>
@@ -33,6 +35,8 @@ builder.Services.AddSingleton<IPortAllocator, PortAllocator>();
 builder.Services.AddSingleton<IDockerPublishedPortProvider, DockerPublishedPortProvider>();
 builder.Services.AddSingleton<IPortAvailabilityService, PortAvailabilityService>();
 builder.Services.AddScoped<IPortPlanner, PortPlanner>();
+builder.Services.AddSingleton<IManagedStoragePathBuilder, ManagedStoragePathBuilder>();
+builder.Services.AddScoped<IGameStoragePlanner, GameStoragePlanner>();
 builder.Services.AddScoped<IContainerService, DockerContainerService>();
 builder.Services.AddSingleton<IHostMetricsFileSystem, HostMetricsFileSystem>();
 builder.Services.AddSingleton<IHostSystemInfoProvider, RuntimeHostSystemInfoProvider>();

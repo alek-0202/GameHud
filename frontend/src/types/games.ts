@@ -82,3 +82,45 @@ export interface PortAllocation {
   message: string
   checkedPorts: NetworkPort[]
 }
+
+export interface GameStoragePlan {
+  gameServerId: string
+  gameId: string
+  displayName: string
+  status: string
+  ownership: string
+  requiredBytes: number | null
+  availableBytes: number | null
+  entries: GameStoragePlanEntry[]
+  mounts: StorageMount[]
+  issues: GameStoragePlanIssue[]
+  message: string
+}
+
+export interface GameStoragePlanEntry {
+  definitionId: string
+  label: string
+  purpose: string
+  ownership: string
+  relativePath: string
+  runtimeTarget: string | null
+  persistent: boolean
+  required: boolean
+  backupEligible: boolean
+  userData: boolean
+  minimumBytes: number | null
+  status: string
+}
+
+export interface StorageMount {
+  storageDefinitionId: string
+  relativeSource: string
+  runtimeTarget: string
+  readOnly: boolean
+}
+
+export interface GameStoragePlanIssue {
+  code: string
+  severity: string
+  message: string
+}

@@ -87,6 +87,7 @@ The Game Catalog API exposes definitions from `GameDefinitionRegistry` through d
 - `GET /api/games/{gameId}`
 - `GET /api/games/{gameId}/compatibility`
 - `POST /api/games/{gameId}/ports/plan`
+- `POST /api/games/{gameId}/storage/plan`
 
 The catalog represents static game knowledge only. It does not expose configured server instances, credentials, runtime references, local paths, allocated ports, container names or provisioning state.
 
@@ -97,6 +98,31 @@ Game port definitions are static network requirements. They describe logical por
 Port availability is a current host observation. TCP and UDP must be evaluated separately because they can share the same numeric port. Docker published ports may be used as diagnostic context, but Docker state is not the source of truth because non-Docker processes can use host ports.
 
 Port allocation is candidate selection. It may choose the preferred port or a bounded alternative. The current bounded alternative window is `preferredPort + 10`, using the same protocol. In-process coordination can reduce duplicate choices while the API process is running. Durable reservation is a future persistence responsibility; availability remains advisory until that exists.
+
+### Game Storage
+
+Game storage has four separate states:
+
+- A storage definition is static game metadata declared by `GameDefinition`.
+- A storage plan is an advisory calculation for one stable `GameServerId`.
+- Allocated storage will be durable reserved state in a future persistence task.
+- Managed or persisted storage is actual host/runtime data that already exists.
+
+GH-07 implements definitions and planning only. It must not create permanent server directories, copy saves, move existing Palworld data, create Docker volumes, change Compose files, reserve durable records or adopt existing data.
+
+Storage definitions describe logical purposes such as game data, backups and logs. They may include a runtime target such as `/palworld`, persistence flags, backup eligibility and optional minimum bytes. They must not include host-specific paths or credentials.
+
+Managed storage paths are derived from `Storage:DataRoot` / `Storage__DataRoot`. When no root is configured, the backend uses a safe app-local fallback under `AppContext.BaseDirectory`. Server layout is deterministic:
+
+```text
+<DataRoot>/servers/<gameServerId>/<storageDefinitionId>
+```
+
+`gameServerId` is normalized into a stable safe segment. Display names never influence paths. Path safety rejects traversal, absolute path injection, UNC shares, drive escapes, embedded separators and unsupported characters, then confirms containment with `Path.GetFullPath` and `Path.Combine`.
+
+Storage planning is runtime-neutral. The first runtime consumer can map the returned mount model to bind mounts, but the storage domain must not depend on Docker.DotNet. Absolute host paths are backend-internal; public catalog responses expose only relative managed paths and runtime targets.
+
+Space inspection is read-only and advisory. Available bytes can be `unknown` when the host cannot inspect the configured root. Existing managed server paths are reported as collisions; GamesHud must not overwrite, merge with or silently adopt them.
 
 ---
 

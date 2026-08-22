@@ -80,6 +80,8 @@ These rules apply to the GamesHud .NET backend.
 - Host inspection must be read-only. It must not install software, create containers, open firewall rules, reserve ports or provision resources.
 - Game compatibility endpoints must be read-only. They may compare static game requirements with host capabilities, but must not provision servers, create directories, install runtimes, open firewall rules, reserve ports or mutate host/container state.
 - Port inspection and planning endpoints must be read-only. They may check current host availability and suggest candidate alternatives, but must not open firewall rules, publish Docker ports, create containers, reserve durable state or expose process names, PIDs, owners or container identifiers.
+- Storage planning endpoints must be read-only. They may derive deterministic managed paths, inspect available space and return advisory issues, but must not create directories, copy files, move existing saves, create Docker volumes, change Compose files, reserve durable state or adopt existing data.
+- Clients must not provide arbitrary host paths for game storage planning. Public storage contracts should expose relative managed paths and runtime targets, not absolute backend filesystem paths.
 
 ---
 

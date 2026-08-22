@@ -3,6 +3,7 @@ import type {
   GameCatalogResponse,
   GameCompatibilityAssessment,
   GamePortPlan,
+  GameStoragePlan,
 } from '../types/games'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
@@ -48,6 +49,24 @@ export async function fetchGamePortPlan(
     `/api/games/${encodeURIComponent(gameId)}/ports/plan`,
     signal,
     { method: 'POST' },
+  )
+}
+
+export async function fetchGameStoragePlan(
+  gameId: string,
+  gameServerId: string,
+  signal?: AbortSignal,
+): Promise<GameStoragePlan> {
+  return fetchJson<GameStoragePlan>(
+    `/api/games/${encodeURIComponent(gameId)}/storage/plan`,
+    signal,
+    {
+      body: JSON.stringify({ gameServerId }),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      method: 'POST',
+    },
   )
 }
 

@@ -560,7 +560,8 @@
 }
 
 .game-compatibility-panel,
-.game-port-panel {
+.game-port-panel,
+.game-storage-panel {
   display: grid;
   gap: var(--space-4);
   min-width: 0;
@@ -639,17 +640,20 @@
   color: #fecaca;
 }
 
-.game-port-panel > p {
+.game-port-panel > p,
+.game-storage-panel > p {
   color: var(--color-text-muted);
   font-size: 0.84rem;
 }
 
-.game-port-list {
+.game-port-list,
+.game-storage-list {
   display: grid;
   gap: var(--space-3);
 }
 
-.game-port-row {
+.game-port-row,
+.game-storage-row {
   display: grid;
   grid-template-columns: minmax(7rem, 0.8fr) minmax(0, 1fr) auto;
   align-items: start;
@@ -659,17 +663,21 @@
 }
 
 .game-port-row strong,
-.game-port-row span {
+.game-port-row span,
+.game-storage-row strong,
+.game-storage-row span {
   display: block;
   overflow-wrap: anywhere;
 }
 
-.game-port-row strong {
+.game-port-row strong,
+.game-storage-row strong {
   color: var(--color-text-primary);
   font-size: 0.94rem;
 }
 
-.game-port-row span {
+.game-port-row span,
+.game-storage-row span {
   margin-top: var(--space-1);
   color: var(--color-text-muted);
   font-size: 0.78rem;
@@ -677,21 +685,27 @@
   text-transform: uppercase;
 }
 
-.game-port-row dl {
+.game-port-row dl,
+.game-storage-row dl,
+.game-storage-summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-3);
   margin: 0;
 }
 
-.game-port-row dt {
+.game-port-row dt,
+.game-storage-row dt,
+.game-storage-summary dt {
   color: var(--color-text-muted);
   font-size: 0.68rem;
   font-weight: 800;
   text-transform: uppercase;
 }
 
-.game-port-row dd {
+.game-port-row dd,
+.game-storage-row dd,
+.game-storage-summary dd {
   margin: var(--space-1) 0 0;
   overflow-wrap: anywhere;
   color: var(--color-text-secondary);
@@ -2676,6 +2690,7 @@ td > input {
   .server-meta,
   .game-compatibility-check dl,
   .game-port-row,
+  .game-storage-row,
   .server-overview-grid,
   .palworld-status-grid,
   .palworld-world-grid,
@@ -2724,6 +2739,9 @@ td > input {
   .game-compatibility-check dl,
   .game-port-row,
   .game-port-row dl,
+  .game-storage-row,
+  .game-storage-row dl,
+  .game-storage-summary,
   .server-overview-grid,
   .resource-usage-grid,
   .palworld-status-grid,

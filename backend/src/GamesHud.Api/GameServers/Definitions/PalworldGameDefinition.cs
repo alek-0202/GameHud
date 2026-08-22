@@ -2,18 +2,21 @@ using GamesHud.Api.GameServers.Domain;
 using GamesHud.Api.GameServers.Ports;
 using GamesHud.Api.GameServers.Requirements;
 using GamesHud.Api.GameServers.Services;
+using GamesHud.Api.GameServers.Storage;
 
 namespace GamesHud.Api.GameServers.Definitions;
 
 public sealed class PalworldGameDefinition :
     GameDefinition,
     IGameRequirementsDefinition,
-    IGamePortDefinition
+    IGamePortDefinition,
+    IGameStorageDefinition
 {
     private const string RequirementsSource = "https://docs.palworldgame.com/getting-started/requirements/";
     private const string ServerArgumentsSource = "https://docs.palworldgame.com/settings-and-operation/arguments/";
     private const string ServerConfigurationSource = "https://docs.palworldgame.com/settings-and-operation/configuration/";
     private const string RestApiSource = "https://docs.palworldgame.com/api/rest-api/info/";
+    private const string ContainerStorageSource = "https://github.com/thijsvanloef/palworld-server-docker";
 
     public PalworldGameDefinition()
         : base(
@@ -33,13 +36,16 @@ public sealed class PalworldGameDefinition :
                 GameServerCapabilities.Mods
             ],
             CreateRequirements(),
-            CreatePorts())
+            CreatePorts(),
+            CreateStorages())
     {
     }
 
     public new GameRequirements Requirements => base.Requirements!;
 
     public new IReadOnlyCollection<GamePortDefinition> Ports => base.Ports;
+
+    public new IReadOnlyCollection<GameStorageDefinition> Storages => base.Storages;
 
     private static GameRequirements CreateRequirements()
     {
@@ -91,6 +97,24 @@ public sealed class PalworldGameDefinition :
                 exposure: PortExposures.Internal,
                 purpose: "Private management API",
                 source: RestApiSource)
+        ];
+    }
+
+    private static IReadOnlyCollection<GameStorageDefinition> CreateStorages()
+    {
+        return
+        [
+            new GameStorageDefinition(
+                "data",
+                "Game data",
+                StoragePurposes.GameData,
+                runtimeTarget: "/palworld",
+                persistent: true,
+                required: true,
+                backupEligible: true,
+                userData: true,
+                minimumBytes: null,
+                source: ContainerStorageSource)
         ];
     }
 }
