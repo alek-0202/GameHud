@@ -257,10 +257,15 @@ Status: In progress
 - `Storage__DataRoot` configures the GamesHud managed data root with an app-local fallback
 - `POST /api/games/{gameId}/storage/plan` previews deterministic managed layout for a supplied `gameServerId`
 - Storage planning is advisory and does not create directories, Docker volumes, bind mounts, compose changes or durable records
+- GH-07.5 persistence foundation (Completed)
+- EF Core + SQLite stores technical persistence metadata under `<DataRoot>/system/gameshud.db`
+- EF migrations are versioned and startup initialization is centralized behind a persistence initializer
+- `GET /api/system/persistence` reports provider and migration health without exposing paths or connection strings
+- The foundation does not persist secrets, register game servers, reserve ports/storage or adopt legacy Palworld resources
 
 Remaining:
 
-- Durable storage ownership and allocation persistence
+- GH-07.6 durable storage ownership and allocation persistence
 - Durable server registration UI
 - Non-Palworld plugin implementation
 - Migration of all temporary Palworld features onto server-scoped contracts

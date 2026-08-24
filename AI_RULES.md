@@ -212,7 +212,7 @@ Core rules:
 - Avoid unnecessary interfaces unless they provide concrete value.
 - Keep public API behavior predictable and documented.
 
-Do not introduce a database unless the feature requires persistent state.
+Do not introduce a database unless the feature requires persistent state. GH-07.5 introduced the approved EF Core + SQLite persistence foundation for technical GamesHud metadata under `Storage__DataRoot`; do not expand it into ownership, provisioning, users, tenants or secrets without a roadmap task.
 
 ---
 
@@ -386,7 +386,7 @@ Compose:
 - Prefer a Compose-owned GamesHud network.
 - Do not use Portainer networks or unrelated Palworld project networks.
 - The approved temporary Palworld REST integration uses the external `gameshud-palworld` network on `gameshud-api` only.
-- Do not create a database or persistent volumes until required by real state.
+- Do not create new persistent deployment volumes until required by real state. The GH-07.5 SQLite database is backend-only GamesHud system state under `Storage__DataRoot` and must not be stored in Palworld data or backup mounts.
 - Prefer `docker compose up -d --build` for updates.
 - Do not run `docker compose down` unnecessarily.
 

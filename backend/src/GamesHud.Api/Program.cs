@@ -14,6 +14,9 @@ using GamesHud.Api.Palworld.Backups.Services;
 using GamesHud.Api.Palworld.Configuration;
 using GamesHud.Api.Palworld.Services;
 using GamesHud.Api.Palworld.Updates.Services;
+using GamesHud.Api.Persistence;
+using GamesHud.Api.Persistence.Configuration;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,6 +26,7 @@ builder.Services.Configure<MetricsOptions>(builder.Configuration.GetSection(Metr
 builder.Services.Configure<NotificationOptions>(builder.Configuration.GetSection(NotificationOptions.SectionName));
 builder.Services.Configure<ScheduledOperationOptions>(builder.Configuration.GetSection(ScheduledOperationOptions.SectionName));
 builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection(StorageOptions.SectionName));
+builder.Services.Configure<PersistenceOptions>(builder.Configuration.GetSection(PersistenceOptions.SectionName));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<PalworldGameDefinition>();
 builder.Services.AddSingleton<GameDefinition>(serviceProvider =>
@@ -37,6 +41,15 @@ builder.Services.AddSingleton<IPortAvailabilityService, PortAvailabilityService>
 builder.Services.AddScoped<IPortPlanner, PortPlanner>();
 builder.Services.AddSingleton<IManagedStoragePathBuilder, ManagedStoragePathBuilder>();
 builder.Services.AddScoped<IGameStoragePlanner, GameStoragePlanner>();
+builder.Services.AddSingleton<IPersistenceLayoutResolver, PersistenceLayoutResolver>();
+builder.Services.AddDbContext<GamesHudDbContext>((serviceProvider, options) =>
+{
+    var layout = serviceProvider.GetRequiredService<IPersistenceLayoutResolver>().ResolveLayout();
+    options.UseSqlite(PersistenceConnectionStringFactory.CreateSqliteConnectionString(layout.DatabasePath));
+});
+builder.Services.AddScoped<IPersistenceInitializer, PersistenceInitializer>();
+builder.Services.AddScoped<IPersistenceHealthService, PersistenceHealthService>();
+builder.Services.AddScoped<IPersistenceTransactionBoundary, EfCorePersistenceTransactionBoundary>();
 builder.Services.AddScoped<IContainerService, DockerContainerService>();
 builder.Services.AddSingleton<IHostMetricsFileSystem, HostMetricsFileSystem>();
 builder.Services.AddSingleton<IHostSystemInfoProvider, RuntimeHostSystemInfoProvider>();
@@ -97,6 +110,11 @@ if (builder.Environment.IsDevelopment())
 
 var app = builder.Build();
 
+await using (var scope = app.Services.CreateAsyncScope())
+{
+    await scope.ServiceProvider.GetRequiredService<IPersistenceInitializer>().InitializeAsync();
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.UseCors("LocalVite");
@@ -105,6 +123,6 @@ if (app.Environment.IsDevelopment())
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy" }));
 app.MapControllers();
 
-app.Run();
+await app.RunAsync();
 
 public partial class Program;

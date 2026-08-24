@@ -2,7 +2,7 @@
 
 SEC-01 establishes the initial GamesHud threat model. It reflects the current repository state on `develop` after GH-07 and separates current risk from future provisioning, persistence, Agent and SaaS risk.
 
-This is an analysis document. It does not implement authentication, authorization, secrets management, database persistence, provisioning, Agent, TLS, firewall rules, public deployment or SaaS controls.
+This is an analysis document. It does not implement authentication, authorization, secrets management, durable ownership persistence, provisioning, Agent, TLS, firewall rules, public deployment or SaaS controls.
 
 ## Scope
 
@@ -63,7 +63,7 @@ The current safety model is:
 | Scheduler state | High | Can trigger operational actions while the API process is running. |
 | Update mechanism | High | Docker image tags, SteamCMD checks and future GamesHud updater are supply-chain sensitive. |
 | Repository and build pipeline | High | Compromise can ship malicious code or images. |
-| Future database | Critical | Will contain ownership, allocation, users and possibly secrets. |
+| GamesHud SQLite database | Critical | Currently contains technical persistence metadata only; future versions may contain ownership, allocation, users and possibly secrets. |
 | Future user accounts | Critical | Authentication and authorization source of truth. |
 | Future provisioning state | Critical | Determines what resources GamesHud owns and may mutate or delete. |
 | Future Agent identity | Critical | Remote authority over a host. |
@@ -533,9 +533,20 @@ OPS recommendations:
 - OPS-02: define release integrity, SBOM and update verification.
 - OPS-03: define operational rollback and backup validation before update workflows are expanded.
 
-## Future Database Assessment
+## Database Assessment
 
-GH-07.5/GH-07.6 persistence threats:
+GH-07.5 introduces EF Core + SQLite for technical persistence metadata under the GamesHud data root. It does not persist users, tenants, secrets, durable game servers, ownership, port reservations, storage reservations or provisioning state.
+
+Current controls:
+
+- Database path is derived internally from `Storage__DataRoot` as `<DataRoot>/system/gameshud.db`.
+- HTTP clients cannot supply a database path.
+- The persistence health endpoint does not expose the absolute path or connection string.
+- EF Core migrations are versioned and are the schema source of truth.
+- Startup initialization fails closed if migrations cannot run.
+- The initial schema contains only technical metadata.
+
+GH-07.6 and later persistence threats:
 
 - SQL injection or unsafe query construction.
 - Resource ownership tampering.
@@ -602,7 +613,7 @@ Required controls:
 | THR-015 | Unexpected public exposure | Ports/Provisioning | Internal port metadata becomes public Docker publish or firewall rule. | Exposed admin API/game admin surface. | Future medium | High | Exposure metadata only today. | No publish/firewall implementation. | Explicit exposure policy and review gate. | GH-08 |
 | THR-016 | Repudiation of destructive actions | API | User denies restore/delete/restart/update; no durable actor log exists. | Investigation and accountability failure. | Medium future | Medium | Timestamps in responses. | No user identity or audit log. | Audit events. | SEC-05 |
 | THR-017 | Update supply-chain compromise | Updates | Compromised image/package/Steam workflow changes binaries. | Code execution or data loss. | Medium | High | Manual update flow, backup first. | No signing/pinning policy. | Release/image/dependency integrity controls. | OPS-01, OPS-02 |
-| THR-018 | Future database tampering | Database | Attacker changes ownership/allocation records. | Unauthorized mutation/deletion. | Future medium | High | Database not implemented. | Needs design. | Ownership model, migrations, integrity. | GH-07.5/GH-07.6 |
+| THR-018 | Future database tampering | Database | Attacker changes ownership/allocation records. | Unauthorized mutation/deletion. | Future medium | High | Current database stores technical metadata only. | Ownership persistence still needs design. | Ownership model, migrations, integrity. | GH-07.6 |
 | THR-019 | Future Agent command compromise | Agent | Control plane or attacker sends privileged command to Agent. | Remote host compromise. | Future medium | Critical | Agent not implemented. | Requires architecture. | Mutual auth, command auth, replay protection. | ARCH-01 |
 | THR-020 | Player admin abuse | Palworld admin | Attacker kicks/bans/unbans players or sends announcements. | Community disruption. | Medium if API reachable | Medium | Strong confirmation for destructive player actions. | No auth/ownership. | Authz and audit. | SEC-04, SEC-05 |
 | THR-021 | Notification webhook abuse | Notifications | Attacker triggers webhook test or operational spam. | External spam, incident confusion. | Low-medium | Medium | HTTPS webhook, cooldown for non-test events. | Test not cooldown-gated, no auth. | Auth and audit; consider test rate limit. | SEC-03, SEC-05 |
@@ -610,7 +621,7 @@ Required controls:
 | THR-023 | CSRF on private/public API | Browser/API | If cookie auth is added without CSRF controls, web pages trigger destructive POSTs. | Unauthorized actions. | Future medium | High | No cookie auth today. | Must be considered with auth design. | CSRF strategy. | SEC-03 |
 | THR-024 | Denial through expensive reads | Logs/Metrics | Repeated log/metrics/capability calls consume resources. | API slowdown. | Medium | Medium | Bounded log tail/history. | No rate limits. | Rate limits and quotas before public access. | SEC-06 |
 | THR-025 | Config path misconfiguration | Palworld config/backups | Operator points managed/backup paths to wrong host mount. | Wrong data changed/deleted. | Medium | High | Docs, overlap rejection, existing path checks. | No ownership/adoption marker. | Managed ownership markers and setup validation. | GH-07.5 |
-| THR-026 | Secrets persisted without model | Future persistence | Database stores tokens/passwords in normal fields and returns them. | Credential compromise. | Future medium | High | No DB yet; password responses masked. | Needs SEC-02. | Secret storage and response redaction model. | SEC-02 |
+| THR-026 | Secrets persisted without model | Future persistence | Database stores tokens/passwords in normal fields and returns them. | Credential compromise. | Future medium | High | Current SQLite schema stores no secrets; password responses are masked. | Needs SEC-02 before any secret persistence. | Secret storage and response redaction model. | SEC-02 |
 | THR-027 | Partial provisioning failure | Provisioning | Directory/container/network created but API reports success or retries unsafely. | Orphaned resources, data loss. | Future high | High | Provisioning not implemented. | Needs state machine. | Explicit step states, idempotency and rollback. | GH-08 |
 | THR-028 | Container exec expansion | Docker exec | Future feature lets user or plugin influence exec command. | Container or host escape path. | Future medium | High | Current exec commands fixed. | No generic command policy yet. | No arbitrary command input; allowlisted templates. | SEC-06/GH-08 |
 
@@ -679,4 +690,3 @@ Current issues that should be corrected before public or multi-user access:
 - Add audit logging for destructive operations.
 - Add secret redaction for logs and error handling.
 - Harden backup restore against archive bombs and symlink/junction edge cases.
-

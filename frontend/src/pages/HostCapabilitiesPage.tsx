@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import {
   Cpu,
+  Database,
   HardDrive,
   MemoryStick,
   Network,
@@ -9,12 +10,14 @@ import {
   Server,
 } from 'lucide-react'
 import { fetchHostCapabilities } from '../api/hostCapabilities'
+import { fetchPersistenceStatus } from '../api/persistence'
 import { SectionHeader } from '../components/SectionHeader'
 import type {
   HostCapabilities,
   HostCapabilityIssue,
   HostRuntime,
 } from '../types/hostCapabilities'
+import type { PersistenceStatus } from '../types/persistence'
 
 type HostCapabilitiesState =
   | { status: 'loading'; capabilities?: undefined; message?: undefined }
@@ -156,11 +159,82 @@ function HostCapabilitiesContent({ capabilities }: HostCapabilitiesContentProps)
           ]}
           status={capabilities.network.status}
         />
+        <PersistenceCard />
         {docker && <RuntimeCard runtime={docker} />}
       </div>
 
       <IssueList issues={capabilities.issues} />
     </div>
+  )
+}
+
+type PersistenceState =
+  | { status: 'loading'; persistence?: undefined; message?: undefined }
+  | { status: 'success'; persistence: PersistenceStatus; message?: undefined }
+  | { status: 'error'; persistence?: undefined; message: string }
+
+function PersistenceCard() {
+  const [state, setState] = useState<PersistenceState>({ status: 'loading' })
+
+  useEffect(() => {
+    const abortController = new AbortController()
+
+    async function loadPersistence() {
+      try {
+        const persistence = await fetchPersistenceStatus(abortController.signal)
+        setState({ status: 'success', persistence })
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          return
+        }
+
+        setState({ status: 'error', message: 'Persistence unavailable' })
+      }
+    }
+
+    void loadPersistence()
+
+    return () => {
+      abortController.abort()
+    }
+  }, [])
+
+  if (state.status === 'loading') {
+    return (
+      <CapabilityCard
+        icon={<Database size={18} strokeWidth={2.2} />}
+        label="Persistence"
+        title="Checking"
+        details={['SQLite', 'Migration status unavailable']}
+        status="partial"
+      />
+    )
+  }
+
+  if (state.status === 'error') {
+    return (
+      <CapabilityCard
+        icon={<Database size={18} strokeWidth={2.2} />}
+        label="Persistence"
+        title="Unavailable"
+        details={[state.message]}
+        status="unavailable"
+      />
+    )
+  }
+
+  return (
+    <CapabilityCard
+      icon={<Database size={18} strokeWidth={2.2} />}
+      label="Persistence"
+      title={state.persistence.available ? 'Ready' : 'Unavailable'}
+      details={[
+        formatIdentifier(state.persistence.provider),
+        formatStatus(state.persistence.migrationStatus),
+        state.persistence.appliedMigration ?? 'No applied migration',
+      ]}
+      status={state.persistence.available ? 'available' : 'unavailable'}
+    />
   )
 }
 

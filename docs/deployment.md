@@ -155,7 +155,9 @@ The frontend does not receive the Palworld backup directory.
 The frontend does not receive Palworld REST API credentials.
 The frontend does not receive Discord webhook URLs.
 
-No database is created in this phase. Palworld backup archives and sidecar metadata use the configured backend-only backup mount.
+GamesHud creates a SQLite persistence database under the configured GamesHud data root at `<DataRoot>/system/gameshud.db`. This file is backend-only system state and is separate from Palworld data and backup mounts. Do not point it at the Palworld managed directory or backup directory. A production deployment should use a controlled persistent API-only data root before relying on persistence across container replacement.
+
+Palworld backup archives and sidecar metadata continue to use the configured backend-only backup mount.
 
 ## Metrics Notes
 
@@ -164,7 +166,7 @@ GamesHud collects host, Docker and Palworld metrics as lightweight snapshots.
 - Host metrics read Linux `/proc` files and filesystem usage.
 - Container metrics use Docker Engine one-shot stats.
 - Metrics history is kept in API memory with default 60-second snapshots and 24-hour retention.
-- No Prometheus, Grafana, SQLite volume or database is introduced in this phase.
+- No Prometheus or Grafana backend is introduced in this phase. SQLite persistence is limited to GamesHud system metadata.
 
 See [Metrics Guide](metrics.md) for contracts and retention details.
 

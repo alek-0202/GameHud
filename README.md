@@ -35,6 +35,8 @@ Implemented:
 - Game requirements model and read-only compatibility check between registered game definitions and host capabilities
 - Game port requirements, read-only host port checks and advisory port planning
 - Game storage definitions, configurable managed data root and advisory storage planning
+- EF Core + SQLite persistence foundation under the GamesHud data root
+- `GET /api/system/persistence` health and migration status without path or connection string exposure
 - Temporary personal Palworld settings editor isolated outside Docker Core
 - Temporary Palworld REST overview and players view isolated outside Docker Core
 - Server registry foundation with legacy Palworld fallback
@@ -89,6 +91,8 @@ Backend:
 - .NET 8
 - ASP.NET Core Web API
 - Docker.DotNet
+- EF Core
+- SQLite
 
 Frontend:
 
@@ -181,6 +185,12 @@ Storage:
 - `Storage__DataRoot`
 
 When this value is empty or unset, GamesHud uses a safe app-local fallback under the backend application base directory. Storage planning uses this root to compute deterministic managed server paths, but it does not create directories, copy files, move existing data or reserve durable state.
+
+Persistence:
+
+- `Persistence__AutoMigrate`
+
+GamesHud stores its SQLite database at `<DataRoot>/system/gameshud.db`, where `DataRoot` is resolved from `Storage__DataRoot`. Startup runs EF Core migrations through the persistence initializer. The database is separate from game server storage under `<DataRoot>/servers`, and API responses must not expose the absolute database path or connection string.
 
 Operations:
 
@@ -327,6 +337,14 @@ GET /api/system/capabilities
 ```
 
 Host capability detection inspects the machine running GamesHud without installing software, opening ports, changing firewall rules, creating directories or creating containers. It reports host facts and runtime readiness only.
+
+Persistence:
+
+```text
+GET /api/system/persistence
+```
+
+The persistence endpoint reports SQLite availability and migration status only. It does not accept a database path and does not return absolute paths, connection strings or secrets.
 
 Game catalog:
 
@@ -510,6 +528,7 @@ The VPS may already host production containers such as Palworld and Portainer. G
 - [Palworld Settings Guide](docs/palworld-settings.md)
 - [Palworld REST API Guide](docs/palworld-rest-api.md)
 - [Operations Guide](docs/operations.md)
+- [Persistence Guide](docs/persistence.md)
 - [API Guidelines](docs/api-guidelines.md)
 - [Frontend Guidelines](docs/frontend-guidelines.md)
 - [Threat Model](docs/security/threat-model.md)

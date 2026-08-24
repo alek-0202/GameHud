@@ -74,7 +74,7 @@ public sealed class ManagedStoragePathBuilder : IManagedStoragePathBuilder
         return fullCandidate;
     }
 
-    private static string ResolveDataRoot(string configuredRoot)
+    public static string ResolveDataRoot(string configuredRoot)
     {
         var root = string.IsNullOrWhiteSpace(configuredRoot)
             ? Path.Combine(AppContext.BaseDirectory, "gameshud-data")

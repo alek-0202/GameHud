@@ -95,6 +95,22 @@ Managed game storage planning is configured through:
 
 When no data root is configured, the backend uses an app-local fallback under `AppContext.BaseDirectory`. The storage planner derives deterministic server paths from a stable `gameServerId` and returns only advisory results. It does not create directories, copy saves, move existing data, create Docker volumes, change Compose files or persist allocation state.
 
+Persistence is configured through:
+
+- `Persistence:AutoMigrate`
+- `Persistence__AutoMigrate`
+
+The SQLite database path is derived internally from `Storage__DataRoot` as `<DataRoot>/system/gameshud.db`. Do not add a client-controlled database path or expose the absolute path or connection string through API contracts.
+
+EF Core migrations are the schema source of truth. Use the local tool manifest:
+
+```powershell
+dotnet tool restore
+dotnet tool run dotnet-ef migrations list --project backend/src/GamesHud.Api/GamesHud.Api.csproj --startup-project backend/src/GamesHud.Api/GamesHud.Api.csproj --context GamesHudDbContext
+```
+
+Do not use `EnsureCreated` for normal application setup.
+
 Operational tools are configured through:
 
 - `Notifications:Discord:WebhookUrl`
@@ -218,6 +234,14 @@ GET http://localhost:5258/api/system/capabilities
 ```
 
 Host capability detection is read-only. It reports operating system, CPU, memory when available, primary storage, network inspection facts, Docker runtime reachability, readiness and friendly capability issues. It must not install Docker, open ports, change firewall rules, create directories, create containers or provision game servers.
+
+Persistence:
+
+```text
+GET http://localhost:5258/api/system/persistence
+```
+
+The persistence endpoint reports availability, provider and migration status only. It must not accept arbitrary database paths and must not expose filesystem paths, connection strings, table names or secrets.
 
 Lifecycle actions:
 
@@ -403,6 +427,8 @@ cd backend
 dotnet restore
 dotnet build
 dotnet test
+dotnet tool restore
+dotnet tool run dotnet-ef migrations list --project src/GamesHud.Api/GamesHud.Api.csproj --startup-project src/GamesHud.Api/GamesHud.Api.csproj --context GamesHudDbContext
 ```
 
 Frontend validation:

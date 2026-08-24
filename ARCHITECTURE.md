@@ -126,6 +126,28 @@ Space inspection is read-only and advisory. Available bytes can be `unknown` whe
 
 ---
 
+## Persistence
+
+GamesHud uses EF Core with SQLite for the first local persistence foundation. The database is an internal system file under:
+
+```text
+<DataRoot>/system/gameshud.db
+```
+
+`DataRoot` is resolved from `Storage:DataRoot` / `Storage__DataRoot`, with the same app-local fallback used by storage planning when the option is empty. The database path is constructed server-side and must not be supplied by clients or returned through normal API contracts.
+
+Persistence is an infrastructure concern. Domain models must not depend on EF Core, `DbContext`, `DbSet`, EF annotations, SQLite APIs, SQL strings or migration classes. The initial schema contains only technical persistence metadata so future ownership, reservation and provisioning schemas can be designed deliberately.
+
+EF Core migrations are the source of truth for schema changes. Normal startup runs initialization through a dedicated persistence initializer, not scattered `Database.Migrate()` calls in controllers or feature services and not `EnsureCreated`. GamesHud fails startup when persistence initialization fails.
+
+`GET /api/system/persistence` reports whether persistence is available, the provider and migration status. It must not expose the absolute database path, connection string, table names or secrets.
+
+Database transactions cover only database writes. They do not make Docker operations, filesystem writes, backup extraction, container lifecycle changes or future provisioning atomic. Future provisioning needs durable step state, idempotency and compensation or rollback rules.
+
+Persisted timestamps are UTC. Secrets are not persisted until SEC-02 defines the secret storage and redaction model. The current Palworld compatibility sources remain `LegacyExternal`; GamesHud must not import or adopt legacy paths, containers, ports or settings simply because they exist.
+
+---
+
 ## Plugin Responsibilities
 
 Plugins are now introduced as a minimal foundation for application-specific features.
@@ -440,7 +462,7 @@ For the temporary Palworld REST integration, `gameshud-api` also joins the exter
 - The Docker socket must never be exposed over TCP.
 - GamesHud must not enable Docker remote API.
 - No Docker credentials or host-level secrets may be sent to the frontend.
-- No database is introduced until there is real durable application state beyond filesystem backups.
+- The SQLite persistence database is backend-only system state under `Storage__DataRoot`; it must not store secrets before SEC-02 and must not imply ownership of external resources.
 - Palworld backups must use a separate backend-only mount from the managed Palworld data path.
 
 ### VPS Operational Boundaries
