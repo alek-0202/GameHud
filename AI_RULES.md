@@ -166,6 +166,15 @@ Use:
 
 The AI must not expose stack traces, internal exceptions, secrets or unnecessary infrastructure details through public API responses.
 
+Permanent security invariants are documented in [Security Invariants](docs/security/security-invariants.md). In particular:
+
+- Client input must never become an arbitrary host filesystem path.
+- Planning endpoints must remain read-only and must not provision host, Docker, firewall or durable resources.
+- GamesHud must never automatically delete, overwrite, adopt or migrate External resources.
+- Normal API responses must never return plaintext secrets, tokens, webhook URLs, private keys or Palworld REST credentials.
+- Scheduler and future provisioning flows must never accept arbitrary shell, Docker exec, compose or user-defined commands.
+- Managed resource deletion must require durable ownership proof and auditability.
+
 ---
 
 ## 8. Dependency Management

@@ -319,6 +319,7 @@ The game catalog endpoints are separate from Docker Core and configured server i
 - `GET /api/games/{gameId}`
 - `GET /api/games/{gameId}/compatibility`
 - `POST /api/games/{gameId}/ports/plan`
+- `POST /api/games/{gameId}/storage/plan`
 
 The temporary Palworld config endpoints are separate from Docker Core:
 
@@ -369,6 +370,36 @@ The host capability endpoint is read-only and must not mutate the host:
 - `GET /api/system/ports/{protocol}/{port}`
 
 Host capabilities describe what the current machine exposes to GamesHud, including OS, CPU, memory, primary storage, network inspection and Docker runtime reachability. They are not game requirements by themselves. Game-specific compatibility belongs to the game requirements evaluator and the game compatibility endpoint.
+
+---
+
+## Security Architecture
+
+The initial product threat model is documented in [Threat Model](docs/security/threat-model.md). Permanent security rules are documented in [Security Invariants](docs/security/security-invariants.md).
+
+Current security posture:
+
+- GamesHud is private/local only.
+- Authentication and authorization do not exist yet.
+- Public exposure is not allowed.
+- Docker socket access is backend-only and high privilege.
+- The API has authority over Docker lifecycle actions, mounted Palworld paths, Palworld REST operations, backups, updates, scheduler actions and notifications.
+- Read-only planning and inspection endpoints must not mutate host, Docker, firewall or durable state.
+
+Important current risks:
+
+- If the API is exposed beyond the intended private boundary, reachable clients can perform privileged operations.
+- Docker socket compromise can be equivalent to host compromise in many practical deployments.
+- Container details and logs may disclose infrastructure metadata or secrets and require authentication and response minimization before public or multi-user use.
+- Palworld backup restore and update flows are intentionally powerful temporary operations and must remain strongly confirmed and server-side validated.
+
+Security gates before future features:
+
+- Public access requires authentication, authorization, audit logging and API hardening.
+- Generic provisioning requires durable ownership, validated plans, explicit rollback boundaries, idempotency and deny-by-default Docker/runtime policies.
+- Managed delete/adoption requires durable ownership proof.
+- Secret persistence requires a dedicated secret model and response redaction.
+- Agent work requires a separate architecture review with mutual authentication, command authorization, replay protection and signed update strategy.
 
 ---
 

@@ -2,6 +2,8 @@
 
 Versions and scope may evolve, but the architectural order should be preserved: generic Docker Core first, operational safeguards next, private deployment foundation, then authentication, public exposure and plugins.
 
+Security milestone details are tracked in [Threat Model](docs/security/threat-model.md).
+
 ---
 
 ## Status Legend
@@ -193,6 +195,12 @@ Status: Planned
 - Session management
 - Administrator role
 - Protection for Docker lifecycle actions
+- SEC-01 threat model (Completed)
+- SEC-02 secrets management and redaction (Planned)
+- SEC-03 authentication (Planned)
+- SEC-04 ownership and authorization (Planned)
+- SEC-05 audit and security logging (Planned)
+- SEC-06 API and deployment hardening (Planned)
 
 ---
 
@@ -291,3 +299,7 @@ Temporary note:
 - SignalR/WebSockets
 - Multi-user permissions
 - Additional game plugins
+- ARCH-01 GamesHud Agent architecture
+- OPS-01 supply-chain baseline
+- OPS-02 release integrity
+- OPS-03 backup and restore hardening

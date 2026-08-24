@@ -512,6 +512,8 @@ The VPS may already host production containers such as Palworld and Portainer. G
 - [Operations Guide](docs/operations.md)
 - [API Guidelines](docs/api-guidelines.md)
 - [Frontend Guidelines](docs/frontend-guidelines.md)
+- [Threat Model](docs/security/threat-model.md)
+- [Security Invariants](docs/security/security-invariants.md)
 
 ---
 
