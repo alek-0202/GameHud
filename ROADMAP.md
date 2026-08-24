@@ -196,7 +196,7 @@ Status: Planned
 - Administrator role
 - Protection for Docker lifecycle actions
 - SEC-01 threat model (Completed)
-- SEC-02 secrets management and redaction (Planned)
+- SEC-02 secrets management and redaction (Completed)
 - SEC-03 authentication (Planned)
 - SEC-04 ownership and authorization (Planned)
 - SEC-05 audit and security logging (Planned)
@@ -267,6 +267,11 @@ Status: In progress
 - Port reservations enforce durable `protocol + port` uniqueness while allowing TCP/UDP to share a number
 - Storage reservations enforce unique managed relative paths under the GamesHud data root
 - Reservation writes are atomic and remain separate from Docker, filesystem and provisioning mutation
+- SEC-02 secrets management foundation (Completed)
+- Provider-neutral secret ids, references, purposes and backend-only secret values exist before provisioning
+- The local provider stores authenticated encrypted material under `<DataRoot>/system/secrets`
+- The bootstrap key is external configuration only, and missing/invalid keys fail closed without plaintext fallback
+- `GET /api/system/secrets` reports minimal readiness without exposing ids, purposes, counts, paths or material
 
 Remaining:
 

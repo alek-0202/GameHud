@@ -159,7 +159,34 @@ Reservations are durable claims, not proof that runtime resources exist. A DB po
 
 The database enforces unique managed server ids, unique `protocol + port`, unique managed storage relative paths and a single active operation slot per server and operation type. Delete behavior is restricted so deleting a database row cannot be confused with deleting an external resource.
 
-Persisted timestamps are UTC. Secrets are not persisted until SEC-02 defines the secret storage and redaction model. No user, role, organization or tenant model exists yet. The current Palworld compatibility sources remain `LegacyExternal`; GamesHud must not import or adopt legacy paths, containers, ports or settings simply because they exist.
+Persisted timestamps are UTC. Secret material is not persisted as normal application data and must not be stored in plaintext database fields. No user, role, organization or tenant model exists yet. The current Palworld compatibility sources remain `LegacyExternal`; GamesHud must not import or adopt legacy paths, containers, ports or settings simply because they exist.
+
+---
+
+## Secrets
+
+GamesHud has a provider-neutral secret foundation for future managed provisioning. Application code should use `SecretReference` values instead of storage-specific identifiers or plaintext-derived values.
+
+The backend model separates:
+
+- `SecretId`: opaque GUID identity;
+- `SecretReference`: durable application reference;
+- `SecretPurpose`: classification such as game password, REST credential, webhook or integration token;
+- `SecretValue`: backend-only plaintext wrapper that does not reveal plaintext through `ToString()` or JSON serialization.
+
+`ISecretStore` is the use-case boundary for store, retrieve, replace and delete operations. Callers must not know the provider path, encryption algorithm, key source or storage format.
+
+The initial local provider stores encrypted secret files under:
+
+```text
+<DataRoot>/system/secrets
+```
+
+It uses .NET authenticated encryption (`AesGcm`) with an external 32-byte base64 bootstrap key from `Secrets__MasterKey`. The key must not be committed, hardcoded or stored next to ciphertext. Missing or invalid key configuration makes the store unavailable and secret operations fail closed; there is no plaintext or in-memory fallback.
+
+`GET /api/system/secrets` reports only minimal readiness. It must not return secret ids, purposes, counts, filesystem paths, key details or stored material.
+
+This foundation does not create authentication, authorization, Vault/KMS integration, Agent credentials, secret CRUD UI or provisioning. It also does not migrate current legacy Palworld `ServerPassword`, `AdminPassword`, REST credentials or Discord webhook configuration into the secret store.
 
 ---
 
@@ -520,4 +547,5 @@ Do not add Repository, Unit of Work, CQRS, Mediator, event bus or full Clean Arc
 - [Frontend Guidelines](docs/frontend-guidelines.md): frontend rules.
 - [Development Guide](docs/development.md): local setup and commands.
 - [Deployment Guide](docs/deployment.md): private Compose deployment and homologation.
+- [Secrets Management](docs/security/secrets-management.md): SEC-02 secret model, local provider and limits.
 - [Roadmap](ROADMAP.md): planned delivery order and feature status.

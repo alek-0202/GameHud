@@ -126,7 +126,17 @@ If a unique constraint or FK fails, the database transaction rolls back the whol
 
 ## Secrets
 
-Secrets are not stored in SQLite in this foundation. Palworld server passwords, Palworld REST credentials, Discord webhook URLs, tokens and private paths remain out of durable application state until SEC-02 defines the dedicated secret model and redaction rules.
+Secrets are not stored as normal SQLite data. SEC-02 introduces a dedicated secret model and local encrypted provider under:
+
+```text
+<DataRoot>/system/secrets
+```
+
+Durable resource records must store only opaque `SecretReference` values when future provisioning needs secrets. They must not store plaintext passwords, webhook URLs, tokens, REST credentials, provider paths, plaintext hashes or encryption keys.
+
+The current Palworld server passwords, Palworld REST credentials and Discord webhook URL remain legacy external configuration. GamesHud does not auto-import or migrate them into the secret store.
+
+Database transactions do not cover secret-store writes. Future provisioning must treat database writes, secret writes and Docker/filesystem mutations as separate consistency domains with explicit recovery state.
 
 ## Legacy Resources
 

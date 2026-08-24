@@ -23,5 +23,9 @@ These invariants are permanent GamesHud security rules. Future implementation ta
 - Future command execution must not interpolate untrusted input into shell commands.
 - Future Agent commands must require mutual authentication, command authorization and replay protection.
 - Secrets persistence must use a dedicated secret model before secrets are stored in durable application state.
+- Secret material must never be persisted as normal application data or plaintext database fields.
+- Durable resource records must reference stored secrets by opaque secret references, not provider paths or plaintext-derived identifiers.
+- Secret storage failure must never downgrade to plaintext, in-memory or unencrypted storage.
+- Secrets must never be intentionally logged.
+- Encryption keys and bootstrap secrets must never be hardcoded, committed or stored next to ciphertext as protection.
 - Public or multi-user operation must have audit logging for destructive and privileged actions.
-

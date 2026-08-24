@@ -172,6 +172,8 @@ Permanent security invariants are documented in [Security Invariants](docs/secur
 - Planning endpoints must remain read-only and must not provision host, Docker, firewall or durable resources.
 - GamesHud must never automatically delete, overwrite, adopt or migrate External resources.
 - Normal API responses must never return plaintext secrets, tokens, webhook URLs, private keys or Palworld REST credentials.
+- Secret material must never be persisted as normal application data, and secret storage failure must never downgrade to plaintext or in-memory storage.
+- Encryption keys and bootstrap secrets must never be hardcoded, committed or stored next to ciphertext as protection.
 - Scheduler and future provisioning flows must never accept arbitrary shell, Docker exec, compose or user-defined commands.
 - Managed resource deletion must require durable ownership proof and auditability.
 

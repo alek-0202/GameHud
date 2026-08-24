@@ -63,7 +63,9 @@ The current safety model is:
 | Scheduler state | High | Can trigger operational actions while the API process is running. |
 | Update mechanism | High | Docker image tags, SteamCMD checks and future GamesHud updater are supply-chain sensitive. |
 | Repository and build pipeline | High | Compromise can ship malicious code or images. |
-| GamesHud SQLite database | Critical | Currently contains technical persistence metadata only; future versions may contain ownership, allocation, users and possibly secrets. |
+| GamesHud SQLite database | Critical | Contains technical persistence and managed server reservation metadata; it must not contain plaintext secret material. |
+| GamesHud secret store | Critical | Local encrypted secret material under the backend-only system data root. |
+| Secret bootstrap key | Critical | External base64 key used by the local secret provider; compromise decrypts the local store and loss makes secrets unrecoverable. |
 | Future user accounts | Critical | Authentication and authorization source of truth. |
 | Future provisioning state | Critical | Determines what resources GamesHud owns and may mutate or delete. |
 | Future Agent identity | Critical | Remote authority over a host. |
@@ -356,6 +358,7 @@ Current secrets:
 - Docker endpoint configuration.
 - Environment variables in deployment.
 - Future database connection strings and signing keys.
+- Future managed game-server passwords, webhooks, REST credentials and integration tokens stored through the GamesHud secret model.
 
 Where secrets enter:
 
@@ -367,7 +370,8 @@ Where secrets are stored or loaded:
 
 - Palworld settings file stores Palworld server/admin passwords.
 - Runtime configuration loads REST credentials and webhook URL into backend options.
-- No dedicated secret store exists yet.
+- The SEC-02 local provider stores future managed secrets as authenticated encrypted files under `<DataRoot>/system/secrets`.
+- The SEC-02 local provider gets its 32-byte base64 bootstrap key from external configuration such as `Secrets__MasterKey`.
 
 Exposure controls observed:
 
@@ -375,22 +379,29 @@ Exposure controls observed:
 - REST credentials are not sent to frontend.
 - Discord webhook response only reports configured/not configured.
 - Container environment variables are not exposed through mapped container contracts.
+- `SecretValue.ToString()` and JSON serialization do not reveal plaintext.
+- `GET /api/system/secrets` reports only readiness state and does not return ids, purposes, counts, paths, key details or material.
+- Missing, corrupted or wrong-key secret reads fail closed.
 
 Remaining risks:
 
 - Logs from Docker containers may contain secrets.
 - Exceptions/log events must continue avoiding credential values.
 - Config files and environment variables are plain configuration, not encrypted secret storage.
-- Future persistence could accidentally store or return secrets unless SEC-02 defines a model.
+- `Secrets__MasterKey` is a bootstrap secret. Anyone who can read it can decrypt the local provider's stored material.
+- No local mechanism protects secrets from an attacker with GamesHud process control, root/administrator control or memory inspection capability.
+- .NET managed strings cannot provide secure memory zeroization guarantees.
+- Secret-file deletion is not secure erase on SSDs, snapshots, journals or backups.
+- Game backups are separate from secret-store backups and must not include secret files by default.
 
-SEC-02 requirements:
+SEC-02 controls implemented:
 
-- Secret classification.
-- Backend-only secret DTOs.
-- Redaction utilities for logs and problem details.
-- Secret storage strategy for local and future database modes.
-- Rotation story for REST credentials, webhooks and future tokens.
-- Tests proving normal API responses do not return secrets.
+- Provider-neutral `SecretId`, `SecretReference`, `SecretPurpose` and `SecretValue`.
+- `ISecretStore` boundary for store, retrieve, replace and delete.
+- Local authenticated encryption provider with no custom crypto and no plaintext fallback.
+- Bootstrap key strategy documented in [Secrets Management](secrets-management.md).
+- Minimal readiness endpoint only.
+- Tests for roundtrip, replacement, deletion, missing/corrupted/wrong-key failures, serialization redaction, DB separation, endpoint minimization and no hardcoded production key.
 
 ## Authentication and Authorization Assessment
 
@@ -643,7 +654,7 @@ Severity counts:
 | --- | --- |
 | Public access | SEC-03 authentication, SEC-04 authorization, SEC-05 audit, SEC-06 API hardening. |
 | Durable persistence | Ownership model, migration integrity, DB backup strategy, secret classification. |
-| Secrets persistence | SEC-02 secret management and redaction. |
+| Secrets persistence | SEC-02 secret management and redaction. (Completed for the local foundation.) |
 | Managed storage allocation | GH-07.5 ownership records, no adoption without explicit reviewed flow. |
 | Managed delete | Durable ownership proof and audit events. |
 | Generic provisioning | Validated plan, ownership, rollback, idempotency, image policy, mount policy, authz. |

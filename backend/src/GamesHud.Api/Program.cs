@@ -17,6 +17,8 @@ using GamesHud.Api.Palworld.Updates.Services;
 using GamesHud.Api.Persistence;
 using GamesHud.Api.Persistence.Configuration;
 using GamesHud.Api.Persistence.ManagedServers;
+using GamesHud.Api.Secrets.Configuration;
+using GamesHud.Api.Secrets.Services;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -28,6 +30,7 @@ builder.Services.Configure<NotificationOptions>(builder.Configuration.GetSection
 builder.Services.Configure<ScheduledOperationOptions>(builder.Configuration.GetSection(ScheduledOperationOptions.SectionName));
 builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection(StorageOptions.SectionName));
 builder.Services.Configure<PersistenceOptions>(builder.Configuration.GetSection(PersistenceOptions.SectionName));
+builder.Services.Configure<SecretStorageOptions>(builder.Configuration.GetSection(SecretStorageOptions.SectionName));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<PalworldGameDefinition>();
 builder.Services.AddSingleton<GameDefinition>(serviceProvider =>
@@ -52,6 +55,11 @@ builder.Services.AddScoped<IPersistenceInitializer, PersistenceInitializer>();
 builder.Services.AddScoped<IPersistenceHealthService, PersistenceHealthService>();
 builder.Services.AddScoped<IPersistenceTransactionBoundary, EfCorePersistenceTransactionBoundary>();
 builder.Services.AddScoped<IManagedServerStore, ManagedServerStore>();
+builder.Services.AddSingleton<ISecretStoreLayoutResolver, SecretStoreLayoutResolver>();
+builder.Services.AddSingleton<ISecretKeyProvider, ConfigurationSecretKeyProvider>();
+builder.Services.AddSingleton<ISecretProtector, AesGcmSecretProtector>();
+builder.Services.AddSingleton<ISecretStoreHealthService, SecretStoreHealthService>();
+builder.Services.AddSingleton<ISecretStore, FileSecretStore>();
 builder.Services.AddScoped<IContainerService, DockerContainerService>();
 builder.Services.AddSingleton<IHostMetricsFileSystem, HostMetricsFileSystem>();
 builder.Services.AddSingleton<IHostSystemInfoProvider, RuntimeHostSystemInfoProvider>();

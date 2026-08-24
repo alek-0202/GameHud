@@ -111,6 +111,13 @@ dotnet tool run dotnet-ef migrations list --project backend/src/GamesHud.Api/Gam
 
 Do not use `EnsureCreated` for normal application setup.
 
+Secrets are configured through:
+
+- `Secrets:MasterKey`
+- `Secrets__MasterKey`
+
+`Secrets__MasterKey` is a bootstrap secret for the local encrypted provider. It must be a base64-encoded 32-byte key supplied from an environment-specific secret source. Leave it empty when secret-dependent features are not being exercised. Do not commit a real value to source, appsettings, examples or docs.
+
 Operational tools are configured through:
 
 - `Notifications:Discord:WebhookUrl`
@@ -242,6 +249,14 @@ GET http://localhost:5258/api/system/persistence
 ```
 
 The persistence endpoint reports availability, provider and migration status only. It must not accept arbitrary database paths and must not expose filesystem paths, connection strings, table names or secrets.
+
+Secret store health:
+
+```text
+GET http://localhost:5258/api/system/secrets
+```
+
+The secret-store endpoint reports only readiness state. It must not expose secret ids, purposes, counts, paths, key details or stored material.
 
 Managed server persistence is internal infrastructure. There is no public technical CRUD endpoint for database records. Future create-server flows must use application services that reserve a validated plan transactionally before provisioning mutates Docker or the filesystem.
 
