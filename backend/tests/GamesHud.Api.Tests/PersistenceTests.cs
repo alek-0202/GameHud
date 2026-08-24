@@ -3,6 +3,7 @@ using System.Text.Json;
 using GamesHud.Api.GameServers.Storage;
 using GamesHud.Api.Persistence;
 using GamesHud.Api.Persistence.Configuration;
+using GamesHud.Api.Persistence.ManagedServers;
 using GamesHud.Api.Persistence.Models;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -189,8 +190,10 @@ public sealed class PersistenceTests
         Assert.DoesNotContain("Webhook", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("palworld", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Amigos e Amigos", json, StringComparison.OrdinalIgnoreCase);
-        Assert.Empty(dbContext.Model.GetEntityTypes()
-            .Where(entityType => entityType.ClrType != typeof(PersistenceMetadataRecord)));
+        Assert.False(await dbContext.ManagedGameServers.AnyAsync());
+        Assert.False(await dbContext.PortReservations.AnyAsync());
+        Assert.False(await dbContext.StorageReservations.AnyAsync());
+        Assert.False(await dbContext.ProvisioningOperations.AnyAsync());
     }
 
     [Fact]
@@ -205,6 +208,311 @@ public sealed class PersistenceTests
         Assert.False(Directory.Exists(Path.Combine(tempRoot.Path, "servers")));
     }
 
+    [Fact]
+    public async Task StoreCreatesManagedServerReservationsAndPendingOperationAtomically()
+    {
+        using var tempRoot = TemporaryDirectory.Create();
+        await using var dbContext = CreateInitializedDbContext(tempRoot.Path);
+        var store = CreateStore(dbContext);
+
+        var result = await store.ReserveProvisioningPlanAsync(CreatePlan("server-one"));
+
+        var server = await store.GetManagedServerAsync("SERVER-ONE");
+        var activeOperation = await store.GetActiveOperationAsync("server-one");
+
+        Assert.NotNull(server);
+        Assert.Equal("server-one", result.GameServerId);
+        Assert.Equal("server-one", server.Id);
+        Assert.Equal("palworld", server.GameId);
+        Assert.Equal(ManagedInstallationTypes.Managed, server.InstallationType);
+        Assert.Equal(ManagedGameServerLifecycleStates.PendingProvisioning, server.LifecycleState);
+        Assert.Equal(2, server.PortReservations.Count);
+        Assert.Single(server.StorageReservations);
+        Assert.Single(server.ProvisioningOperations);
+        Assert.NotNull(activeOperation);
+        Assert.Equal(result.ProvisioningOperationId, activeOperation.Id);
+        Assert.Equal(ProvisioningOperationStatuses.Pending, activeOperation.Status);
+        Assert.Equal(ProvisioningOperationActiveSlots.Active, activeOperation.ActiveSlot);
+    }
+
+    [Fact]
+    public async Task GameServerIdIsUniqueAndNormalized()
+    {
+        using var tempRoot = TemporaryDirectory.Create();
+        await using (var dbContext = CreateInitializedDbContext(tempRoot.Path))
+        {
+            await CreateStore(dbContext).ReserveProvisioningPlanAsync(CreatePlan("Server-One"));
+        }
+
+        await using var duplicateContext = CreateDbContext(tempRoot.Path, out _);
+        var store = CreateStore(duplicateContext);
+        await Assert.ThrowsAsync<DbUpdateException>(() =>
+            store.ReserveProvisioningPlanAsync(CreatePlan("server-one", tcpPort: 8215)));
+
+        await using var verification = CreateDbContext(tempRoot.Path, out _);
+        Assert.Single(verification.ManagedGameServers);
+        Assert.False(await verification.ManagedGameServers.AnyAsync(server => server.Id == "Server-One"));
+    }
+
+    [Fact]
+    public async Task SameTcpAndUdpNumericPortCanCoexist()
+    {
+        using var tempRoot = TemporaryDirectory.Create();
+        await using var dbContext = CreateInitializedDbContext(tempRoot.Path);
+        var store = CreateStore(dbContext);
+
+        await store.ReserveProvisioningPlanAsync(CreatePlan(
+            "server-one",
+            tcpPort: 8211,
+            udpPort: 8211));
+
+        Assert.Equal(2, await dbContext.PortReservations.CountAsync(reservation => reservation.Port == 8211));
+        Assert.Contains(dbContext.PortReservations, reservation => reservation.Protocol == "tcp");
+        Assert.Contains(dbContext.PortReservations, reservation => reservation.Protocol == "udp");
+    }
+
+    [Fact]
+    public async Task DuplicateTcpPortIsRejectedAndRollsBackWholeReservation()
+    {
+        using var tempRoot = TemporaryDirectory.Create();
+        await using var dbContext = CreateInitializedDbContext(tempRoot.Path);
+        var store = CreateStore(dbContext);
+
+        await store.ReserveProvisioningPlanAsync(CreatePlan("server-one", tcpPort: 8211));
+        await Assert.ThrowsAsync<DbUpdateException>(() =>
+            store.ReserveProvisioningPlanAsync(CreatePlan("server-two", tcpPort: 8211, udpPort: 8212)));
+
+        await using var verification = CreateDbContext(tempRoot.Path, out _);
+        Assert.False(await verification.ManagedGameServers.AnyAsync(server => server.Id == "server-two"));
+        Assert.False(await verification.ProvisioningOperations.AnyAsync(operation => operation.GameServerId == "server-two"));
+        Assert.False(await verification.PortReservations.AnyAsync(reservation => reservation.GameServerId == "server-two"));
+        Assert.False(await verification.StorageReservations.AnyAsync(reservation => reservation.GameServerId == "server-two"));
+    }
+
+    [Fact]
+    public async Task DuplicateUdpPortIsRejected()
+    {
+        using var tempRoot = TemporaryDirectory.Create();
+        await using var dbContext = CreateInitializedDbContext(tempRoot.Path);
+        var store = CreateStore(dbContext);
+
+        await store.ReserveProvisioningPlanAsync(CreatePlan("server-one", udpPort: 8211));
+        await Assert.ThrowsAsync<DbUpdateException>(() =>
+            store.ReserveProvisioningPlanAsync(CreatePlan("server-two", tcpPort: 8212, udpPort: 8211)));
+    }
+
+    [Fact]
+    public async Task DuplicateStorageRelativePathIsRejectedAndRollsBackWholeReservation()
+    {
+        using var tempRoot = TemporaryDirectory.Create();
+        await using var dbContext = CreateInitializedDbContext(tempRoot.Path);
+        var store = CreateStore(dbContext);
+
+        await store.ReserveProvisioningPlanAsync(CreatePlan("server-one", storagePath: "servers/shared/data"));
+        await Assert.ThrowsAsync<DbUpdateException>(() =>
+            store.ReserveProvisioningPlanAsync(CreatePlan(
+                "server-two",
+                tcpPort: 8215,
+                udpPort: 8216,
+                storagePath: "servers/shared/data")));
+
+        await using var verification = CreateDbContext(tempRoot.Path, out _);
+        Assert.False(await verification.ManagedGameServers.AnyAsync(server => server.Id == "server-two"));
+        Assert.False(await verification.StorageReservations.AnyAsync(reservation => reservation.GameServerId == "server-two"));
+    }
+
+    [Fact]
+    public async Task InvalidPortAndAbsoluteStoragePathAreRejectedBeforePersistence()
+    {
+        using var tempRoot = TemporaryDirectory.Create();
+        await using var dbContext = CreateInitializedDbContext(tempRoot.Path);
+        var store = CreateStore(dbContext);
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            store.ReserveProvisioningPlanAsync(CreatePlan("server-one", tcpPort: 70_000)));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            store.ReserveProvisioningPlanAsync(CreatePlan("server-two", storagePath: "C:/escape")));
+
+        Assert.False(await dbContext.ManagedGameServers.AnyAsync());
+    }
+
+    [Fact]
+    public async Task ForeignKeysRejectReservationsAndOperationsWithoutServer()
+    {
+        using var tempRoot = TemporaryDirectory.Create();
+        await using var dbContext = CreateInitializedDbContext(tempRoot.Path);
+
+        dbContext.ProvisioningOperations.Add(new ProvisioningOperationRecord
+        {
+            Id = CreateId(),
+            GameServerId = "missing",
+            Type = ProvisioningOperationTypes.Provision,
+            Status = ProvisioningOperationStatuses.Pending,
+            ActiveSlot = ProvisioningOperationActiveSlots.Active,
+            CurrentStep = "reserved",
+        });
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => dbContext.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task ReservationForeignKeyRejectsMissingOperation()
+    {
+        using var tempRoot = TemporaryDirectory.Create();
+        await using var dbContext = CreateInitializedDbContext(tempRoot.Path);
+        dbContext.ManagedGameServers.Add(new ManagedGameServerRecord
+        {
+            Id = "server-one",
+            GameId = "palworld",
+            DisplayName = "Managed Palworld",
+            InstallationType = ManagedInstallationTypes.Managed,
+            RuntimeType = "docker",
+            LifecycleState = ManagedGameServerLifecycleStates.PendingProvisioning,
+        });
+        await dbContext.SaveChangesAsync();
+
+        dbContext.PortReservations.Add(new PortReservationRecord
+        {
+            Id = CreateId(),
+            GameServerId = "server-one",
+            PortDefinitionId = "game",
+            Protocol = "tcp",
+            Port = 8211,
+            Exposure = "public",
+            Status = ReservationStatuses.Reserved,
+            ProvisioningOperationId = "missing-operation",
+        });
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => dbContext.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task ActiveOperationGuardRejectsSecondActiveProvisionForSameServer()
+    {
+        using var tempRoot = TemporaryDirectory.Create();
+        await using var dbContext = CreateInitializedDbContext(tempRoot.Path);
+        var store = CreateStore(dbContext);
+
+        await store.ReserveProvisioningPlanAsync(CreatePlan("server-one"));
+        dbContext.ProvisioningOperations.Add(new ProvisioningOperationRecord
+        {
+            Id = CreateId(),
+            GameServerId = "server-one",
+            Type = ProvisioningOperationTypes.Provision,
+            Status = ProvisioningOperationStatuses.Running,
+            ActiveSlot = ProvisioningOperationActiveSlots.Active,
+            CurrentStep = "duplicate-active",
+        });
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => dbContext.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task TerminalOperationsCanCoexistBecauseActiveSlotIsCleared()
+    {
+        using var tempRoot = TemporaryDirectory.Create();
+        await using var dbContext = CreateInitializedDbContext(tempRoot.Path);
+        var store = CreateStore(dbContext);
+
+        await store.ReserveProvisioningPlanAsync(CreatePlan("server-one"));
+        var activeOperation = await dbContext.ProvisioningOperations.SingleAsync();
+        activeOperation.Status = ProvisioningOperationStatuses.Failed;
+        activeOperation.ActiveSlot = null;
+        activeOperation.CompletedAtUtc = DateTimeOffset.UtcNow;
+        dbContext.ProvisioningOperations.Add(new ProvisioningOperationRecord
+        {
+            Id = CreateId(),
+            GameServerId = "server-one",
+            Type = ProvisioningOperationTypes.Provision,
+            Status = ProvisioningOperationStatuses.Failed,
+            ActiveSlot = null,
+            CurrentStep = "terminal-history",
+            CompletedAtUtc = DateTimeOffset.UtcNow,
+        });
+
+        await dbContext.SaveChangesAsync();
+
+        Assert.Equal(2, await dbContext.ProvisioningOperations.CountAsync());
+    }
+
+    [Fact]
+    public async Task UtcTimestampsAreAppliedToManagedSchema()
+    {
+        using var tempRoot = TemporaryDirectory.Create();
+        await using var dbContext = CreateInitializedDbContext(tempRoot.Path);
+        var store = CreateStore(dbContext);
+
+        await store.ReserveProvisioningPlanAsync(CreatePlan("server-one"));
+
+        var server = await dbContext.ManagedGameServers.SingleAsync();
+        var port = await dbContext.PortReservations.FirstAsync();
+        var storage = await dbContext.StorageReservations.SingleAsync();
+        var operation = await dbContext.ProvisioningOperations.SingleAsync();
+
+        Assert.Equal(TimeSpan.Zero, server.CreatedAtUtc.Offset);
+        Assert.Equal(TimeSpan.Zero, server.UpdatedAtUtc.Offset);
+        Assert.Equal(TimeSpan.Zero, port.CreatedAtUtc.Offset);
+        Assert.Equal(TimeSpan.Zero, storage.CreatedAtUtc.Offset);
+        Assert.Equal(TimeSpan.Zero, operation.StartedAtUtc.Offset);
+        Assert.Equal(TimeSpan.Zero, operation.UpdatedAtUtc.Offset);
+    }
+
+    [Fact]
+    public async Task RunningOperationSurvivesConceptualProcessRestart()
+    {
+        using var tempRoot = TemporaryDirectory.Create();
+        await using (var dbContext = CreateInitializedDbContext(tempRoot.Path))
+        {
+            var store = CreateStore(dbContext);
+            await store.ReserveProvisioningPlanAsync(CreatePlan("server-one"));
+            var operation = await dbContext.ProvisioningOperations.SingleAsync();
+            operation.Status = ProvisioningOperationStatuses.Running;
+            operation.CurrentStep = "creating-container";
+            await dbContext.SaveChangesAsync();
+        }
+
+        await using var reloaded = CreateDbContext(tempRoot.Path, out _);
+        var runningOperation = await reloaded.ProvisioningOperations.SingleAsync();
+
+        Assert.Equal(ProvisioningOperationStatuses.Running, runningOperation.Status);
+        Assert.Equal("creating-container", runningOperation.CurrentStep);
+        Assert.Equal(ProvisioningOperationActiveSlots.Active, runningOperation.ActiveSlot);
+    }
+
+    [Fact]
+    public async Task ManagedSchemaDoesNotContainUsersAuthOrSecretColumns()
+    {
+        using var tempRoot = TemporaryDirectory.Create();
+        await using var dbContext = CreateInitializedDbContext(tempRoot.Path);
+        var modelText = JsonSerializer.Serialize(dbContext.Model.GetEntityTypes()
+            .Select(entityType => new
+            {
+                entityType.ClrType.Name,
+                Properties = entityType.GetProperties().Select(property => property.Name)
+            }));
+
+        Assert.DoesNotContain("User", modelText, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Role", modelText, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Tenant", modelText, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Password", modelText, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Webhook", modelText, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Token", modelText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ReservationDoesNotCreateDirectoriesDockerResourcesOrLegacyRecords()
+    {
+        using var tempRoot = TemporaryDirectory.Create();
+        await using var dbContext = CreateInitializedDbContext(tempRoot.Path);
+        var store = CreateStore(dbContext);
+
+        await store.ReserveProvisioningPlanAsync(CreatePlan("server-one"));
+
+        Assert.False(Directory.Exists(Path.Combine(tempRoot.Path, "servers")));
+        Assert.False(await dbContext.ManagedGameServers.AnyAsync(server =>
+            server.Id == "palworld" || server.DisplayName == "Amigos e Amigos"));
+    }
+
     private static GamesHudDbContext CreateDbContext(string dataRoot, out PersistenceLayout layout)
     {
         var resolver = new PersistenceLayoutResolver(Options.Create(new StorageOptions
@@ -217,6 +525,46 @@ public sealed class PersistenceTests
             .Options;
 
         return new GamesHudDbContext(options);
+    }
+
+    private static GamesHudDbContext CreateInitializedDbContext(string dataRoot)
+    {
+        var dbContext = CreateDbContext(dataRoot, out _);
+        CreateInitializer(dbContext, dataRoot).InitializeAsync().GetAwaiter().GetResult();
+
+        return dbContext;
+    }
+
+    private static ManagedServerStore CreateStore(GamesHudDbContext dbContext)
+    {
+        return new ManagedServerStore(
+            dbContext,
+            new EfCorePersistenceTransactionBoundary(dbContext));
+    }
+
+    private static ManagedServerProvisioningPlan CreatePlan(
+        string gameServerId,
+        int tcpPort = 8211,
+        int udpPort = 8211,
+        string? storagePath = null)
+    {
+        return new ManagedServerProvisioningPlan(
+            gameServerId,
+            "palworld",
+            "Managed Palworld",
+            "docker",
+            [
+                new PortReservationPlan("game", "tcp", tcpPort, "public"),
+                new PortReservationPlan("query", "udp", udpPort, "public"),
+            ],
+            [
+                new StorageReservationPlan("data", storagePath),
+            ]);
+    }
+
+    private static string CreateId()
+    {
+        return Guid.NewGuid().ToString("N");
     }
 
     private static PersistenceInitializer CreateInitializer(GamesHudDbContext dbContext, string dataRoot)

@@ -262,10 +262,14 @@ Status: In progress
 - EF migrations are versioned and startup initialization is centralized behind a persistence initializer
 - `GET /api/system/persistence` reports provider and migration health without exposing paths or connection strings
 - The foundation does not persist secrets, register game servers, reserve ports/storage or adopt legacy Palworld resources
+- GH-07.6 product database schema (Completed)
+- Managed game server records, port reservations, storage reservations and provisioning operation records are persisted
+- Port reservations enforce durable `protocol + port` uniqueness while allowing TCP/UDP to share a number
+- Storage reservations enforce unique managed relative paths under the GamesHud data root
+- Reservation writes are atomic and remain separate from Docker, filesystem and provisioning mutation
 
 Remaining:
 
-- GH-07.6 durable storage ownership and allocation persistence
 - Durable server registration UI
 - Non-Palworld plugin implementation
 - Migration of all temporary Palworld features onto server-scoped contracts

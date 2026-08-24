@@ -212,7 +212,7 @@ Core rules:
 - Avoid unnecessary interfaces unless they provide concrete value.
 - Keep public API behavior predictable and documented.
 
-Do not introduce a database unless the feature requires persistent state. GH-07.5 introduced the approved EF Core + SQLite persistence foundation for technical GamesHud metadata under `Storage__DataRoot`; do not expand it into ownership, provisioning, users, tenants or secrets without a roadmap task.
+Do not introduce a database unless the feature requires persistent state. GH-07.5 introduced the approved EF Core + SQLite persistence foundation under `Storage__DataRoot`; GH-07.6 added managed server, reservation and operation records. Do not expand persistence into Docker provisioning, users, tenants or secrets without a roadmap task.
 
 ---
 

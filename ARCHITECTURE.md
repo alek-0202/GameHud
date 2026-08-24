@@ -136,7 +136,7 @@ GamesHud uses EF Core with SQLite for the first local persistence foundation. Th
 
 `DataRoot` is resolved from `Storage:DataRoot` / `Storage__DataRoot`, with the same app-local fallback used by storage planning when the option is empty. The database path is constructed server-side and must not be supplied by clients or returned through normal API contracts.
 
-Persistence is an infrastructure concern. Domain models must not depend on EF Core, `DbContext`, `DbSet`, EF annotations, SQLite APIs, SQL strings or migration classes. The initial schema contains only technical persistence metadata so future ownership, reservation and provisioning schemas can be designed deliberately.
+Persistence is an infrastructure concern. Domain models must not depend on EF Core, `DbContext`, `DbSet`, EF annotations, SQLite APIs, SQL strings or migration classes. GH-07.5 introduced technical metadata only. GH-07.6 adds the minimum product schema for managed game server records, port reservations, storage reservations and future provisioning operations.
 
 EF Core migrations are the source of truth for schema changes. Normal startup runs initialization through a dedicated persistence initializer, not scattered `Database.Migrate()` calls in controllers or feature services and not `EnsureCreated`. GamesHud fails startup when persistence initialization fails.
 
@@ -144,7 +144,22 @@ EF Core migrations are the source of truth for schema changes. Normal startup ru
 
 Database transactions cover only database writes. They do not make Docker operations, filesystem writes, backup extraction, container lifecycle changes or future provisioning atomic. Future provisioning needs durable step state, idempotency and compensation or rollback rules.
 
-Persisted timestamps are UTC. Secrets are not persisted until SEC-02 defines the secret storage and redaction model. The current Palworld compatibility sources remain `LegacyExternal`; GamesHud must not import or adopt legacy paths, containers, ports or settings simply because they exist.
+The persistent relationship model is:
+
+```mermaid
+erDiagram
+  ManagedGameServer ||--o{ PortReservation : owns
+  ManagedGameServer ||--o{ StorageReservation : owns
+  ManagedGameServer ||--o{ ProvisioningOperation : records
+  ProvisioningOperation ||--o{ PortReservation : creates
+  ProvisioningOperation ||--o{ StorageReservation : creates
+```
+
+Reservations are durable claims, not proof that runtime resources exist. A DB port reservation does not bind a socket or publish a Docker port. A DB storage reservation does not create a directory or mount. Future provisioning must mutate only resources from validated reserved plans and must record progress through operation state.
+
+The database enforces unique managed server ids, unique `protocol + port`, unique managed storage relative paths and a single active operation slot per server and operation type. Delete behavior is restricted so deleting a database row cannot be confused with deleting an external resource.
+
+Persisted timestamps are UTC. Secrets are not persisted until SEC-02 defines the secret storage and redaction model. No user, role, organization or tenant model exists yet. The current Palworld compatibility sources remain `LegacyExternal`; GamesHud must not import or adopt legacy paths, containers, ports or settings simply because they exist.
 
 ---
 

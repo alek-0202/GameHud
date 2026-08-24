@@ -36,6 +36,7 @@ Implemented:
 - Game port requirements, read-only host port checks and advisory port planning
 - Game storage definitions, configurable managed data root and advisory storage planning
 - EF Core + SQLite persistence foundation under the GamesHud data root
+- Durable managed server schema for server records, port reservations, storage reservations and provisioning operation records
 - `GET /api/system/persistence` health and migration status without path or connection string exposure
 - Temporary personal Palworld settings editor isolated outside Docker Core
 - Temporary Palworld REST overview and players view isolated outside Docker Core
@@ -191,6 +192,8 @@ Persistence:
 - `Persistence__AutoMigrate`
 
 GamesHud stores its SQLite database at `<DataRoot>/system/gameshud.db`, where `DataRoot` is resolved from `Storage__DataRoot`. Startup runs EF Core migrations through the persistence initializer. The database is separate from game server storage under `<DataRoot>/servers`, and API responses must not expose the absolute database path or connection string.
+
+Managed server persistence records durable GamesHud claims for future provisioning. Reservations do not create directories, bind ports, publish Docker ports, create containers or prove an external resource exists.
 
 Operations:
 

@@ -16,6 +16,7 @@ using GamesHud.Api.Palworld.Services;
 using GamesHud.Api.Palworld.Updates.Services;
 using GamesHud.Api.Persistence;
 using GamesHud.Api.Persistence.Configuration;
+using GamesHud.Api.Persistence.ManagedServers;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -50,6 +51,7 @@ builder.Services.AddDbContext<GamesHudDbContext>((serviceProvider, options) =>
 builder.Services.AddScoped<IPersistenceInitializer, PersistenceInitializer>();
 builder.Services.AddScoped<IPersistenceHealthService, PersistenceHealthService>();
 builder.Services.AddScoped<IPersistenceTransactionBoundary, EfCorePersistenceTransactionBoundary>();
+builder.Services.AddScoped<IManagedServerStore, ManagedServerStore>();
 builder.Services.AddScoped<IContainerService, DockerContainerService>();
 builder.Services.AddSingleton<IHostMetricsFileSystem, HostMetricsFileSystem>();
 builder.Services.AddSingleton<IHostSystemInfoProvider, RuntimeHostSystemInfoProvider>();
