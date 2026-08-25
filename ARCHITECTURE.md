@@ -546,6 +546,7 @@ Do not add Repository, Unit of Work, CQRS, Mediator, event bus or full Clean Arc
 - [API Guidelines](docs/api-guidelines.md): backend rules.
 - [Frontend Guidelines](docs/frontend-guidelines.md): frontend rules.
 - [Development Guide](docs/development.md): local setup and commands.
+- [Continuous Integration](docs/ci.md): automated checks, isolation and branch protection readiness.
 - [Deployment Guide](docs/deployment.md): private Compose deployment and homologation.
 - [Secrets Management](docs/security/secrets-management.md): SEC-02 secret model, local provider and limits.
 - [Roadmap](ROADMAP.md): planned delivery order and feature status.

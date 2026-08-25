@@ -15,7 +15,7 @@ git rev-parse --show-toplevel
 ## Prerequisites
 
 - .NET 8 SDK
-- Node.js
+- Node.js 22
 - npm
 - Docker, when testing Docker-backed endpoints or validating container builds locally
 
@@ -362,11 +362,18 @@ The scheduler accepts only supported action types and never shell commands. Disc
 
 ## Frontend
 
-Install dependencies:
+Install dependencies for normal local development:
 
 ```powershell
 cd frontend
 npm install
+```
+
+Use the lockfile-only install when reproducing CI:
+
+```powershell
+cd frontend
+npm ci
 ```
 
 Run:
@@ -436,6 +443,8 @@ Use only a disposable test container for lifecycle homologation.
 ---
 
 ## Validation
+
+The complete CI contract, local equivalent commands and future required branch protection checks are documented in [Continuous Integration](ci.md).
 
 Backend validation:
 

@@ -307,6 +307,21 @@ Temporary note:
 
 ---
 
+## Operations Foundation
+
+Status: In progress
+
+- OPS-01 CI pipeline (Completed)
+- GitHub Actions validation for pushes and pull requests on `develop` and `main`
+- Separate backend build/test, frontend build and EF Core migration checks
+- Read-only workflow permissions and isolated tests without production secrets, Docker, Palworld or VPS access
+- Documented local CI equivalents and future branch protection check names
+- OPS-02 security scanning (Planned)
+- OPS-03 release versioning and integrity (Planned)
+- OPS-04 backup and restore hardening (Planned)
+
+---
+
 ## Deferred
 
 - Real-time logs
@@ -314,6 +329,3 @@ Temporary note:
 - Multi-user permissions
 - Additional game plugins
 - ARCH-01 GamesHud Agent architecture
-- OPS-01 supply-chain baseline
-- OPS-02 release integrity
-- OPS-03 backup and restore hardening

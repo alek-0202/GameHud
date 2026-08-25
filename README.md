@@ -13,6 +13,7 @@ Implemented:
 - .NET 8 backend API
 - React + Vite + TypeScript frontend
 - xUnit test project
+- GitHub Actions CI for backend, frontend and EF Core migrations
 - Repository documentation and architecture rules
 - `GET /health`
 - `GET /api/containers`
@@ -524,6 +525,7 @@ The VPS may already host production containers such as Palworld and Portainer. G
 - [AI Rules](AI_RULES.md)
 - [Roadmap](ROADMAP.md)
 - [Development Guide](docs/development.md)
+- [Continuous Integration](docs/ci.md)
 - [Deployment Guide](docs/deployment.md)
 - [Metrics Guide](docs/metrics.md)
 - [Palworld Backups Guide](docs/palworld-backups.md)

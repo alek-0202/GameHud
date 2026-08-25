@@ -540,9 +540,10 @@ Risks:
 
 OPS recommendations:
 
-- OPS-01: pin and review runtime images and dependency versions.
-- OPS-02: define release integrity, SBOM and update verification.
-- OPS-03: define operational rollback and backup validation before update workflows are expanded.
+- OPS-01: run automated backend, frontend and migration validation for integration changes. (Completed)
+- OPS-02: add dependency, source and image scanning plus dependency and runtime-image review.
+- OPS-03: define release versioning, build provenance, SBOM and update verification.
+- OPS-04: define operational rollback and backup validation before update workflows are expanded.
 
 ## Database Assessment
 
@@ -615,21 +616,21 @@ Required controls:
 | THR-001 | Unauthenticated API access | API | API is exposed beyond SSH/private network and attacker calls mutating endpoints. | Full operational control of Docker/Palworld flows. | Medium if misdeployed | Critical | Docs require private access. | No technical auth gate. | Implement auth and block public exposure until configured. | SEC-03 |
 | THR-002 | Docker socket host compromise | Docker | Backend compromise uses Docker daemon authority to control host. | Host compromise. | Medium | Critical | Socket API-only; no arbitrary create today. | Docker daemon remains highly privileged. | Least-privilege provisioning policy and hardening. | GH-08, SEC-06 |
 | THR-003 | Unsafe provisioning mutation | Provisioning | Future provisioning creates privileged container, arbitrary mount or unsafe env. | Host/data compromise. | Future medium | Critical | Provisioning not implemented. | Needs design before GH-08. | Validated plans, allowlists, deny privileged defaults. | GH-08 |
-| THR-004 | Destructive restore data loss | Backups | Restore deletes managed path contents or restores wrong archive. | Game data loss. | Medium | High | Strong confirmation, pre-restore backup, archive validation. | TOCTOU, local tampering, archive bombs. | Backup integrity and restore hardening. | OPS-03 |
+| THR-004 | Destructive restore data loss | Backups | Restore deletes managed path contents or restores wrong archive. | Game data loss. | Medium | High | Strong confirmation, pre-restore backup, archive validation. | TOCTOU, local tampering, archive bombs. | Backup integrity and restore hardening. | OPS-04 |
 | THR-005 | Arbitrary container lifecycle | Docker Core | Attacker stops/restarts important containers by id/name. | Outage. | Medium if API reachable | High | Frontend confirmations only; API scoped to start/stop/restart. | No authz or protected-container policy. | Authz and resource ownership. | SEC-04 |
 | THR-006 | Secret leakage through logs | Logs | Container logs contain secrets and are returned/downloaded. | Credential disclosure. | Medium | High | Logs treated as text; bounded tail. | No redaction. | Secret redaction and log policy. | SEC-02, SEC-05 |
 | THR-007 | Host path disclosure | Container details | Container details expose mount source paths. | Infrastructure disclosure, attack targeting. | Medium | Medium | No env vars; labels filtered. | Mount sources still returned. | Authz/minimized admin contracts. | SEC-04 |
 | THR-008 | Network fingerprint disclosure | Container details | Network IP/gateway/MAC returned to clients. | Infrastructure fingerprinting. | Medium | Medium | Private access assumption. | No auth/minimization. | Reduce or protect network details. | SEC-04 |
-| THR-009 | Palworld REST credential misuse | Palworld REST | Backend sends Basic auth to configured REST URL; config leak or URL abuse exposes credentials. | Server admin compromise. | Low current | High | Backend-only config, not frontend. | No secret store, SSRF controls future. | SEC-02 and URL allow policy if user-configurable. | SEC-02 |
+| THR-009 | Palworld REST credential misuse | Palworld REST | Backend sends Basic auth to configured REST URL; config leak or URL abuse exposes credentials. | Server admin compromise. | Low current | High | Backend-only config, not frontend; SEC-02 secret store exists for future managed flows. | Current Palworld REST credentials remain legacy external configuration; SSRF controls are future work. | Explicit credential migration plus URL allow policy if user-configurable. | SEC-02, SEC-06 |
 | THR-010 | SSRF through future URLs | Network | Future user-controlled URL causes API/Agent to hit internal services or metadata endpoints. | Internal data exposure or control. | Future medium | High | Current URLs config-only. | Future installer/plugins may add URLs. | Outbound URL policy. | SEC-06 |
 | THR-011 | Scheduler abuse | Scheduler | Attacker enables/runs restart, shutdown, backup or announcement tasks. | Downtime, spam, disk usage. | Medium if API reachable | High | Closed action set, in-memory state. | No auth/audit. | Authz and audit. | SEC-04, SEC-05 |
-| THR-012 | Backup archive bomb | Backups | Malicious or tampered archive expands massively during restore. | Disk exhaustion, outage. | Low current | Medium | Entry path/type validation. | No expanded-size/file-count limits. | Archive limits and integrity metadata. | OPS-03 |
-| THR-013 | Filesystem symlink/junction escape | Filesystem | Symlink/junction changes between validation and write/delete/copy. | Data loss outside intended path. | Low-medium | High | String containment checks. | Not full realpath/open-handle guarantees. | Symlink policy and safer file operations. | GH-07.5, OPS-03 |
+| THR-012 | Backup archive bomb | Backups | Malicious or tampered archive expands massively during restore. | Disk exhaustion, outage. | Low current | Medium | Entry path/type validation. | No expanded-size/file-count limits. | Archive limits and integrity metadata. | OPS-04 |
+| THR-013 | Filesystem symlink/junction escape | Filesystem | Symlink/junction changes between validation and write/delete/copy. | Data loss outside intended path. | Low-medium | High | String containment checks. | Not full realpath/open-handle guarantees. | Symlink policy and safer file operations. | GH-07.5, OPS-04 |
 | THR-014 | Port TOCTOU | Ports | Port appears free in plan but is taken before bind/publish. | Failed provisioning or wrong exposure. | High future | Medium | Advisory language. | No durable reservation. | Durable reservation and provisioning locks. | GH-07.5/GH-08 |
 | THR-015 | Unexpected public exposure | Ports/Provisioning | Internal port metadata becomes public Docker publish or firewall rule. | Exposed admin API/game admin surface. | Future medium | High | Exposure metadata only today. | No publish/firewall implementation. | Explicit exposure policy and review gate. | GH-08 |
 | THR-016 | Repudiation of destructive actions | API | User denies restore/delete/restart/update; no durable actor log exists. | Investigation and accountability failure. | Medium future | Medium | Timestamps in responses. | No user identity or audit log. | Audit events. | SEC-05 |
-| THR-017 | Update supply-chain compromise | Updates | Compromised image/package/Steam workflow changes binaries. | Code execution or data loss. | Medium | High | Manual update flow, backup first. | No signing/pinning policy. | Release/image/dependency integrity controls. | OPS-01, OPS-02 |
-| THR-018 | Future database tampering | Database | Attacker changes ownership/allocation records. | Unauthorized mutation/deletion. | Future medium | High | GH-07.6 stores ownership and reservations with relational constraints. | Authz, audit and backup integrity still need design. | Authorization, audit, migration and backup integrity. | SEC-04/SEC-05/OPS-03 |
+| THR-017 | Update supply-chain compromise | Updates | Compromised image/package/Steam workflow changes binaries. | Code execution or data loss. | Medium | High | Manual update flow, backup first; OPS-01 validates source builds and tests. | No scanning, signing or complete pinning policy. | Release/image/dependency integrity controls. | OPS-02, OPS-03 |
+| THR-018 | Future database tampering | Database | Attacker changes ownership/allocation records. | Unauthorized mutation/deletion. | Future medium | High | GH-07.6 stores ownership and reservations with relational constraints. | Authz, audit and backup integrity still need design. | Authorization, audit, migration and backup integrity. | SEC-04/SEC-05/OPS-04 |
 | THR-019 | Future Agent command compromise | Agent | Control plane or attacker sends privileged command to Agent. | Remote host compromise. | Future medium | Critical | Agent not implemented. | Requires architecture. | Mutual auth, command auth, replay protection. | ARCH-01 |
 | THR-020 | Player admin abuse | Palworld admin | Attacker kicks/bans/unbans players or sends announcements. | Community disruption. | Medium if API reachable | Medium | Strong confirmation for destructive player actions. | No auth/ownership. | Authz and audit. | SEC-04, SEC-05 |
 | THR-021 | Notification webhook abuse | Notifications | Attacker triggers webhook test or operational spam. | External spam, incident confusion. | Low-medium | Medium | HTTPS webhook, cooldown for non-test events. | Test not cooldown-gated, no auth. | Auth and audit; consider test rate limit. | SEC-03, SEC-05 |
@@ -637,7 +638,7 @@ Required controls:
 | THR-023 | CSRF on private/public API | Browser/API | If cookie auth is added without CSRF controls, web pages trigger destructive POSTs. | Unauthorized actions. | Future medium | High | No cookie auth today. | Must be considered with auth design. | CSRF strategy. | SEC-03 |
 | THR-024 | Denial through expensive reads | Logs/Metrics | Repeated log/metrics/capability calls consume resources. | API slowdown. | Medium | Medium | Bounded log tail/history. | No rate limits. | Rate limits and quotas before public access. | SEC-06 |
 | THR-025 | Config path misconfiguration | Palworld config/backups | Operator points managed/backup paths to wrong host mount. | Wrong data changed/deleted. | Medium | High | Docs, overlap rejection, existing path checks. | No ownership/adoption marker. | Managed ownership markers and setup validation. | GH-07.5 |
-| THR-026 | Secrets persisted without model | Future persistence | Database stores tokens/passwords in normal fields and returns them. | Credential compromise. | Future medium | High | Current SQLite schema stores no secrets; password responses are masked. | Needs SEC-02 before any secret persistence. | Secret storage and response redaction model. | SEC-02 |
+| THR-026 | Secrets persisted without model | Future persistence | Database stores tokens/passwords in normal fields and returns them. | Credential compromise. | Future medium | High | Current SQLite schema stores no secrets; SEC-02 provides opaque references, encrypted local storage and response redaction rules. | Future features could bypass the boundary or mishandle partial failures across persistence domains. | Enforce `SecretReference` and `ISecretStore` in every durable secret flow. | SEC-02 |
 | THR-027 | Partial provisioning failure | Provisioning | Directory/container/network created but API reports success or retries unsafely. | Orphaned resources, data loss. | Future high | High | Provisioning not implemented. | Needs state machine. | Explicit step states, idempotency and rollback. | GH-08 |
 | THR-028 | Container exec expansion | Docker exec | Future feature lets user or plugin influence exec command. | Container or host escape path. | Future medium | High | Current exec commands fixed. | No generic command policy yet. | No arbitrary command input; allowlisted templates. | SEC-06/GH-08 |
 
@@ -677,22 +678,23 @@ Existing or implied cards before future GH work:
 
 - GH-07.5 durable storage ownership before managed delete, adoption or persistent allocation.
 - GH-07.6 database design before durable multi-server persistence. (Completed)
-- SEC-02 before storing secrets in any database or returning richer server configuration.
+- SEC-02 local foundation is complete; future durable secret flows must use its references and store boundary.
 - SEC-03 before public deployment, public HTTPS or domain setup.
 - SEC-04 before multi-user access, server ownership or destructive operations under auth.
 - SEC-05 before public or multi-user destructive operations.
 - SEC-06 before public API hardening and broader network exposure.
-- OPS-01/OPS-02 before automated GamesHud updater or unpinned production image strategy.
-- OPS-03 before expanding restore/update automation.
+- OPS-01/OPS-02/OPS-03 before an automated GamesHud updater or unpinned production image strategy.
+- OPS-04 before expanding restore automation.
 - ARCH-01 before Agent implementation.
 
 New recommended cards:
 
 - SEC-05 Audit and Security Logging: durable actor/action/resource/outcome trail, redaction and incident review.
 - SEC-06 API and Deployment Hardening: rate limits, CSRF strategy, response minimization, public exposure guardrails and outbound request policy.
-- OPS-01 Supply Chain Baseline: image/dependency pinning, update cadence and vulnerability review.
-- OPS-02 Release Integrity: build provenance, SBOM and signed release/update artifacts.
-- OPS-03 Backup/Restore Hardening: archive limits, checksums, restore dry-run and backup ownership binding.
+- OPS-01 CI Pipeline: automated backend, frontend and migration validation. (Completed)
+- OPS-02 Security Scanning: dependency, source and image scanning plus vulnerability review.
+- OPS-03 Release Versioning and Integrity: versioning, build provenance, SBOM and signed release/update artifacts.
+- OPS-04 Backup/Restore Hardening: archive limits, checksums, restore dry-run and backup ownership binding.
 - ARCH-01 Agent Architecture: authority model, protocol, mutual auth, command schema and update trust.
 
 ## Immediate Vulnerability Assessment
