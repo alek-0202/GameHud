@@ -309,7 +309,7 @@ Required actions:
 
 ## Provisioning Future Assessment
 
-GH-08 will be a major security boundary change. Before or during provisioning, GamesHud needs:
+Real host provisioning will be a major security boundary change. Before or during that work, GamesHud needs:
 
 - Durable ownership model for servers, storage, ports, networks and runtime resources.
 - Validated plan as the only source of mutation.
@@ -323,15 +323,18 @@ GH-08 will be a major security boundary change. Before or during provisioning, G
 - Audit events for all mutating steps.
 - Deny-by-default Docker capabilities, privileged mode, host network, host PID/IPC and Docker socket mounts.
 
-GH-08 foundation status:
+GH-08/GH-09 foundation status:
 
 - The client request cannot supply host paths, container images, mounts, privileged mode or shell commands.
 - Host requirements and existing port/storage planners produce a typed validated plan before reservation.
 - Durable reservation is atomic and the engine consumes only the validated plan and reservation result.
 - Operation progress, safe failure, cancellation and terminal state are persisted.
+- Stable versioned step state, attempts, retry metadata and compensation progress are persisted relationally.
+- Invalid transitions are rejected centrally and stale checkpoints are rejected through optimistic concurrency.
+- Startup classifies incomplete operations but does not execute recovery; unknown mutations require reconciliation and are never blindly retried.
 - Secret references are allowed in the plan, while plaintext secret values are absent from request and persistence contracts.
 - Host-facing production steps are explicit no-mutation implementations; no Docker, filesystem, network, firewall or game action occurs.
-- Recovery execution, real runtime policies and full rollback remain future work.
+- Real reconcilers, recovery execution, runtime policies and full rollback remain future work.
 
 ## Input Validation
 
@@ -581,6 +584,8 @@ Current controls:
 - Managed storage relative paths are unique and do not use absolute host paths as identity.
 - A nullable active operation slot enforces one active operation of a type per server without SQLite-specific filtered indexes.
 - Reservation writes are transactional and rollback on conflicts.
+- Provisioning operation/step checkpoints are transactional, versioned and reject stale writers.
+- Pipeline versions prevent legacy or structurally different incomplete operations from being resumed as the current pipeline.
 
 Remaining persistence threats:
 
@@ -600,7 +605,7 @@ Required controls:
 - Durable ownership and state transitions.
 - Migration integrity and backup plan.
 - Secret classification before storing sensitive values.
-- Optimistic concurrency or locking for provisioning state.
+- A future distributed lease/worker ownership protocol beyond current optimistic concurrency.
 
 ## Future Agent Assessment
 
@@ -658,7 +663,7 @@ Required controls:
 | THR-024 | Denial through expensive reads | Logs/Metrics | Repeated log/metrics/capability calls consume resources. | API slowdown. | Medium | Medium | Bounded log tail/history. | No rate limits. | Rate limits and quotas before public access. | SEC-06 |
 | THR-025 | Config path misconfiguration | Palworld config/backups | Operator points managed/backup paths to wrong host mount. | Wrong data changed/deleted. | Medium | High | Docs, overlap rejection, existing path checks. | No ownership/adoption marker. | Managed ownership markers and setup validation. | GH-07.5 |
 | THR-026 | Secrets persisted without model | Future persistence | Database stores tokens/passwords in normal fields and returns them. | Credential compromise. | Future medium | High | Current SQLite schema stores no secrets; SEC-02 provides opaque references, encrypted local storage and response redaction rules. | Future features could bypass the boundary or mishandle partial failures across persistence domains. | Enforce `SecretReference` and `ISecretStore` in every durable secret flow. | SEC-02 |
-| THR-027 | Partial provisioning failure | Provisioning | Directory/container/network created but API reports success or retries unsafely. | Orphaned resources, data loss. | Future high | High | GH-08 persists current step/failure and defines reverse compensation contracts without host mutation. | No durable compensation retry or full recovery state machine. | Explicit recovery and rollback. | GH-09/GH-15 |
+| THR-027 | Partial provisioning failure | Provisioning | Directory/container/network created but API reports success or retries unsafely. | Orphaned resources, data loss. | Future high | High | GH-09 persists versioned operation/step checkpoints, classifies unknown mutation for reconciliation and records compensation progress without host mutation. | No real reconciler, automatic recovery or full rollback. | Adapter-specific reconciliation and owned-resource rollback. | GH-12/GH-15 |
 | THR-028 | Container exec expansion | Docker exec | Future feature lets user or plugin influence exec command. | Container or host escape path. | Future medium | High | Current exec commands fixed. | No generic command policy yet. | No arbitrary command input; allowlisted templates. | SEC-06/GH-08 |
 
 Severity counts:

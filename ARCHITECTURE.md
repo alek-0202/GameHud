@@ -153,13 +153,14 @@ erDiagram
   ManagedGameServer ||--o{ ProvisioningOperation : records
   ProvisioningOperation ||--o{ PortReservation : creates
   ProvisioningOperation ||--o{ StorageReservation : creates
+  ProvisioningOperation ||--|{ ProvisioningStep : checkpoints
 ```
 
 Reservations are durable claims, not proof that runtime resources exist. A DB port reservation does not bind a socket or publish a Docker port. A DB storage reservation does not create a directory or mount. Future provisioning must mutate only resources from validated reserved plans and must record progress through operation state.
 
-### Provisioning Engine Foundation
+### Provisioning State Machine
 
-GH-08 adds an internal, game-neutral application pipeline:
+GH-08 adds an internal, game-neutral application pipeline and GH-09 makes its state durable and recoverable:
 
 ```text
 Request -> Validated Plan -> Durable Reservation -> Safe Step Execution
@@ -167,7 +168,11 @@ Request -> Validated Plan -> Durable Reservation -> Safe Step Execution
 
 The request contains only game/server identity and display name. Host compatibility, runtime, ports and managed storage are resolved from registered `GameDefinition` metadata and existing planners. Only the validated plan may feed future mutation boundaries.
 
-Reservation atomically creates the managed server, resource claims and a `Pending` operation. The engine persists `Running`, `CurrentStep`, safe failure details and terminal state. Host-facing steps are explicit no-mutation implementations in GH-08, so a successful foundation operation does not mean a runtime is ready. See [Provisioning Engine Foundation](docs/provisioning.md).
+Reservation atomically creates the managed server, resource claims, a `Pending` operation and the complete `gh09-v1` step sequence. The engine requests transitions through a centralized state machine, while a dedicated operation store checkpoints operation and step state together. Step attempts, retry/side-effect classifications, safe failures and compensation progress survive restart.
+
+Recovery classifies persisted state as resume, reconcile, manual intervention or terminal. Startup only logs classifications. A `Running` or unknown mutation is never retried blindly because database and future external effects cannot share one transaction. The reconciler is a future adapter contract; GH-09 has no Docker/filesystem implementation. An operation `Version` concurrency token detects competing checkpoints, but it is not a distributed lease.
+
+Host-facing steps remain explicit no-mutation implementations, so a successful foundation operation does not mean a runtime is ready. See [Provisioning State Machine](docs/provisioning.md).
 
 The database enforces unique managed server ids, unique `protocol + port`, unique managed storage relative paths and a single active operation slot per server and operation type. Delete behavior is restricted so deleting a database row cannot be confused with deleting an external resource.
 

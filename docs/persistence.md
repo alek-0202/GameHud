@@ -34,6 +34,7 @@ GH-07.6 adds the minimum product schema for future managed server provisioning:
 - `port_reservations`
 - `storage_reservations`
 - `provisioning_operations`
+- `provisioning_steps`
 
 ```mermaid
 erDiagram
@@ -42,6 +43,7 @@ erDiagram
   ManagedGameServer ||--o{ ProvisioningOperation : records
   ProvisioningOperation ||--o{ PortReservation : creates
   ProvisioningOperation ||--o{ StorageReservation : creates
+  ProvisioningOperation ||--|{ ProvisioningStep : checkpoints
 ```
 
 `managed_game_servers` stores stable game server identity, game id, display name, installation ownership, runtime type, lifecycle state and UTC timestamps.
@@ -50,7 +52,9 @@ erDiagram
 
 `storage_reservations` stores a durable GamesHud claim for a storage definition, managed relative path, ownership, status and creating operation. The relative path is portable and should be reconstructed under `Storage__DataRoot` when a host path is needed.
 
-`provisioning_operations` stores the minimal future operation state for recovery: operation id, server id, type, status, active slot, current step, started/updated/completed timestamps and safe error fields.
+`provisioning_operations` stores operation id, server id, type, status, active slot, current step, pipeline version, optimistic concurrency version, UTC timestamps and safe error fields.
+
+`provisioning_steps` stores the pipeline snapshot needed for recovery: stable step id, sequence, distinct step status, attempt count, bounded retry metadata, side-effect classification, UTC execution/compensation timestamps and safe failure fields. Unique operation/step and operation/sequence constraints prevent an ambiguous pipeline. It stores no arbitrary output or secret material.
 
 EF Core migrations are the source of truth for schema changes. Normal application startup uses migrations, not `EnsureCreated`.
 
@@ -95,11 +99,13 @@ The database enforces:
 - unique `storage_reservations.GameServerId + StorageDefinitionId`;
 - foreign keys from reservations and operations to their managed server;
 - foreign keys from reservations to the operation that created them;
+- unique step id and sequence within each provisioning operation;
+- a concurrency token on each provisioning operation version;
 - delete behavior is restricted rather than cascade.
 
 TCP and UDP can use the same numeric port because protocol is part of the unique port reservation key.
 
-Only one active operation of the same type can exist for a server. GamesHud uses a nullable `ActiveSlot` column with a unique `(GameServerId, Type, ActiveSlot)` index. Active operations use `active`; terminal operations clear the slot. This avoids SQLite-specific filtered indexes and remains suitable for a future PostgreSQL design.
+Only one active operation of the same type can exist for a server. GamesHud uses a nullable `ActiveSlot` column with a unique `(GameServerId, Type, ActiveSlot)` index. Active and unresolved operations use `active`; completed operations clear the slot. An unknown mutation, cancellation during mutation or failed compensation retains it until reconciliation or intervention. This avoids SQLite-specific filtered indexes and remains suitable for a future PostgreSQL design.
 
 Current reservation rows are not automatically cleaned up. Stale, failed or abandoned records are intentionally left durable for future recovery logic.
 
@@ -120,13 +126,16 @@ A database transaction only covers database writes. It does not make Docker oper
 - the managed game server;
 - port reservations;
 - storage reservations;
-- the pending provisioning operation.
+- the pending provisioning operation;
+- the complete versioned pipeline and initial step checkpoints.
 
 If a unique constraint or FK fails, the database transaction rolls back the whole reservation and no partial server should remain.
 
-GH-08 uses the existing operation columns without a schema expansion. Reservation starts at `Pending` and `reserve_resources`; execution persists `Running` with the current step, then `Succeeded` or `Failed`. Terminal operations clear `ActiveSlot` and set `CompletedAtUtc`.
+GH-09 adds `PipelineVersion`, an integer `Version` concurrency token and relational step state. `IProvisioningOperationStore.ApplyCheckpointAsync` validates transitions centrally and writes operation/step state atomically inside the database. Every successful checkpoint increments `Version`; stale workers receive a deterministic concurrency error.
 
-`IManagedServerStore.GetIncompleteOperationsAsync` queries durable `Pending` and `Running` operations for future recovery. Startup does not change or execute them automatically. Invalid terminal-to-running transitions are rejected by the store.
+`IProvisioningOperationStore.GetIncompleteAsync` selects the durable active slot, including states that require reconciliation or cleanup. Startup classifies and safely logs those records but does not execute recovery automatically. Existing GH-08 rows receive the deliberate `legacy-gh08` pipeline version so they cannot be resumed as the current pipeline without inspection.
+
+External Docker/filesystem effects will remain outside the database transaction. A durable `Running` mutation can mean the effect happened before the success checkpoint; recovery must reconcile that uncertainty before retry.
 
 The managed server remains `pending_provisioning` after the GH-08 foundation completes because no runtime or health-checked server has been created.
 

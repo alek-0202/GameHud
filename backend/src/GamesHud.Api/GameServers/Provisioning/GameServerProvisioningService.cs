@@ -1,5 +1,6 @@
 using GamesHud.Api.Persistence.ManagedServers;
 using GamesHud.Api.Persistence.Models;
+using GamesHud.Api.Persistence.Provisioning;
 using Microsoft.EntityFrameworkCore;
 
 namespace GamesHud.Api.GameServers.Provisioning;
@@ -15,15 +16,18 @@ public sealed class GameServerProvisioningService : IGameServerProvisioningServi
 {
     private readonly IProvisioningPlanBuilder _planBuilder;
     private readonly IManagedServerStore _store;
+    private readonly IProvisioningOperationStore _operations;
     private readonly IProvisioningEngine _engine;
 
     public GameServerProvisioningService(
         IProvisioningPlanBuilder planBuilder,
         IManagedServerStore store,
+        IProvisioningOperationStore operations,
         IProvisioningEngine engine)
     {
         _planBuilder = planBuilder;
         _store = store;
+        _operations = operations;
         _engine = engine;
     }
 
@@ -68,7 +72,15 @@ public sealed class GameServerProvisioningService : IGameServerProvisioningServi
             plan.Ports.Select(port => new PortReservationPlan(
                 port.DefinitionId, port.Protocol, port.Port, port.Exposure)).ToArray(),
             plan.Storage.Select(storage => new StorageReservationPlan(
-                storage.DefinitionId, storage.RelativePath)).ToArray());
+                storage.DefinitionId, storage.RelativePath)).ToArray(),
+            ProvisioningPipeline.Version,
+            ProvisioningPipeline.Steps.Select(step => new ProvisioningStepPlan(
+                step.Id,
+                step.Sequence,
+                step.RetryClassification,
+                step.SideEffectClassification,
+                step.MaxAttempts,
+                step.Sequence <= 3)).ToArray());
         var conflict = await _store.FindReservationConflictAsync(persistencePlan, cancellationToken);
         if (conflict is not null)
         {
@@ -99,16 +111,7 @@ public sealed class GameServerProvisioningService : IGameServerProvisioningServi
     public async Task<IReadOnlyCollection<ProvisioningOperationSnapshot>> GetIncompleteOperationsAsync(
         CancellationToken cancellationToken)
     {
-        var operations = await _store.GetIncompleteOperationsAsync(cancellationToken);
-        return operations.Select(operation => new ProvisioningOperationSnapshot(
-            operation.Id,
-            operation.GameServerId,
-            operation.Status,
-            operation.CurrentStep,
-            operation.ErrorCode,
-            operation.ErrorMessageSafe,
-            operation.StartedAtUtc,
-            operation.CompletedAtUtc)).ToArray();
+        return await _operations.GetIncompleteAsync(cancellationToken);
     }
 
     private static ProvisioningExecutionResult Failed(ProvisioningFailure failure) =>

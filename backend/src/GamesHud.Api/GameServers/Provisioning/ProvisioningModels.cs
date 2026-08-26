@@ -35,6 +35,67 @@ public static class ProvisioningStepIds
     [PrepareStorage, ConfigureGame, CreateRuntime, StartRuntime, VerifyHealth, Complete];
 }
 
+public static class ProvisioningPipeline
+{
+    public const string Version = "gh09-v1";
+
+    public static readonly IReadOnlyCollection<ProvisioningStepDefinition> Steps =
+    [
+        new(ProvisioningStepIds.ValidateHost, 1, ProvisioningRetryClassifications.SafeToRetry, ProvisioningSideEffectClassifications.ReadOnly, 2),
+        new(ProvisioningStepIds.PlanResources, 2, ProvisioningRetryClassifications.SafeToRetry, ProvisioningSideEffectClassifications.ReadOnly, 2),
+        new(ProvisioningStepIds.ReserveResources, 3, ProvisioningRetryClassifications.RequiresInspection, ProvisioningSideEffectClassifications.Reservation, 1),
+        new(ProvisioningStepIds.PrepareStorage, 4, ProvisioningRetryClassifications.RequiresInspection, ProvisioningSideEffectClassifications.Mutation, 1),
+        new(ProvisioningStepIds.ConfigureGame, 5, ProvisioningRetryClassifications.RequiresInspection, ProvisioningSideEffectClassifications.Mutation, 1),
+        new(ProvisioningStepIds.CreateRuntime, 6, ProvisioningRetryClassifications.RequiresInspection, ProvisioningSideEffectClassifications.Mutation, 1),
+        new(ProvisioningStepIds.StartRuntime, 7, ProvisioningRetryClassifications.RequiresInspection, ProvisioningSideEffectClassifications.Mutation, 1),
+        new(ProvisioningStepIds.VerifyHealth, 8, ProvisioningRetryClassifications.SafeToRetry, ProvisioningSideEffectClassifications.ReadOnly, 2),
+        new(ProvisioningStepIds.Complete, 9, ProvisioningRetryClassifications.SafeToRetry, ProvisioningSideEffectClassifications.ReadOnly, 1)
+    ];
+}
+
+public static class ProvisioningRetryClassifications
+{
+    public const string SafeToRetry = "safe_to_retry";
+    public const string RequiresInspection = "requires_inspection";
+    public const string NonRetryable = "non_retryable";
+}
+
+public static class ProvisioningSideEffectClassifications
+{
+    public const string ReadOnly = "read_only";
+    public const string Reservation = "reservation";
+    public const string Mutation = "mutation";
+}
+
+public static class ProvisioningFailureTypes
+{
+    public const string Permanent = "permanent";
+    public const string Transient = "transient";
+    public const string Unknown = "unknown";
+}
+
+public static class ProvisioningRecoveryDecisions
+{
+    public const string Resume = "resume";
+    public const string Reconcile = "reconcile";
+    public const string ManualIntervention = "manual_intervention";
+    public const string Terminal = "terminal";
+}
+
+public static class ProvisioningReconciliationOutcomes
+{
+    public const string EffectExists = "effect_exists";
+    public const string EffectAbsent = "effect_absent";
+    public const string Ambiguous = "ambiguous";
+}
+
+public sealed record ProvisioningStepDefinition(
+    string Id,
+    int Sequence,
+    string RetryClassification,
+    string SideEffectClassification,
+    int MaxAttempts);
+
 public static class ProvisioningErrorCodes
 {
     public const string InvalidRequest = "invalid_request";
@@ -113,20 +174,51 @@ public sealed record ProvisioningOperationSnapshot(
     string? ErrorCode,
     string? ErrorMessageSafe,
     DateTimeOffset StartedAtUtc,
-    DateTimeOffset? CompletedAtUtc);
+    DateTimeOffset? CompletedAtUtc,
+    string PipelineVersion,
+    int Version,
+    bool IsActive,
+    IReadOnlyCollection<ProvisioningStepSnapshot> Steps);
+
+public sealed record ProvisioningStepSnapshot(
+    string StepId,
+    int Sequence,
+    string Status,
+    int Attempt,
+    string RetryClassification,
+    string SideEffectClassification,
+    int MaxAttempts,
+    DateTimeOffset? StartedAtUtc,
+    DateTimeOffset? CompletedAtUtc,
+    string? FailureType,
+    string? ErrorCode,
+    string? SafeErrorMessage,
+    DateTimeOffset? CompensationStartedAtUtc,
+    DateTimeOffset? CompensationCompletedAtUtc);
+
+public sealed record ProvisioningRecoveryDecision(
+    string OperationId,
+    string Decision,
+    string ReasonCode,
+    string SafeMessage,
+    string? StepId = null);
 
 public sealed record ProvisioningStepResult(
     string Status,
     string? ErrorCode = null,
-    string? SafeMessage = null)
+    string? SafeMessage = null,
+    string? FailureType = null)
 {
     public static ProvisioningStepResult Success() => new(ProvisioningStepResultStatuses.Succeeded);
 
     public static ProvisioningStepResult Skipped(string message) =>
         new(ProvisioningStepResultStatuses.Skipped, SafeMessage: message);
 
-    public static ProvisioningStepResult Failure(string code, string message) =>
-        new(ProvisioningStepResultStatuses.Failed, code, message);
+    public static ProvisioningStepResult Failure(
+        string code,
+        string message,
+        string failureType = ProvisioningFailureTypes.Permanent) =>
+        new(ProvisioningStepResultStatuses.Failed, code, message, failureType);
 }
 
 public sealed record ProvisioningStepExecution(string StepId, string Status);

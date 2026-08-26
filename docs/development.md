@@ -260,9 +260,9 @@ The secret-store endpoint reports only readiness state. It must not expose secre
 
 Managed server persistence is internal infrastructure. There is no public technical CRUD endpoint for database records. Future create-server flows must use application services that reserve a validated plan transactionally before provisioning mutates Docker or the filesystem.
 
-GH-08 provides that internal application boundary through `IGameServerProvisioningService`. `PreviewAsync` validates and plans without persistence. `StartProvisioningAsync` reserves a validated plan and runs only explicit no-host-mutation steps. No public provisioning endpoint or frontend create flow exists yet.
+GH-08 provides that internal application boundary through `IGameServerProvisioningService`. GH-09 retains the engine and adds centralized operation/step transitions, versioned relational checkpoints, recovery classification, reconciliation contracts, durable compensation progress and optimistic concurrency. `PreviewAsync` validates and plans without persistence. `StartProvisioningAsync` reserves a validated plan and runs only explicit no-host-mutation steps. Startup classifies incomplete operations but never resumes them automatically. No public provisioning endpoint or frontend create flow exists yet.
 
-Provisioning tests use fake host snapshots and steps plus isolated SQLite databases. They must not use Docker, create game directories, write game configuration or invoke SteamCMD. See [Provisioning Engine Foundation](provisioning.md).
+Provisioning tests use fake host snapshots, fake steps/reconcilers and isolated SQLite databases. Crash tests recreate `DbContext` and services to prove persisted recovery decisions. They must not use Docker, create game directories, write game configuration or invoke SteamCMD. See [Provisioning State Machine](provisioning.md).
 
 Lifecycle actions:
 

@@ -11,6 +11,7 @@ using GamesHud.Api.Persistence;
 using GamesHud.Api.Persistence.Configuration;
 using GamesHud.Api.Persistence.ManagedServers;
 using GamesHud.Api.Persistence.Models;
+using GamesHud.Api.Persistence.Provisioning;
 using GamesHud.Api.Secrets.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -117,16 +118,49 @@ public sealed class ProvisioningTests
         var harness = CreateHarness(database);
 
         var result = await harness.Service.StartProvisioningAsync(CreateRequest("server-one"), CancellationToken.None);
-        var operation = await harness.Store.GetOperationAsync(result.OperationId!);
+        var operation = await harness.Operations.GetAsync(result.OperationId!);
         var server = await harness.Store.GetManagedServerAsync("server-one");
 
         Assert.True(result.Succeeded);
         Assert.Equal(ProvisioningOperationStatuses.Succeeded, operation!.Status);
         Assert.Equal(ProvisioningStepIds.Complete, operation.CurrentStep);
-        Assert.Null(operation.ActiveSlot);
+        Assert.False(operation.IsActive);
         Assert.NotNull(operation.CompletedAtUtc);
         Assert.Equal(ManagedGameServerLifecycleStates.PendingProvisioning, server!.LifecycleState);
         Assert.False(Directory.Exists(Path.Combine(root.Path, "servers")));
+    }
+
+    [Fact]
+    public async Task ReservationInitializesDurableVersionedPipelineInSequence()
+    {
+        using var root = TemporaryDirectory.Create();
+        await using var database = CreateInitializedDbContext(root.Path);
+        var store = CreateStore(database);
+        var operations = CreateOperationStore(database);
+        var reservation = await store.ReserveProvisioningPlanAsync(CreatePersistencePlan("server-one"));
+
+        var operation = await operations.GetAsync(reservation.ProvisioningOperationId);
+        var steps = operation!.Steps.OrderBy(step => step.Sequence).ToArray();
+
+        Assert.Equal(ProvisioningPipeline.Version, operation.PipelineVersion);
+        Assert.Equal(1, operation.Version);
+        Assert.Equal(ProvisioningStepIds.ReserveResources, operation.CurrentStep);
+        Assert.Equal(ProvisioningStepIds.All, steps.Select(step => step.StepId));
+        Assert.Equal(Enumerable.Range(1, ProvisioningStepIds.All.Count), steps.Select(step => step.Sequence));
+        Assert.All(steps.Take(3), step =>
+        {
+            Assert.Equal(ProvisioningStepStatuses.Succeeded, step.Status);
+            Assert.Equal(1, step.Attempt);
+            Assert.Equal(TimeSpan.Zero, step.StartedAtUtc!.Value.Offset);
+            Assert.Equal(TimeSpan.Zero, step.CompletedAtUtc!.Value.Offset);
+        });
+        Assert.All(steps.Skip(3), step =>
+        {
+            Assert.Equal(ProvisioningStepStatuses.Pending, step.Status);
+            Assert.Equal(0, step.Attempt);
+            Assert.Null(step.StartedAtUtc);
+            Assert.Null(step.CompletedAtUtc);
+        });
     }
 
     [Fact]
@@ -153,27 +187,32 @@ public sealed class ProvisioningTests
     }
 
     [Fact]
-    public async Task FailedStepPersistsSafeErrorAndRunsCompensation()
+    public async Task UnknownMutationFailurePersistsSafeErrorWithoutBlindCompensation()
     {
         using var root = TemporaryDirectory.Create();
         await using var database = CreateInitializedDbContext(root.Path);
         var store = CreateStore(database);
+        var operations = CreateOperationStore(database);
         var reservation = await store.ReserveProvisioningPlanAsync(CreatePersistencePlan("server-one"));
         var compensated = false;
         var steps = CreateSteps(
             new FakeStep(ProvisioningStepIds.PrepareStorage, ProvisioningStepResult.Success(), () => compensated = true),
             new FakeStep(ProvisioningStepIds.ConfigureGame, exception: new InvalidOperationException("TEST-ONLY-SECRET-MUST-NOT-PERSIST")));
-        var engine = new ProvisioningEngine(store, steps, NullLogger<ProvisioningEngine>.Instance);
+        var engine = new ProvisioningEngine(operations, steps, NullLogger<ProvisioningEngine>.Instance);
 
         var result = await engine.ExecuteAsync(CreateContext(reservation), CancellationToken.None);
-        var operation = await store.GetOperationAsync(reservation.ProvisioningOperationId);
+        var operation = await operations.GetAsync(reservation.ProvisioningOperationId);
+        var recovery = await new ProvisioningRecoveryService(operations)
+            .ClassifyAsync(reservation.ProvisioningOperationId, CancellationToken.None);
         var databaseJson = JsonSerializer.Serialize(await database.ProvisioningOperations.AsNoTracking().ToArrayAsync());
 
         Assert.False(result.Succeeded);
-        Assert.True(compensated);
+        Assert.False(compensated);
         Assert.Equal(ProvisioningOperationStatuses.Failed, operation!.Status);
         Assert.Equal(ProvisioningStepIds.ConfigureGame, operation.CurrentStep);
         Assert.Equal(ProvisioningErrorCodes.StepFailed, operation.ErrorCode);
+        Assert.True(operation.IsActive);
+        Assert.Equal(ProvisioningRecoveryDecisions.Reconcile, recovery.Decision);
         Assert.DoesNotContain("TEST-ONLY-SECRET", databaseJson, StringComparison.Ordinal);
     }
 
@@ -183,13 +222,14 @@ public sealed class ProvisioningTests
         using var root = TemporaryDirectory.Create();
         await using var database = CreateInitializedDbContext(root.Path);
         var store = CreateStore(database);
+        var operations = CreateOperationStore(database);
         var reservation = await store.ReserveProvisioningPlanAsync(CreatePersistencePlan("server-one"));
-        var pending = await store.GetOperationAsync(reservation.ProvisioningOperationId);
+        var pending = await operations.GetAsync(reservation.ProvisioningOperationId);
         var observedRunning = false;
         var steps = CreateSteps(
             new ObservingStep(ProvisioningStepIds.PrepareStorage, async () =>
             {
-                var running = await store.GetOperationAsync(reservation.ProvisioningOperationId);
+                var running = await operations.GetAsync(reservation.ProvisioningOperationId);
                 observedRunning = running!.Status == ProvisioningOperationStatuses.Running
                     && running.CurrentStep == ProvisioningStepIds.PrepareStorage;
                 return ProvisioningStepResult.Success();
@@ -197,10 +237,10 @@ public sealed class ProvisioningTests
             new FakeStep(
                 ProvisioningStepIds.ConfigureGame,
                 ProvisioningStepResult.Failure("configuration_failed", "Configuration validation failed.")));
-        var engine = new ProvisioningEngine(store, steps, NullLogger<ProvisioningEngine>.Instance);
+        var engine = new ProvisioningEngine(operations, steps, NullLogger<ProvisioningEngine>.Instance);
 
         var result = await engine.ExecuteAsync(CreateContext(reservation), CancellationToken.None);
-        var failed = await store.GetOperationAsync(reservation.ProvisioningOperationId);
+        var failed = await operations.GetAsync(reservation.ProvisioningOperationId);
 
         Assert.Equal(ProvisioningOperationStatuses.Pending, pending!.Status);
         Assert.True(observedRunning);
@@ -210,22 +250,142 @@ public sealed class ProvisioningTests
     }
 
     [Fact]
-    public async Task CancellationPersistsFailedInsteadOfSucceeded()
+    public async Task CompensationProgressIsPersistedInReverseOrder()
     {
         using var root = TemporaryDirectory.Create();
         await using var database = CreateInitializedDbContext(root.Path);
         var store = CreateStore(database);
+        var operations = CreateOperationStore(database);
         var reservation = await store.ReserveProvisioningPlanAsync(CreatePersistencePlan("server-one"));
-        var engine = new ProvisioningEngine(store, CreateSteps(), NullLogger<ProvisioningEngine>.Instance);
+        var order = new List<string>();
+        var steps = CreateSteps(
+            new FakeStep(ProvisioningStepIds.PrepareStorage, compensation: () => order.Add(ProvisioningStepIds.PrepareStorage)),
+            new FakeStep(ProvisioningStepIds.ConfigureGame, compensation: () => order.Add(ProvisioningStepIds.ConfigureGame)),
+            new FakeStep(
+                ProvisioningStepIds.CreateRuntime,
+                ProvisioningStepResult.Failure("runtime_failed", "Runtime validation failed.")));
+        var engine = new ProvisioningEngine(operations, steps, NullLogger<ProvisioningEngine>.Instance);
+
+        var result = await engine.ExecuteAsync(CreateContext(reservation), CancellationToken.None);
+        var operation = await operations.GetAsync(reservation.ProvisioningOperationId);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal([ProvisioningStepIds.ConfigureGame, ProvisioningStepIds.PrepareStorage], order);
+        Assert.Equal(ProvisioningOperationStatuses.Failed, operation!.Status);
+        Assert.False(operation.IsActive);
+        Assert.Equal(ProvisioningStepStatuses.Compensated,
+            operation.Steps.Single(step => step.StepId == ProvisioningStepIds.PrepareStorage).Status);
+        Assert.Equal(ProvisioningStepStatuses.Compensated,
+            operation.Steps.Single(step => step.StepId == ProvisioningStepIds.ConfigureGame).Status);
+    }
+
+    [Fact]
+    public async Task CompensationFailureRemainsActiveAndRequiresManualIntervention()
+    {
+        using var root = TemporaryDirectory.Create();
+        await using var database = CreateInitializedDbContext(root.Path);
+        var store = CreateStore(database);
+        var operations = CreateOperationStore(database);
+        var reservation = await store.ReserveProvisioningPlanAsync(CreatePersistencePlan("server-one"));
+        var steps = CreateSteps(
+            new FakeStep(ProvisioningStepIds.PrepareStorage, compensation: () => throw new InvalidOperationException("TEST-ONLY-COMPENSATION-SECRET")),
+            new FakeStep(
+                ProvisioningStepIds.ConfigureGame,
+                ProvisioningStepResult.Failure("configuration_failed", "Configuration failed.")));
+        var engine = new ProvisioningEngine(operations, steps, NullLogger<ProvisioningEngine>.Instance);
+
+        var result = await engine.ExecuteAsync(CreateContext(reservation), CancellationToken.None);
+        var operation = await operations.GetAsync(reservation.ProvisioningOperationId);
+        var decision = await new ProvisioningRecoveryService(operations)
+            .ClassifyAsync(reservation.ProvisioningOperationId, CancellationToken.None);
+        var json = JsonSerializer.Serialize(operation);
+
+        Assert.Equal(ProvisioningOperationStatuses.CompensationFailed, result.Status);
+        Assert.Equal(ProvisioningOperationStatuses.CompensationFailed, operation!.Status);
+        Assert.True(operation.IsActive);
+        Assert.Equal(ProvisioningStepStatuses.CompensationFailed,
+            operation.Steps.Single(step => step.StepId == ProvisioningStepIds.PrepareStorage).Status);
+        Assert.Equal(ProvisioningRecoveryDecisions.ManualIntervention, decision.Decision);
+        Assert.DoesNotContain("TEST-ONLY-COMPENSATION-SECRET", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CancellationPersistsCancelledInsteadOfSucceeded()
+    {
+        using var root = TemporaryDirectory.Create();
+        await using var database = CreateInitializedDbContext(root.Path);
+        var store = CreateStore(database);
+        var operations = CreateOperationStore(database);
+        var reservation = await store.ReserveProvisioningPlanAsync(CreatePersistencePlan("server-one"));
+        var engine = new ProvisioningEngine(operations, CreateSteps(), NullLogger<ProvisioningEngine>.Instance);
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
 
         var result = await engine.ExecuteAsync(CreateContext(reservation), cancellation.Token);
-        var operation = await store.GetOperationAsync(reservation.ProvisioningOperationId);
+        var operation = await operations.GetAsync(reservation.ProvisioningOperationId);
 
         Assert.False(result.Succeeded);
         Assert.Equal(ProvisioningErrorCodes.ProvisioningCancelled, operation!.ErrorCode);
-        Assert.Equal(ProvisioningOperationStatuses.Failed, operation.Status);
+        Assert.Equal(ProvisioningOperationStatuses.Cancelled, operation.Status);
+        Assert.Equal(ProvisioningStepStatuses.Pending, operation.Steps.Single(step => step.StepId == ProvisioningStepIds.PrepareStorage).Status);
+    }
+
+    [Fact]
+    public async Task CancellationDuringMutationRetainsActiveSlotForReconciliation()
+    {
+        using var root = TemporaryDirectory.Create();
+        await using var database = CreateInitializedDbContext(root.Path);
+        var store = CreateStore(database);
+        var operations = CreateOperationStore(database);
+        var reservation = await store.ReserveProvisioningPlanAsync(CreatePersistencePlan("server-one"));
+        var engine = new ProvisioningEngine(
+            operations,
+            CreateSteps(new FakeStep(ProvisioningStepIds.PrepareStorage, exception: new OperationCanceledException())),
+            NullLogger<ProvisioningEngine>.Instance);
+
+        var result = await engine.ExecuteAsync(CreateContext(reservation), CancellationToken.None);
+        var operation = await operations.GetAsync(reservation.ProvisioningOperationId);
+        var decision = await new ProvisioningRecoveryService(operations)
+            .ClassifyAsync(reservation.ProvisioningOperationId, CancellationToken.None);
+        var step = operation!.Steps.Single(item => item.StepId == ProvisioningStepIds.PrepareStorage);
+
+        Assert.Equal(ProvisioningOperationStatuses.Cancelled, result.Status);
+        Assert.True(operation.IsActive);
+        Assert.Equal(ProvisioningFailureTypes.Unknown, step.FailureType);
+        Assert.Equal(ProvisioningRecoveryDecisions.Reconcile, decision.Decision);
+    }
+
+    [Fact]
+    public async Task CancellationDuringReadOnlyStepIsTerminal()
+    {
+        using var root = TemporaryDirectory.Create();
+        await using var database = CreateInitializedDbContext(root.Path);
+        var store = CreateStore(database);
+        var customSteps = ProvisioningPipeline.Steps.Select(step => new ProvisioningStepPlan(
+            step.Id,
+            step.Sequence,
+            step.RetryClassification,
+            step.SideEffectClassification,
+            step.MaxAttempts,
+            CompletedBeforeReservation: step.Sequence < 8)).ToArray();
+        var reservation = await store.ReserveProvisioningPlanAsync(
+            CreatePersistencePlan("server-one") with { Steps = customSteps });
+        var operations = CreateOperationStore(database);
+        var engine = new ProvisioningEngine(
+            operations,
+            CreateSteps(new FakeStep(ProvisioningStepIds.VerifyHealth, exception: new OperationCanceledException())),
+            NullLogger<ProvisioningEngine>.Instance);
+
+        var result = await engine.ExecuteAsync(CreateContext(reservation), CancellationToken.None);
+        var operation = await operations.GetAsync(reservation.ProvisioningOperationId);
+        var decision = await new ProvisioningRecoveryService(operations)
+            .ClassifyAsync(reservation.ProvisioningOperationId, CancellationToken.None);
+        var step = operation!.Steps.Single(item => item.StepId == ProvisioningStepIds.VerifyHealth);
+
+        Assert.Equal(ProvisioningOperationStatuses.Cancelled, result.Status);
+        Assert.False(operation.IsActive);
+        Assert.Equal(ProvisioningFailureTypes.Permanent, step.FailureType);
+        Assert.Equal(ProvisioningRecoveryDecisions.Terminal, decision.Decision);
     }
 
     [Fact]
@@ -234,17 +394,26 @@ public sealed class ProvisioningTests
         using var root = TemporaryDirectory.Create();
         await using var database = CreateInitializedDbContext(root.Path);
         var store = CreateStore(database);
+        var operations = CreateOperationStore(database);
         var reservation = await store.ReserveProvisioningPlanAsync(CreatePersistencePlan("server-one"));
-        await store.UpdateOperationAsync(new ProvisioningOperationUpdate(
+        var pending = await operations.GetAsync(reservation.ProvisioningOperationId);
+        var running = await operations.ApplyCheckpointAsync(new ProvisioningCheckpoint(
             reservation.ProvisioningOperationId,
-            ProvisioningOperationStatuses.Failed,
-            ProvisioningStepIds.ConfigureGame,
-            ProvisioningErrorCodes.StepFailed,
-            "Safe failure."));
+            pending!.Version,
+            ProvisioningOperationStatuses.Running,
+            ProvisioningStepIds.PrepareStorage,
+            ProvisioningStepIds.PrepareStorage,
+            ProvisioningStepStatuses.Running));
+        var succeeded = await operations.ApplyCheckpointAsync(new ProvisioningCheckpoint(
+            reservation.ProvisioningOperationId,
+            running.Version,
+            ProvisioningOperationStatuses.Succeeded,
+            ProvisioningStepIds.Complete));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => store.UpdateOperationAsync(
-            new ProvisioningOperationUpdate(
+        await Assert.ThrowsAsync<ProvisioningTransitionException>(() => operations.ApplyCheckpointAsync(
+            new ProvisioningCheckpoint(
                 reservation.ProvisioningOperationId,
+                succeeded.Version,
                 ProvisioningOperationStatuses.Running,
                 ProvisioningStepIds.CreateRuntime)));
     }
@@ -259,10 +428,228 @@ public sealed class ProvisioningTests
         }
 
         await using var reloaded = CreateDbContext(root.Path);
-        var incomplete = await CreateStore(reloaded).GetIncompleteOperationsAsync();
+        var incomplete = await CreateOperationStore(reloaded).GetIncompleteAsync();
 
         Assert.Single(incomplete);
         Assert.Equal(ProvisioningOperationStatuses.Pending, incomplete.Single().Status);
+    }
+
+    [Fact]
+    public async Task RecoveryClassifiesCrashBeforeAndDuringMutationWithoutExecutingIt()
+    {
+        using var root = TemporaryDirectory.Create();
+        await using var database = CreateInitializedDbContext(root.Path);
+        var store = CreateStore(database);
+        var operations = CreateOperationStore(database);
+        var reservation = await store.ReserveProvisioningPlanAsync(CreatePersistencePlan("server-one"));
+        var recovery = new ProvisioningRecoveryService(operations);
+        var before = await recovery.ClassifyAsync(reservation.ProvisioningOperationId, CancellationToken.None);
+        var pending = await operations.GetAsync(reservation.ProvisioningOperationId);
+        await operations.ApplyCheckpointAsync(new ProvisioningCheckpoint(
+            reservation.ProvisioningOperationId,
+            pending!.Version,
+            ProvisioningOperationStatuses.Running,
+            ProvisioningStepIds.PrepareStorage,
+            ProvisioningStepIds.PrepareStorage,
+            ProvisioningStepStatuses.Running));
+
+        await using var reloaded = CreateDbContext(root.Path);
+        var during = await new ProvisioningRecoveryService(CreateOperationStore(reloaded))
+            .ClassifyAsync(reservation.ProvisioningOperationId, CancellationToken.None);
+
+        Assert.Equal(ProvisioningRecoveryDecisions.Resume, before.Decision);
+        Assert.Equal(ProvisioningStepIds.PrepareStorage, before.StepId);
+        Assert.Equal(ProvisioningRecoveryDecisions.Reconcile, during.Decision);
+        Assert.Equal(ProvisioningStepIds.PrepareStorage, during.StepId);
+    }
+
+    [Fact]
+    public async Task RecoveryUsesPersistedNextStepAfterSuccessfulCheckpointAndRestart()
+    {
+        using var root = TemporaryDirectory.Create();
+        await using (var database = CreateInitializedDbContext(root.Path))
+        {
+            var store = CreateStore(database);
+            var reservation = await store.ReserveProvisioningPlanAsync(CreatePersistencePlan("server-one"));
+            var operations = CreateOperationStore(database);
+            var pending = await operations.GetAsync(reservation.ProvisioningOperationId);
+            var running = await operations.ApplyCheckpointAsync(new ProvisioningCheckpoint(
+                reservation.ProvisioningOperationId,
+                pending!.Version,
+                ProvisioningOperationStatuses.Running,
+                ProvisioningStepIds.PrepareStorage,
+                ProvisioningStepIds.PrepareStorage,
+                ProvisioningStepStatuses.Running));
+            await operations.ApplyCheckpointAsync(new ProvisioningCheckpoint(
+                reservation.ProvisioningOperationId,
+                running.Version,
+                ProvisioningOperationStatuses.Running,
+                ProvisioningStepIds.PrepareStorage,
+                ProvisioningStepIds.PrepareStorage,
+                ProvisioningStepStatuses.Succeeded));
+        }
+
+        await using var reloaded = CreateDbContext(root.Path);
+        var operation = (await CreateOperationStore(reloaded).GetIncompleteAsync()).Single();
+        var decision = await new ProvisioningRecoveryService(CreateOperationStore(reloaded))
+            .ClassifyAsync(operation.OperationId, CancellationToken.None);
+
+        Assert.Equal(ProvisioningStepStatuses.Succeeded,
+            operation.Steps.Single(step => step.StepId == ProvisioningStepIds.PrepareStorage).Status);
+        Assert.Equal(ProvisioningRecoveryDecisions.Resume, decision.Decision);
+        Assert.Equal(ProvisioningStepIds.ConfigureGame, decision.StepId);
+    }
+
+    [Fact]
+    public async Task RestartDuringCompensationRequiresManualIntervention()
+    {
+        using var root = TemporaryDirectory.Create();
+        string operationId;
+        await using (var database = CreateInitializedDbContext(root.Path))
+        {
+            var store = CreateStore(database);
+            var reservation = await store.ReserveProvisioningPlanAsync(CreatePersistencePlan("server-one"));
+            operationId = reservation.ProvisioningOperationId;
+            var operations = CreateOperationStore(database);
+            var pending = await operations.GetAsync(operationId);
+            var running = await operations.ApplyCheckpointAsync(new ProvisioningCheckpoint(
+                operationId,
+                pending!.Version,
+                ProvisioningOperationStatuses.Running,
+                ProvisioningStepIds.PrepareStorage,
+                ProvisioningStepIds.PrepareStorage,
+                ProvisioningStepStatuses.Running));
+            var succeeded = await operations.ApplyCheckpointAsync(new ProvisioningCheckpoint(
+                operationId,
+                running.Version,
+                ProvisioningOperationStatuses.Running,
+                ProvisioningStepIds.PrepareStorage,
+                ProvisioningStepIds.PrepareStorage,
+                ProvisioningStepStatuses.Succeeded));
+            var compensating = await operations.ApplyCheckpointAsync(new ProvisioningCheckpoint(
+                operationId,
+                succeeded.Version,
+                ProvisioningOperationStatuses.Compensating,
+                ProvisioningStepIds.PrepareStorage));
+            await operations.ApplyCheckpointAsync(new ProvisioningCheckpoint(
+                operationId,
+                compensating.Version,
+                ProvisioningOperationStatuses.Compensating,
+                ProvisioningStepIds.PrepareStorage,
+                ProvisioningStepIds.PrepareStorage,
+                ProvisioningStepStatuses.Compensating));
+        }
+
+        await using var reloaded = CreateDbContext(root.Path);
+        var decision = await new ProvisioningRecoveryService(CreateOperationStore(reloaded))
+            .ClassifyAsync(operationId, CancellationToken.None);
+
+        Assert.Equal(ProvisioningRecoveryDecisions.ManualIntervention, decision.Decision);
+        Assert.Equal("compensation_incomplete", decision.ReasonCode);
+        Assert.Equal(ProvisioningStepIds.PrepareStorage, decision.StepId);
+    }
+
+    [Fact]
+    public async Task InterruptedReadOnlyStepIsSafeToResumeWithinAttemptPolicy()
+    {
+        using var root = TemporaryDirectory.Create();
+        await using var database = CreateInitializedDbContext(root.Path);
+        var store = CreateStore(database);
+        var customSteps = ProvisioningPipeline.Steps.Select(step => new ProvisioningStepPlan(
+            step.Id,
+            step.Sequence,
+            step.RetryClassification,
+            step.SideEffectClassification,
+            step.MaxAttempts,
+            CompletedBeforeReservation: step.Sequence < 8)).ToArray();
+        var plan = CreatePersistencePlan("server-one") with { Steps = customSteps };
+        var reservation = await store.ReserveProvisioningPlanAsync(plan);
+        var operations = CreateOperationStore(database);
+        var pending = await operations.GetAsync(reservation.ProvisioningOperationId);
+        await operations.ApplyCheckpointAsync(new ProvisioningCheckpoint(
+            reservation.ProvisioningOperationId,
+            pending!.Version,
+            ProvisioningOperationStatuses.Running,
+            ProvisioningStepIds.VerifyHealth,
+            ProvisioningStepIds.VerifyHealth,
+            ProvisioningStepStatuses.Running));
+
+        var decision = await new ProvisioningRecoveryService(operations)
+            .ClassifyAsync(reservation.ProvisioningOperationId, CancellationToken.None);
+
+        Assert.Equal(ProvisioningRecoveryDecisions.Resume, decision.Decision);
+        Assert.Equal("safe_step_retryable", decision.ReasonCode);
+    }
+
+    [Fact]
+    public async Task ReconcilerOutcomesNeverBlindlyAdvancePersistedMutation()
+    {
+        using var root = TemporaryDirectory.Create();
+        await using var database = CreateInitializedDbContext(root.Path);
+        var store = CreateStore(database);
+        var reservation = await store.ReserveProvisioningPlanAsync(CreatePersistencePlan("server-one"));
+        var operations = CreateOperationStore(database);
+        var pending = await operations.GetAsync(reservation.ProvisioningOperationId);
+        await operations.ApplyCheckpointAsync(new ProvisioningCheckpoint(
+            reservation.ProvisioningOperationId,
+            pending!.Version,
+            ProvisioningOperationStatuses.Running,
+            ProvisioningStepIds.PrepareStorage,
+            ProvisioningStepIds.PrepareStorage,
+            ProvisioningStepStatuses.Running));
+        var recovery = new ProvisioningRecoveryService(operations);
+
+        var absent = await recovery.ReconcileAsync(reservation.ProvisioningOperationId,
+            new FakeReconciler(ProvisioningReconciliationOutcomes.EffectAbsent), CancellationToken.None);
+        var exists = await recovery.ReconcileAsync(reservation.ProvisioningOperationId,
+            new FakeReconciler(ProvisioningReconciliationOutcomes.EffectExists), CancellationToken.None);
+        var ambiguous = await recovery.ReconcileAsync(reservation.ProvisioningOperationId,
+            new FakeReconciler(ProvisioningReconciliationOutcomes.Ambiguous), CancellationToken.None);
+        var unchanged = await operations.GetAsync(reservation.ProvisioningOperationId);
+
+        Assert.Equal(ProvisioningRecoveryDecisions.Resume, absent.Decision);
+        Assert.Equal(ProvisioningRecoveryDecisions.ManualIntervention, exists.Decision);
+        Assert.Equal(ProvisioningRecoveryDecisions.ManualIntervention, ambiguous.Decision);
+        Assert.Equal(ProvisioningStepStatuses.Running,
+            unchanged!.Steps.Single(step => step.StepId == ProvisioningStepIds.PrepareStorage).Status);
+    }
+
+    [Fact]
+    public async Task OptimisticVersionAllowsOnlyOneWorkerToAdvanceCheckpoint()
+    {
+        using var root = TemporaryDirectory.Create();
+        await using (var database = CreateInitializedDbContext(root.Path))
+        {
+            await CreateStore(database).ReserveProvisioningPlanAsync(CreatePersistencePlan("server-one"));
+        }
+
+        await using var firstDatabase = CreateDbContext(root.Path);
+        await using var secondDatabase = CreateDbContext(root.Path);
+        var firstStore = CreateOperationStore(firstDatabase);
+        var secondStore = CreateOperationStore(secondDatabase);
+        var first = (await firstStore.GetIncompleteAsync()).Single();
+        var second = (await secondStore.GetIncompleteAsync()).Single();
+        var advanced = await firstStore.ApplyCheckpointAsync(new ProvisioningCheckpoint(
+            first.OperationId,
+            first.Version,
+            ProvisioningOperationStatuses.Running,
+            ProvisioningStepIds.PrepareStorage,
+            ProvisioningStepIds.PrepareStorage,
+            ProvisioningStepStatuses.Running));
+
+        await Assert.ThrowsAsync<ProvisioningConcurrencyException>(() => secondStore.ApplyCheckpointAsync(
+            new ProvisioningCheckpoint(
+                second.OperationId,
+                second.Version,
+                ProvisioningOperationStatuses.Running,
+                ProvisioningStepIds.PrepareStorage,
+                ProvisioningStepIds.PrepareStorage,
+                ProvisioningStepStatuses.Running)));
+
+        var step = advanced.Steps.Single(item => item.StepId == ProvisioningStepIds.PrepareStorage);
+        Assert.Equal(first.Version + 1, advanced.Version);
+        Assert.Equal(1, step.Attempt);
+        Assert.Equal(TimeSpan.Zero, step.StartedAtUtc!.Value.Offset);
     }
 
     [Fact]
@@ -294,10 +681,14 @@ public sealed class ProvisioningTests
         Func<CreateGameServerProvisioningRequest, ValidatedProvisioningPlan>? planFactory = null)
     {
         var store = CreateStore(database);
+        var operations = CreateOperationStore(database);
         var builder = new StubPlanBuilder(planFactory ?? (request => CreateValidatedPlan(
             request.GameServerId, 8211, $"servers/{request.GameServerId}/data")));
-        var engine = new ProvisioningEngine(store, CreateSteps(), NullLogger<ProvisioningEngine>.Instance);
-        return new ProvisioningHarness(store, new GameServerProvisioningService(builder, store, engine));
+        var engine = new ProvisioningEngine(operations, CreateSteps(), NullLogger<ProvisioningEngine>.Instance);
+        return new ProvisioningHarness(
+            store,
+            operations,
+            new GameServerProvisioningService(builder, store, operations, engine));
     }
 
     private static IReadOnlyCollection<IProvisioningStep> CreateSteps(params IProvisioningStep[] overrides)
@@ -379,7 +770,13 @@ public sealed class ProvisioningTests
     private static ManagedServerStore CreateStore(GamesHudDbContext database) =>
         new(database, new EfCorePersistenceTransactionBoundary(database));
 
-    private sealed record ProvisioningHarness(ManagedServerStore Store, GameServerProvisioningService Service);
+    private static ProvisioningOperationStore CreateOperationStore(GamesHudDbContext database) =>
+        new(database, new EfCorePersistenceTransactionBoundary(database), new ProvisioningStateMachine());
+
+    private sealed record ProvisioningHarness(
+        ManagedServerStore Store,
+        ProvisioningOperationStore Operations,
+        GameServerProvisioningService Service);
 
     private sealed class StubPlanBuilder(Func<CreateGameServerProvisioningRequest, ValidatedProvisioningPlan> factory)
         : IProvisioningPlanBuilder
@@ -460,6 +857,17 @@ public sealed class ProvisioningTests
         public Task<ProvisioningStepResult> ExecuteAsync(
             ProvisioningContext context,
             CancellationToken cancellationToken) => execute();
+    }
+
+    private sealed class FakeReconciler(string outcome) : IProvisioningStepReconciler
+    {
+        public string StepId => ProvisioningStepIds.PrepareStorage;
+
+        public Task<ProvisioningReconciliationResult> InspectAsync(
+            ProvisioningOperationSnapshot operation,
+            ProvisioningStepSnapshot step,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new ProvisioningReconciliationResult(outcome, "Synthetic reconciliation result."));
     }
 
     private sealed class TemporaryDirectory : IDisposable

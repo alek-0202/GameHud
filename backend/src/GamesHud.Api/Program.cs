@@ -18,6 +18,7 @@ using GamesHud.Api.Palworld.Updates.Services;
 using GamesHud.Api.Persistence;
 using GamesHud.Api.Persistence.Configuration;
 using GamesHud.Api.Persistence.ManagedServers;
+using GamesHud.Api.Persistence.Provisioning;
 using GamesHud.Api.Secrets.Configuration;
 using GamesHud.Api.Secrets.Services;
 using Microsoft.EntityFrameworkCore;
@@ -56,6 +57,9 @@ builder.Services.AddScoped<IPersistenceInitializer, PersistenceInitializer>();
 builder.Services.AddScoped<IPersistenceHealthService, PersistenceHealthService>();
 builder.Services.AddScoped<IPersistenceTransactionBoundary, EfCorePersistenceTransactionBoundary>();
 builder.Services.AddScoped<IManagedServerStore, ManagedServerStore>();
+builder.Services.AddSingleton<IProvisioningStateMachine, ProvisioningStateMachine>();
+builder.Services.AddScoped<IProvisioningOperationStore, ProvisioningOperationStore>();
+builder.Services.AddScoped<IProvisioningRecoveryService, ProvisioningRecoveryService>();
 builder.Services.AddScoped<IProvisioningPlanBuilder, ProvisioningPlanBuilder>();
 builder.Services.AddScoped<IProvisioningEngine, ProvisioningEngine>();
 builder.Services.AddScoped<IGameServerProvisioningService, GameServerProvisioningService>();
@@ -63,6 +67,7 @@ foreach (var stepId in ProvisioningStepIds.ExecutableFoundation)
 {
     builder.Services.AddScoped<IProvisioningStep>(_ => new NoHostMutationProvisioningStep(stepId));
 }
+builder.Services.AddHostedService<ProvisioningRecoveryStartupObserver>();
 builder.Services.AddSingleton<ISecretStoreLayoutResolver, SecretStoreLayoutResolver>();
 builder.Services.AddSingleton<ISecretKeyProvider, ConfigurationSecretKeyProvider>();
 builder.Services.AddSingleton<ISecretProtector, AesGcmSecretProtector>();

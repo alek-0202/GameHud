@@ -272,6 +272,11 @@ Status: In progress
 - Typed steps persist operation progress, safe failure, cancellation and terminal state
 - Compensation and incomplete-operation query foundations exist without automatic startup recovery
 - All production host-facing steps are explicit no-mutation implementations; no server runtime is created
+- GH-09 provisioning state machine (Completed)
+- Operation and individual step transitions are centralized, persisted and exhaustively tested
+- Versioned pipelines preserve stable step order, attempts, retry policy and side-effect classification across restart
+- Startup classifies incomplete operations without automatically retrying mutation or executing recovery
+- Reconciliation and durable reverse-compensation contracts exist with optimistic checkpoint concurrency
 - SEC-02 secrets management foundation (Completed)
 - Provider-neutral secret ids, references, purposes and backend-only secret values exist before provisioning
 - The local provider stores authenticated encrypted material under `<DataRoot>/system/secrets`

@@ -6,7 +6,9 @@ public sealed record ManagedServerProvisioningPlan(
     string DisplayName,
     string RuntimeType,
     IReadOnlyCollection<PortReservationPlan> Ports,
-    IReadOnlyCollection<StorageReservationPlan> Storage);
+    IReadOnlyCollection<StorageReservationPlan> Storage,
+    string? PipelineVersion = null,
+    IReadOnlyCollection<ProvisioningStepPlan>? Steps = null);
 
 public sealed record PortReservationPlan(
     string PortDefinitionId,
@@ -18,6 +20,14 @@ public sealed record StorageReservationPlan(
     string StorageDefinitionId,
     string? RelativePath = null);
 
+public sealed record ProvisioningStepPlan(
+    string StepId,
+    int Sequence,
+    string RetryClassification,
+    string SideEffectClassification,
+    int MaxAttempts,
+    bool CompletedBeforeReservation = false);
+
 public sealed record ManagedServerReservationResult(
     string GameServerId,
     string ProvisioningOperationId,
@@ -25,10 +35,3 @@ public sealed record ManagedServerReservationResult(
     IReadOnlyCollection<string> StorageReservationIds);
 
 public sealed record ManagedServerReservationConflict(string Code, string SafeMessage);
-
-public sealed record ProvisioningOperationUpdate(
-    string OperationId,
-    string Status,
-    string CurrentStep,
-    string? ErrorCode = null,
-    string? ErrorMessageSafe = null);

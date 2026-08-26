@@ -20,14 +20,4 @@ public interface IManagedServerStore
         ManagedServerProvisioningPlan plan,
         CancellationToken cancellationToken = default);
 
-    Task<ProvisioningOperationRecord?> GetOperationAsync(
-        string operationId,
-        CancellationToken cancellationToken = default);
-
-    Task<IReadOnlyCollection<ProvisioningOperationRecord>> GetIncompleteOperationsAsync(
-        CancellationToken cancellationToken = default);
-
-    Task UpdateOperationAsync(
-        ProvisioningOperationUpdate update,
-        CancellationToken cancellationToken = default);
 }

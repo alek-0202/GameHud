@@ -20,6 +20,8 @@ public sealed class GamesHudDbContext : DbContext
 
     public DbSet<ProvisioningOperationRecord> ProvisioningOperations => Set<ProvisioningOperationRecord>();
 
+    public DbSet<ProvisioningStepRecord> ProvisioningSteps => Set<ProvisioningStepRecord>();
+
     public override int SaveChanges()
     {
         ApplyUtcTimestamps();
@@ -117,6 +119,12 @@ public sealed class GamesHudDbContext : DbContext
             entity.Property(operation => operation.CurrentStep)
                 .HasMaxLength(120)
                 .IsRequired();
+            entity.Property(operation => operation.PipelineVersion)
+                .HasMaxLength(40)
+                .IsRequired();
+            entity.Property(operation => operation.Version)
+                .IsConcurrencyToken()
+                .IsRequired();
             entity.Property(operation => operation.StartedAtUtc)
                 .IsRequired();
             entity.Property(operation => operation.UpdatedAtUtc)
@@ -128,15 +136,39 @@ public sealed class GamesHudDbContext : DbContext
                 .HasMaxLength(500);
             entity.HasIndex(operation => operation.GameServerId);
             entity.HasIndex(operation => new
-                {
-                    operation.GameServerId,
-                    operation.Type,
-                    operation.ActiveSlot
-                })
+            {
+                operation.GameServerId,
+                operation.Type,
+                operation.ActiveSlot
+            })
                 .IsUnique();
             entity.HasOne(operation => operation.GameServer)
                 .WithMany(server => server.ProvisioningOperations)
                 .HasForeignKey(operation => operation.GameServerId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ProvisioningStepRecord>(entity =>
+        {
+            entity.ToTable("provisioning_steps");
+            entity.HasKey(step => step.Id);
+            entity.Property(step => step.Id).HasMaxLength(32).IsRequired();
+            entity.Property(step => step.OperationId).HasMaxLength(32).IsRequired();
+            entity.Property(step => step.StepId).HasMaxLength(120).IsRequired();
+            entity.Property(step => step.Sequence).IsRequired();
+            entity.Property(step => step.Status).HasMaxLength(40).IsRequired();
+            entity.Property(step => step.Attempt).IsRequired();
+            entity.Property(step => step.RetryClassification).HasMaxLength(40).IsRequired();
+            entity.Property(step => step.SideEffectClassification).HasMaxLength(40).IsRequired();
+            entity.Property(step => step.MaxAttempts).IsRequired();
+            entity.Property(step => step.FailureType).HasMaxLength(40);
+            entity.Property(step => step.ErrorCode).HasMaxLength(120);
+            entity.Property(step => step.SafeErrorMessage).HasMaxLength(500);
+            entity.HasIndex(step => new { step.OperationId, step.StepId }).IsUnique();
+            entity.HasIndex(step => new { step.OperationId, step.Sequence }).IsUnique();
+            entity.HasOne(step => step.Operation)
+                .WithMany(operation => operation.Steps)
+                .HasForeignKey(step => step.OperationId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -172,16 +204,16 @@ public sealed class GamesHudDbContext : DbContext
             entity.Property(reservation => reservation.UpdatedAtUtc)
                 .IsRequired();
             entity.HasIndex(reservation => new
-                {
-                    reservation.Protocol,
-                    reservation.Port
-                })
+            {
+                reservation.Protocol,
+                reservation.Port
+            })
                 .IsUnique();
             entity.HasIndex(reservation => new
-                {
-                    reservation.GameServerId,
-                    reservation.PortDefinitionId
-                })
+            {
+                reservation.GameServerId,
+                reservation.PortDefinitionId
+            })
                 .IsUnique();
             entity.HasOne(reservation => reservation.GameServer)
                 .WithMany(server => server.PortReservations)
@@ -225,10 +257,10 @@ public sealed class GamesHudDbContext : DbContext
             entity.HasIndex(reservation => reservation.RelativePath)
                 .IsUnique();
             entity.HasIndex(reservation => new
-                {
-                    reservation.GameServerId,
-                    reservation.StorageDefinitionId
-                })
+            {
+                reservation.GameServerId,
+                reservation.StorageDefinitionId
+            })
                 .IsUnique();
             entity.HasOne(reservation => reservation.GameServer)
                 .WithMany(server => server.StorageReservations)
@@ -305,6 +337,17 @@ public sealed class GamesHudDbContext : DbContext
                 entry.Entity.StartedAtUtc = ToUtc(entry.Entity.StartedAtUtc, now);
                 entry.Entity.UpdatedAtUtc = now;
                 entry.Entity.CompletedAtUtc = entry.Entity.CompletedAtUtc?.ToUniversalTime();
+            }
+        }
+
+        foreach (var entry in ChangeTracker.Entries<ProvisioningStepRecord>())
+        {
+            if (entry.State is EntityState.Added or EntityState.Modified)
+            {
+                entry.Entity.StartedAtUtc = entry.Entity.StartedAtUtc?.ToUniversalTime();
+                entry.Entity.CompletedAtUtc = entry.Entity.CompletedAtUtc?.ToUniversalTime();
+                entry.Entity.CompensationStartedAtUtc = entry.Entity.CompensationStartedAtUtc?.ToUniversalTime();
+                entry.Entity.CompensationCompletedAtUtc = entry.Entity.CompensationCompletedAtUtc?.ToUniversalTime();
             }
         }
     }

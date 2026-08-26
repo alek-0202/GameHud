@@ -11,6 +11,9 @@ public static class ProvisioningOperationStatuses
     public const string Running = "running";
     public const string Succeeded = "succeeded";
     public const string Failed = "failed";
+    public const string Cancelled = "cancelled";
+    public const string Compensating = "compensating";
+    public const string CompensationFailed = "compensation_failed";
 }
 
 public static class ProvisioningOperationActiveSlots
@@ -32,6 +35,10 @@ public sealed class ProvisioningOperationRecord
 
     public string CurrentStep { get; set; } = string.Empty;
 
+    public string PipelineVersion { get; set; } = string.Empty;
+
+    public int Version { get; set; }
+
     public DateTimeOffset StartedAtUtc { get; set; }
 
     public DateTimeOffset UpdatedAtUtc { get; set; }
@@ -47,4 +54,6 @@ public sealed class ProvisioningOperationRecord
     public ICollection<PortReservationRecord> PortReservations { get; } = [];
 
     public ICollection<StorageReservationRecord> StorageReservations { get; } = [];
+
+    public ICollection<ProvisioningStepRecord> Steps { get; } = [];
 }

@@ -15,6 +15,9 @@ These invariants are permanent GamesHud security rules. Future implementation ta
 - Planning endpoints must not create directories, reserve durable state, open firewall rules, publish ports, create containers, create volumes or mutate host state.
 - Provisioning must only mutate resources included in a validated plan.
 - Provisioning failure must never silently claim success.
+- A provisioning mutation in an unknown execution state must never be blindly retried.
+- External side effects must be reconciled before retry when completion cannot be proven from durable state.
+- Terminal provisioning state must never transition back to running implicitly.
 - GamesHud must never automatically delete, overwrite, adopt or migrate External resources.
 - Managed resource deletion must require durable ownership proof and auditability.
 - Backups must be stored outside the managed game data path.

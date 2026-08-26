@@ -1,5 +1,6 @@
 using GamesHud.Api.GameServers.Domain;
 using GamesHud.Api.GameServers.Ports;
+using GamesHud.Api.GameServers.Provisioning;
 using GamesHud.Api.GameServers.Storage;
 using GamesHud.Api.Persistence.Models;
 using Microsoft.EntityFrameworkCore;
@@ -50,7 +51,28 @@ public sealed class ManagedServerStore : IManagedServerStore
                     Status = ProvisioningOperationStatuses.Pending,
                     ActiveSlot = ProvisioningOperationActiveSlots.Active,
                     CurrentStep = InitialProvisioningStep,
+                    PipelineVersion = normalizedPlan.PipelineVersion!,
+                    Version = 1,
                 };
+                var now = DateTimeOffset.UtcNow;
+                var steps = normalizedPlan.Steps!
+                    .Select(step => new ProvisioningStepRecord
+                    {
+                        Id = CreateId(),
+                        OperationId = operationId,
+                        StepId = step.StepId,
+                        Sequence = step.Sequence,
+                        Status = step.CompletedBeforeReservation
+                            ? ProvisioningStepStatuses.Succeeded
+                            : ProvisioningStepStatuses.Pending,
+                        Attempt = step.CompletedBeforeReservation ? 1 : 0,
+                        RetryClassification = step.RetryClassification,
+                        SideEffectClassification = step.SideEffectClassification,
+                        MaxAttempts = step.MaxAttempts,
+                        StartedAtUtc = step.CompletedBeforeReservation ? now : null,
+                        CompletedAtUtc = step.CompletedBeforeReservation ? now : null,
+                    })
+                    .ToArray();
                 var portReservations = normalizedPlan.Ports
                     .Select(port => new PortReservationRecord
                     {
@@ -81,6 +103,7 @@ public sealed class ManagedServerStore : IManagedServerStore
 
                 dbContext.ManagedGameServers.Add(gameServer);
                 dbContext.ProvisioningOperations.Add(operation);
+                dbContext.ProvisioningSteps.AddRange(steps);
                 dbContext.PortReservations.AddRange(portReservations);
                 dbContext.StorageReservations.AddRange(storageReservations);
 
@@ -156,68 +179,6 @@ public sealed class ManagedServerStore : IManagedServerStore
         return null;
     }
 
-    public Task<ProvisioningOperationRecord?> GetOperationAsync(
-        string operationId,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
-        return _dbContext.ProvisioningOperations
-            .AsNoTracking()
-            .SingleOrDefaultAsync(operation => operation.Id == operationId.Trim(), cancellationToken);
-    }
-
-    public async Task<IReadOnlyCollection<ProvisioningOperationRecord>> GetIncompleteOperationsAsync(
-        CancellationToken cancellationToken = default)
-    {
-        var operations = await _dbContext.ProvisioningOperations
-            .AsNoTracking()
-            .Where(operation =>
-                operation.Status == ProvisioningOperationStatuses.Pending
-                || operation.Status == ProvisioningOperationStatuses.Running)
-            .ToArrayAsync(cancellationToken);
-
-        return operations
-            .OrderBy(operation => operation.StartedAtUtc)
-            .ToArray();
-    }
-
-    public async Task UpdateOperationAsync(
-        ProvisioningOperationUpdate update,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(update);
-        var operation = await _dbContext.ProvisioningOperations
-            .SingleAsync(item => item.Id == update.OperationId, cancellationToken);
-
-        if (!IsValidTransition(operation.Status, update.Status))
-        {
-            throw new InvalidOperationException(
-                $"Provisioning operation cannot transition from '{operation.Status}' to '{update.Status}'.");
-        }
-
-        ArgumentException.ThrowIfNullOrWhiteSpace(update.CurrentStep);
-        operation.Status = update.Status;
-        operation.CurrentStep = update.CurrentStep.Trim();
-
-        if (update.Status == ProvisioningOperationStatuses.Failed)
-        {
-            operation.ErrorCode = NormalizeOptional(update.ErrorCode, 120);
-            operation.ErrorMessageSafe = NormalizeOptional(update.ErrorMessageSafe, 500);
-        }
-        else
-        {
-            operation.ErrorCode = null;
-            operation.ErrorMessageSafe = null;
-        }
-
-        if (update.Status is ProvisioningOperationStatuses.Succeeded or ProvisioningOperationStatuses.Failed)
-        {
-            operation.ActiveSlot = null;
-            operation.CompletedAtUtc = DateTimeOffset.UtcNow;
-        }
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-    }
 
     private static ManagedServerProvisioningPlan NormalizePlan(ManagedServerProvisioningPlan plan)
     {
@@ -229,6 +190,22 @@ public sealed class ManagedServerStore : IManagedServerStore
         var storage = plan.Storage
             .Select(item => NormalizeStorage(item, gameServerId))
             .ToArray();
+        var pipelineVersion = string.IsNullOrWhiteSpace(plan.PipelineVersion)
+            ? ProvisioningPipeline.Version
+            : plan.PipelineVersion.Trim();
+        var sourceSteps = plan.Steps ?? ProvisioningPipeline.Steps.Select(step => new ProvisioningStepPlan(
+            step.Id,
+            step.Sequence,
+            step.RetryClassification,
+            step.SideEffectClassification,
+            step.MaxAttempts,
+            step.Sequence <= 3)).ToArray();
+        var steps = NormalizeSteps(sourceSteps);
+
+        if (pipelineVersion.Length > 40)
+        {
+            throw new ArgumentException("Pipeline version is too long.", nameof(plan));
+        }
 
         return new ManagedServerProvisioningPlan(
             gameServerId,
@@ -236,7 +213,30 @@ public sealed class ManagedServerStore : IManagedServerStore
             displayName,
             runtimeType,
             ports,
-            storage);
+            storage,
+            pipelineVersion,
+            steps);
+    }
+
+    private static IReadOnlyCollection<ProvisioningStepPlan> NormalizeSteps(
+        IEnumerable<ProvisioningStepPlan> steps)
+    {
+        var normalized = steps.Select(step => new ProvisioningStepPlan(
+            NormalizeRequiredIdentifier(step.StepId, nameof(step.StepId)),
+            step.Sequence > 0 ? step.Sequence : throw new ArgumentOutOfRangeException(nameof(step.Sequence)),
+            NormalizeRequiredIdentifier(step.RetryClassification, nameof(step.RetryClassification)),
+            NormalizeRequiredIdentifier(step.SideEffectClassification, nameof(step.SideEffectClassification)),
+            step.MaxAttempts > 0 ? step.MaxAttempts : throw new ArgumentOutOfRangeException(nameof(step.MaxAttempts)),
+            step.CompletedBeforeReservation)).ToArray();
+
+        if (normalized.Length == 0
+            || normalized.Select(step => step.StepId).Distinct(StringComparer.Ordinal).Count() != normalized.Length
+            || normalized.Select(step => step.Sequence).Distinct().Count() != normalized.Length)
+        {
+            throw new ArgumentException("Provisioning pipeline steps must have unique ids and sequences.", nameof(steps));
+        }
+
+        return normalized.OrderBy(step => step.Sequence).ToArray();
     }
 
     private static PortReservationPlan NormalizePort(PortReservationPlan port)
@@ -335,32 +335,4 @@ public sealed class ManagedServerStore : IManagedServerStore
         return Guid.NewGuid().ToString("N");
     }
 
-    private static bool IsValidTransition(string current, string next)
-    {
-        return current switch
-        {
-            ProvisioningOperationStatuses.Pending => next is ProvisioningOperationStatuses.Pending
-                or ProvisioningOperationStatuses.Running
-                or ProvisioningOperationStatuses.Failed,
-            ProvisioningOperationStatuses.Running => next is ProvisioningOperationStatuses.Running
-                or ProvisioningOperationStatuses.Succeeded
-                or ProvisioningOperationStatuses.Failed,
-            ProvisioningOperationStatuses.Succeeded => next == ProvisioningOperationStatuses.Succeeded,
-            ProvisioningOperationStatuses.Failed => next == ProvisioningOperationStatuses.Failed,
-            _ => false
-        };
-    }
-
-    private static string? NormalizeOptional(string? value, int maximumLength)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var normalized = value.Trim();
-        return normalized.Length <= maximumLength
-            ? normalized
-            : normalized[..maximumLength];
-    }
 }
