@@ -316,7 +316,11 @@ Status: In progress
 - Separate backend build/test, frontend build and EF Core migration checks
 - Read-only workflow permissions and isolated tests without production secrets, Docker, Palworld or VPS access
 - Documented local CI equivalents and future branch protection check names
-- OPS-02 security scanning (Planned)
+- OPS-02 dependency and secret scanning (Completed)
+- High/Critical gates for direct and transitive NuGet and npm advisories
+- Weekly full-history secret scanning with pinned, checksum-verified Gitleaks
+- Zero known npm and NuGet vulnerability findings at the OPS-02 baseline
+- Weekly Dependabot PRs for NuGet, npm and GitHub Actions without auto-merge
 - OPS-03 release versioning and integrity (Planned)
 - OPS-04 backup and restore hardening (Planned)
 

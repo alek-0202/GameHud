@@ -531,6 +531,15 @@ Current update-related surfaces:
 - SteamCMD checks run inside Palworld container.
 - Future GamesHud updater is not implemented.
 
+Current controls:
+
+- OPS-01 validates backend, frontend and migrations before integration.
+- OPS-02 scans direct and transitive NuGet/npm dependencies on pushes, pull requests and a weekly schedule.
+- High and Critical dependency advisories block the security check.
+- Gitleaks scans full Git history with a pinned, checksum-verified CLI and redacted output.
+- Dependabot opens reviewable weekly dependency PRs against `develop` without auto-merge.
+- The 2026-08-25 baseline contains zero NuGet findings, zero npm findings and zero confirmed repository secrets.
+
 Risks:
 
 - Mutable image tags can change behavior without review.
@@ -541,7 +550,7 @@ Risks:
 OPS recommendations:
 
 - OPS-01: run automated backend, frontend and migration validation for integration changes. (Completed)
-- OPS-02: add dependency, source and image scanning plus dependency and runtime-image review.
+- OPS-02: scan source dependencies and Git history for leaked secrets. (Completed)
 - OPS-03: define release versioning, build provenance, SBOM and update verification.
 - OPS-04: define operational rollback and backup validation before update workflows are expanded.
 
@@ -629,7 +638,7 @@ Required controls:
 | THR-014 | Port TOCTOU | Ports | Port appears free in plan but is taken before bind/publish. | Failed provisioning or wrong exposure. | High future | Medium | Advisory language. | No durable reservation. | Durable reservation and provisioning locks. | GH-07.5/GH-08 |
 | THR-015 | Unexpected public exposure | Ports/Provisioning | Internal port metadata becomes public Docker publish or firewall rule. | Exposed admin API/game admin surface. | Future medium | High | Exposure metadata only today. | No publish/firewall implementation. | Explicit exposure policy and review gate. | GH-08 |
 | THR-016 | Repudiation of destructive actions | API | User denies restore/delete/restart/update; no durable actor log exists. | Investigation and accountability failure. | Medium future | Medium | Timestamps in responses. | No user identity or audit log. | Audit events. | SEC-05 |
-| THR-017 | Update supply-chain compromise | Updates | Compromised image/package/Steam workflow changes binaries. | Code execution or data loss. | Medium | High | Manual update flow, backup first; OPS-01 validates source builds and tests. | No scanning, signing or complete pinning policy. | Release/image/dependency integrity controls. | OPS-02, OPS-03 |
+| THR-017 | Update supply-chain compromise | Updates | Compromised image/package/Steam workflow changes binaries. | Code execution or data loss. | Medium | High | Manual update flow, backup first; OPS-01 validates source builds and tests; OPS-02 scans source dependencies and secrets. | No Docker image scan, SBOM, signing or complete runtime-image pinning policy. | Release/image integrity controls. | OPS-03 |
 | THR-018 | Future database tampering | Database | Attacker changes ownership/allocation records. | Unauthorized mutation/deletion. | Future medium | High | GH-07.6 stores ownership and reservations with relational constraints. | Authz, audit and backup integrity still need design. | Authorization, audit, migration and backup integrity. | SEC-04/SEC-05/OPS-04 |
 | THR-019 | Future Agent command compromise | Agent | Control plane or attacker sends privileged command to Agent. | Remote host compromise. | Future medium | Critical | Agent not implemented. | Requires architecture. | Mutual auth, command auth, replay protection. | ARCH-01 |
 | THR-020 | Player admin abuse | Palworld admin | Attacker kicks/bans/unbans players or sends announcements. | Community disruption. | Medium if API reachable | Medium | Strong confirmation for destructive player actions. | No auth/ownership. | Authz and audit. | SEC-04, SEC-05 |
@@ -692,7 +701,7 @@ New recommended cards:
 - SEC-05 Audit and Security Logging: durable actor/action/resource/outcome trail, redaction and incident review.
 - SEC-06 API and Deployment Hardening: rate limits, CSRF strategy, response minimization, public exposure guardrails and outbound request policy.
 - OPS-01 CI Pipeline: automated backend, frontend and migration validation. (Completed)
-- OPS-02 Security Scanning: dependency, source and image scanning plus vulnerability review.
+- OPS-02 Dependency And Secret Scanning: NuGet/npm vulnerability gates and full-history secret scanning. (Completed)
 - OPS-03 Release Versioning and Integrity: versioning, build provenance, SBOM and signed release/update artifacts.
 - OPS-04 Backup/Restore Hardening: archive limits, checksums, restore dry-run and backup ownership binding.
 - ARCH-01 Agent Architecture: authority model, protocol, mutual auth, command schema and update trust.

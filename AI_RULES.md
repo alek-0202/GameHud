@@ -192,6 +192,7 @@ Before adding a dependency, the AI must verify that:
 The AI must document every package added and why it was necessary.
 
 Dependencies must not be upgraded broadly unless the task explicitly requires it.
+Never use forced upgrades or unreviewed major-version upgrades to resolve dependency vulnerabilities. Identify the advisory, dependency chain, compatible fixed version and breaking risk first.
 
 ---
 

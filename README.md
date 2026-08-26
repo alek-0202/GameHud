@@ -14,6 +14,7 @@ Implemented:
 - React + Vite + TypeScript frontend
 - xUnit test project
 - GitHub Actions CI for backend, frontend and EF Core migrations
+- GitHub Actions dependency and full-history secret scanning
 - Repository documentation and architecture rules
 - `GET /health`
 - `GET /api/containers`
@@ -526,6 +527,7 @@ The VPS may already host production containers such as Palworld and Portainer. G
 - [Roadmap](ROADMAP.md)
 - [Development Guide](docs/development.md)
 - [Continuous Integration](docs/ci.md)
+- [Dependency and Secret Security](docs/security/dependency-security.md)
 - [Deployment Guide](docs/deployment.md)
 - [Metrics Guide](docs/metrics.md)
 - [Palworld Backups Guide](docs/palworld-backups.md)

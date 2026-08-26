@@ -94,7 +94,7 @@ public sealed class PalworldBackupTests
 
         Assert.Contains(summary.Backups, backup => backup.Id == manualBackup.Id);
         Assert.Contains(summary.Backups, backup => backup.Id == newestAutomatic.Id);
-        Assert.Single(summary.Backups.Where(backup => backup.Type == PalworldBackupTypes.Automatic));
+        Assert.Single(summary.Backups, backup => backup.Type == PalworldBackupTypes.Automatic);
     }
 
     [Fact]
