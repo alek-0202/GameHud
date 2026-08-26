@@ -15,4 +15,19 @@ public interface IManagedServerStore
     Task<ProvisioningOperationRecord?> GetActiveOperationAsync(
         string gameServerId,
         CancellationToken cancellationToken = default);
+
+    Task<ManagedServerReservationConflict?> FindReservationConflictAsync(
+        ManagedServerProvisioningPlan plan,
+        CancellationToken cancellationToken = default);
+
+    Task<ProvisioningOperationRecord?> GetOperationAsync(
+        string operationId,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyCollection<ProvisioningOperationRecord>> GetIncompleteOperationsAsync(
+        CancellationToken cancellationToken = default);
+
+    Task UpdateOperationAsync(
+        ProvisioningOperationUpdate update,
+        CancellationToken cancellationToken = default);
 }

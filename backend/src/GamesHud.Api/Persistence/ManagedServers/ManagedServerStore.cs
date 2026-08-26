@@ -8,7 +8,7 @@ namespace GamesHud.Api.Persistence.ManagedServers;
 
 public sealed class ManagedServerStore : IManagedServerStore
 {
-    private const string InitialProvisioningStep = "reserved";
+    private const string InitialProvisioningStep = "reserve_resources";
 
     private readonly GamesHudDbContext _dbContext;
     private readonly IPersistenceTransactionBoundary _transactionBoundary;
@@ -120,6 +120,103 @@ public sealed class ManagedServerStore : IManagedServerStore
                     operation.GameServerId == normalizedGameServerId
                     && operation.ActiveSlot == ProvisioningOperationActiveSlots.Active,
                 cancellationToken);
+    }
+
+    public async Task<ManagedServerReservationConflict?> FindReservationConflictAsync(
+        ManagedServerProvisioningPlan plan,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        var normalized = NormalizePlan(plan);
+
+        foreach (var port in normalized.Ports)
+        {
+            if (await _dbContext.PortReservations.AnyAsync(
+                item => item.Protocol == port.Protocol && item.Port == port.Port,
+                cancellationToken))
+            {
+                return new ManagedServerReservationConflict(
+                    "port_conflict",
+                    "A planned port is already reserved.");
+            }
+        }
+
+        foreach (var storage in normalized.Storage)
+        {
+            if (await _dbContext.StorageReservations.AnyAsync(
+                item => item.RelativePath == storage.RelativePath,
+                cancellationToken))
+            {
+                return new ManagedServerReservationConflict(
+                    "storage_conflict",
+                    "A planned storage path is already reserved.");
+            }
+        }
+
+        return null;
+    }
+
+    public Task<ProvisioningOperationRecord?> GetOperationAsync(
+        string operationId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
+        return _dbContext.ProvisioningOperations
+            .AsNoTracking()
+            .SingleOrDefaultAsync(operation => operation.Id == operationId.Trim(), cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<ProvisioningOperationRecord>> GetIncompleteOperationsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var operations = await _dbContext.ProvisioningOperations
+            .AsNoTracking()
+            .Where(operation =>
+                operation.Status == ProvisioningOperationStatuses.Pending
+                || operation.Status == ProvisioningOperationStatuses.Running)
+            .ToArrayAsync(cancellationToken);
+
+        return operations
+            .OrderBy(operation => operation.StartedAtUtc)
+            .ToArray();
+    }
+
+    public async Task UpdateOperationAsync(
+        ProvisioningOperationUpdate update,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        var operation = await _dbContext.ProvisioningOperations
+            .SingleAsync(item => item.Id == update.OperationId, cancellationToken);
+
+        if (!IsValidTransition(operation.Status, update.Status))
+        {
+            throw new InvalidOperationException(
+                $"Provisioning operation cannot transition from '{operation.Status}' to '{update.Status}'.");
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(update.CurrentStep);
+        operation.Status = update.Status;
+        operation.CurrentStep = update.CurrentStep.Trim();
+
+        if (update.Status == ProvisioningOperationStatuses.Failed)
+        {
+            operation.ErrorCode = NormalizeOptional(update.ErrorCode, 120);
+            operation.ErrorMessageSafe = NormalizeOptional(update.ErrorMessageSafe, 500);
+        }
+        else
+        {
+            operation.ErrorCode = null;
+            operation.ErrorMessageSafe = null;
+        }
+
+        if (update.Status is ProvisioningOperationStatuses.Succeeded or ProvisioningOperationStatuses.Failed)
+        {
+            operation.ActiveSlot = null;
+            operation.CompletedAtUtc = DateTimeOffset.UtcNow;
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private static ManagedServerProvisioningPlan NormalizePlan(ManagedServerProvisioningPlan plan)
@@ -236,5 +333,34 @@ public sealed class ManagedServerStore : IManagedServerStore
     private static string CreateId()
     {
         return Guid.NewGuid().ToString("N");
+    }
+
+    private static bool IsValidTransition(string current, string next)
+    {
+        return current switch
+        {
+            ProvisioningOperationStatuses.Pending => next is ProvisioningOperationStatuses.Pending
+                or ProvisioningOperationStatuses.Running
+                or ProvisioningOperationStatuses.Failed,
+            ProvisioningOperationStatuses.Running => next is ProvisioningOperationStatuses.Running
+                or ProvisioningOperationStatuses.Succeeded
+                or ProvisioningOperationStatuses.Failed,
+            ProvisioningOperationStatuses.Succeeded => next == ProvisioningOperationStatuses.Succeeded,
+            ProvisioningOperationStatuses.Failed => next == ProvisioningOperationStatuses.Failed,
+            _ => false
+        };
+    }
+
+    private static string? NormalizeOptional(string? value, int maximumLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = value.Trim();
+        return normalized.Length <= maximumLength
+            ? normalized
+            : normalized[..maximumLength];
     }
 }

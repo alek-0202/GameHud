@@ -157,6 +157,18 @@ erDiagram
 
 Reservations are durable claims, not proof that runtime resources exist. A DB port reservation does not bind a socket or publish a Docker port. A DB storage reservation does not create a directory or mount. Future provisioning must mutate only resources from validated reserved plans and must record progress through operation state.
 
+### Provisioning Engine Foundation
+
+GH-08 adds an internal, game-neutral application pipeline:
+
+```text
+Request -> Validated Plan -> Durable Reservation -> Safe Step Execution
+```
+
+The request contains only game/server identity and display name. Host compatibility, runtime, ports and managed storage are resolved from registered `GameDefinition` metadata and existing planners. Only the validated plan may feed future mutation boundaries.
+
+Reservation atomically creates the managed server, resource claims and a `Pending` operation. The engine persists `Running`, `CurrentStep`, safe failure details and terminal state. Host-facing steps are explicit no-mutation implementations in GH-08, so a successful foundation operation does not mean a runtime is ready. See [Provisioning Engine Foundation](docs/provisioning.md).
+
 The database enforces unique managed server ids, unique `protocol + port`, unique managed storage relative paths and a single active operation slot per server and operation type. Delete behavior is restricted so deleting a database row cannot be confused with deleting an external resource.
 
 Persisted timestamps are UTC. Secret material is not persisted as normal application data and must not be stored in plaintext database fields. No user, role, organization or tenant model exists yet. The current Palworld compatibility sources remain `LegacyExternal`; GamesHud must not import or adopt legacy paths, containers, ports or settings simply because they exist.

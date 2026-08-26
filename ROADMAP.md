@@ -267,6 +267,11 @@ Status: In progress
 - Port reservations enforce durable `protocol + port` uniqueness while allowing TCP/UDP to share a number
 - Storage reservations enforce unique managed relative paths under the GamesHud data root
 - Reservation writes are atomic and remain separate from Docker, filesystem and provisioning mutation
+- GH-08 provisioning engine foundation (Completed)
+- Internal request-to-validated-plan-to-reservation pipeline reuses host requirements and port/storage planners
+- Typed steps persist operation progress, safe failure, cancellation and terminal state
+- Compensation and incomplete-operation query foundations exist without automatic startup recovery
+- All production host-facing steps are explicit no-mutation implementations; no server runtime is created
 - SEC-02 secrets management foundation (Completed)
 - Provider-neutral secret ids, references, purposes and backend-only secret values exist before provisioning
 - The local provider stores authenticated encrypted material under `<DataRoot>/system/secrets`

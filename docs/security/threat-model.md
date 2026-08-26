@@ -323,6 +323,16 @@ GH-08 will be a major security boundary change. Before or during provisioning, G
 - Audit events for all mutating steps.
 - Deny-by-default Docker capabilities, privileged mode, host network, host PID/IPC and Docker socket mounts.
 
+GH-08 foundation status:
+
+- The client request cannot supply host paths, container images, mounts, privileged mode or shell commands.
+- Host requirements and existing port/storage planners produce a typed validated plan before reservation.
+- Durable reservation is atomic and the engine consumes only the validated plan and reservation result.
+- Operation progress, safe failure, cancellation and terminal state are persisted.
+- Secret references are allowed in the plan, while plaintext secret values are absent from request and persistence contracts.
+- Host-facing production steps are explicit no-mutation implementations; no Docker, filesystem, network, firewall or game action occurs.
+- Recovery execution, real runtime policies and full rollback remain future work.
+
 ## Input Validation
 
 Trusted internal metadata today:
@@ -624,7 +634,7 @@ Required controls:
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | THR-001 | Unauthenticated API access | API | API is exposed beyond SSH/private network and attacker calls mutating endpoints. | Full operational control of Docker/Palworld flows. | Medium if misdeployed | Critical | Docs require private access. | No technical auth gate. | Implement auth and block public exposure until configured. | SEC-03 |
 | THR-002 | Docker socket host compromise | Docker | Backend compromise uses Docker daemon authority to control host. | Host compromise. | Medium | Critical | Socket API-only; no arbitrary create today. | Docker daemon remains highly privileged. | Least-privilege provisioning policy and hardening. | GH-08, SEC-06 |
-| THR-003 | Unsafe provisioning mutation | Provisioning | Future provisioning creates privileged container, arbitrary mount or unsafe env. | Host/data compromise. | Future medium | Critical | Provisioning not implemented. | Needs design before GH-08. | Validated plans, allowlists, deny privileged defaults. | GH-08 |
+| THR-003 | Unsafe provisioning mutation | Provisioning | Future provisioning creates privileged container, arbitrary mount or unsafe env. | Host/data compromise. | Future medium | Critical | GH-08 request excludes mutation inputs and host steps are no-op; validated plans are mandatory. | Real runtime policy is not implemented. | Allowlists and deny-privileged runtime adapter. | GH-12/SEC-06 |
 | THR-004 | Destructive restore data loss | Backups | Restore deletes managed path contents or restores wrong archive. | Game data loss. | Medium | High | Strong confirmation, pre-restore backup, archive validation. | TOCTOU, local tampering, archive bombs. | Backup integrity and restore hardening. | OPS-04 |
 | THR-005 | Arbitrary container lifecycle | Docker Core | Attacker stops/restarts important containers by id/name. | Outage. | Medium if API reachable | High | Frontend confirmations only; API scoped to start/stop/restart. | No authz or protected-container policy. | Authz and resource ownership. | SEC-04 |
 | THR-006 | Secret leakage through logs | Logs | Container logs contain secrets and are returned/downloaded. | Credential disclosure. | Medium | High | Logs treated as text; bounded tail. | No redaction. | Secret redaction and log policy. | SEC-02, SEC-05 |
@@ -648,7 +658,7 @@ Required controls:
 | THR-024 | Denial through expensive reads | Logs/Metrics | Repeated log/metrics/capability calls consume resources. | API slowdown. | Medium | Medium | Bounded log tail/history. | No rate limits. | Rate limits and quotas before public access. | SEC-06 |
 | THR-025 | Config path misconfiguration | Palworld config/backups | Operator points managed/backup paths to wrong host mount. | Wrong data changed/deleted. | Medium | High | Docs, overlap rejection, existing path checks. | No ownership/adoption marker. | Managed ownership markers and setup validation. | GH-07.5 |
 | THR-026 | Secrets persisted without model | Future persistence | Database stores tokens/passwords in normal fields and returns them. | Credential compromise. | Future medium | High | Current SQLite schema stores no secrets; SEC-02 provides opaque references, encrypted local storage and response redaction rules. | Future features could bypass the boundary or mishandle partial failures across persistence domains. | Enforce `SecretReference` and `ISecretStore` in every durable secret flow. | SEC-02 |
-| THR-027 | Partial provisioning failure | Provisioning | Directory/container/network created but API reports success or retries unsafely. | Orphaned resources, data loss. | Future high | High | Provisioning not implemented. | Needs state machine. | Explicit step states, idempotency and rollback. | GH-08 |
+| THR-027 | Partial provisioning failure | Provisioning | Directory/container/network created but API reports success or retries unsafely. | Orphaned resources, data loss. | Future high | High | GH-08 persists current step/failure and defines reverse compensation contracts without host mutation. | No durable compensation retry or full recovery state machine. | Explicit recovery and rollback. | GH-09/GH-15 |
 | THR-028 | Container exec expansion | Docker exec | Future feature lets user or plugin influence exec command. | Container or host escape path. | Future medium | High | Current exec commands fixed. | No generic command policy yet. | No arbitrary command input; allowlisted templates. | SEC-06/GH-08 |
 
 Severity counts:

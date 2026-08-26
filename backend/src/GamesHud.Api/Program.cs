@@ -2,6 +2,7 @@ using GamesHud.Api.Configuration;
 using GamesHud.Api.Docker.Services;
 using GamesHud.Api.GameServers.Definitions;
 using GamesHud.Api.GameServers.Ports;
+using GamesHud.Api.GameServers.Provisioning;
 using GamesHud.Api.GameServers.Requirements;
 using GamesHud.Api.GameServers.Services;
 using GamesHud.Api.GameServers.Storage;
@@ -55,6 +56,13 @@ builder.Services.AddScoped<IPersistenceInitializer, PersistenceInitializer>();
 builder.Services.AddScoped<IPersistenceHealthService, PersistenceHealthService>();
 builder.Services.AddScoped<IPersistenceTransactionBoundary, EfCorePersistenceTransactionBoundary>();
 builder.Services.AddScoped<IManagedServerStore, ManagedServerStore>();
+builder.Services.AddScoped<IProvisioningPlanBuilder, ProvisioningPlanBuilder>();
+builder.Services.AddScoped<IProvisioningEngine, ProvisioningEngine>();
+builder.Services.AddScoped<IGameServerProvisioningService, GameServerProvisioningService>();
+foreach (var stepId in ProvisioningStepIds.ExecutableFoundation)
+{
+    builder.Services.AddScoped<IProvisioningStep>(_ => new NoHostMutationProvisioningStep(stepId));
+}
 builder.Services.AddSingleton<ISecretStoreLayoutResolver, SecretStoreLayoutResolver>();
 builder.Services.AddSingleton<ISecretKeyProvider, ConfigurationSecretKeyProvider>();
 builder.Services.AddSingleton<ISecretProtector, AesGcmSecretProtector>();

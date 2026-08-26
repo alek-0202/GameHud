@@ -124,6 +124,12 @@ A database transaction only covers database writes. It does not make Docker oper
 
 If a unique constraint or FK fails, the database transaction rolls back the whole reservation and no partial server should remain.
 
+GH-08 uses the existing operation columns without a schema expansion. Reservation starts at `Pending` and `reserve_resources`; execution persists `Running` with the current step, then `Succeeded` or `Failed`. Terminal operations clear `ActiveSlot` and set `CompletedAtUtc`.
+
+`IManagedServerStore.GetIncompleteOperationsAsync` queries durable `Pending` and `Running` operations for future recovery. Startup does not change or execute them automatically. Invalid terminal-to-running transitions are rejected by the store.
+
+The managed server remains `pending_provisioning` after the GH-08 foundation completes because no runtime or health-checked server has been created.
+
 ## Secrets
 
 Secrets are not stored as normal SQLite data. SEC-02 introduces a dedicated secret model and local encrypted provider under:

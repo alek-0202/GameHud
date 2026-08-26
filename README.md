@@ -39,6 +39,7 @@ Implemented:
 - Game storage definitions, configurable managed data root and advisory storage planning
 - EF Core + SQLite persistence foundation under the GamesHud data root
 - Durable managed server schema for server records, port reservations, storage reservations and provisioning operation records
+- Internal provisioning engine foundation with validated plans, durable progress and no host mutation
 - `GET /api/system/persistence` health and migration status without path or connection string exposure
 - Temporary personal Palworld settings editor isolated outside Docker Core
 - Temporary Palworld REST overview and players view isolated outside Docker Core
@@ -536,6 +537,7 @@ The VPS may already host production containers such as Palworld and Portainer. G
 - [Palworld REST API Guide](docs/palworld-rest-api.md)
 - [Operations Guide](docs/operations.md)
 - [Persistence Guide](docs/persistence.md)
+- [Provisioning Engine Foundation](docs/provisioning.md)
 - [API Guidelines](docs/api-guidelines.md)
 - [Frontend Guidelines](docs/frontend-guidelines.md)
 - [Threat Model](docs/security/threat-model.md)
