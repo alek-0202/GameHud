@@ -4,6 +4,7 @@ using GamesHud.Api.GameServers.Definitions;
 using GamesHud.Api.GameServers.Ports;
 using GamesHud.Api.GameServers.Provisioning;
 using GamesHud.Api.GameServers.Requirements;
+using GamesHud.Api.GameServers.Runtime;
 using GamesHud.Api.GameServers.Services;
 using GamesHud.Api.GameServers.Storage;
 using GamesHud.Api.HostCapabilities.Services;
@@ -63,7 +64,11 @@ builder.Services.AddScoped<IProvisioningRecoveryService, ProvisioningRecoverySer
 builder.Services.AddScoped<IProvisioningPlanBuilder, ProvisioningPlanBuilder>();
 builder.Services.AddScoped<IProvisioningEngine, ProvisioningEngine>();
 builder.Services.AddScoped<IGameServerProvisioningService, GameServerProvisioningService>();
-foreach (var stepId in ProvisioningStepIds.ExecutableFoundation)
+builder.Services.AddSingleton<IRuntimeMutationPolicy, RuntimeMutationPolicy>();
+builder.Services.AddScoped<IRuntimeSpecificationBuilder, RuntimeSpecificationBuilder>();
+builder.Services.AddSingleton<IGameRuntimeAdapter, NoHostMutationGameRuntimeAdapter>();
+builder.Services.AddScoped<IProvisioningStep, CreateRuntimeProvisioningStep>();
+foreach (var stepId in ProvisioningStepIds.ExecutableFoundation.Where(id => id != ProvisioningStepIds.CreateRuntime))
 {
     builder.Services.AddScoped<IProvisioningStep>(_ => new NoHostMutationProvisioningStep(stepId));
 }

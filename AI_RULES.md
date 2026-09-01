@@ -176,6 +176,7 @@ Permanent security invariants are documented in [Security Invariants](docs/secur
 - Encryption keys and bootstrap secrets must never be hardcoded, committed or stored next to ciphertext as protection.
 - Scheduler and future provisioning flows must never accept arbitrary shell, Docker exec, compose or user-defined commands.
 - Managed resource deletion must require durable ownership proof and auditability.
+- Future runtime adapters may accept only policy-approved validated specifications; they must not expose arbitrary command, argument or generic provider-option APIs.
 
 ---
 

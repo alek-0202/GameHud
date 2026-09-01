@@ -282,6 +282,10 @@ Status: In progress
 - The local provider stores authenticated encrypted material under `<DataRoot>/system/secrets`
 - The bootstrap key is external configuration only, and missing/invalid keys fail closed without plaintext fallback
 - `GET /api/system/secrets` reports minimal readiness without exposing ids, purposes, counts, paths or material
+- SEC-03 runtime mutation security policy (Completed)
+- Typed unvalidated/validated runtime specifications and deny-by-default policy
+- Backend-controlled runtime images, managed reservation mount/port enforcement and opaque secret references
+- Typed no-mutation runtime adapter boundary integrated before `create_runtime`
 
 Remaining:
 

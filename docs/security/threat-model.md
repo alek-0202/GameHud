@@ -323,6 +323,10 @@ Real host provisioning will be a major security boundary change. Before or durin
 - Audit events for all mutating steps.
 - Deny-by-default Docker capabilities, privileged mode, host network, host PID/IPC and Docker socket mounts.
 
+SEC-03 mitigates direct runtime injection by introducing a typed deny-by-default policy, backend-controlled image selection, managed-reservation-only mounts and ports, opaque secret references and an adapter without arbitrary command/options escape hatches. Docker socket mounts, paths outside the managed root, exposure mismatches and unsupported runtime metadata are rejected with safe errors.
+
+Remaining risks include image digest pinning/signing and registry trust, symlink/junction and TOCTOU filesystem hardening, configurable host-wide resource quotas, real provider reconciliation, audit/authorization and the inherent privilege of the GamesHud backend Docker socket. SEC-03 executes no real runtime mutation.
+
 GH-08/GH-09 foundation status:
 
 - The client request cannot supply host paths, container images, mounts, privileged mode or shell commands.

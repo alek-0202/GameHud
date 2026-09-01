@@ -122,3 +122,9 @@ Each operation has an integer `Version` concurrency token. Every checkpoint supp
 This is sufficient for the current single-process architecture and detects optimistic conflicts in SQLite. It is not a distributed lease, worker ownership protocol or lock; those remain future Agent/distributed-execution work.
 
 No public provisioning status or mutation endpoint and no frontend workflow are added in GH-09. GH-10 owns progress presentation.
+
+## Runtime Mutation Boundary
+
+SEC-03 replaces the `create_runtime` no-op with a policy-gated no-mutation step. It reconstructs mounts and ports from durable managed reservations for the same server and operation, selects the trusted image from `GameDefinition`, and sends only an approved `ValidatedRuntimeMutationSpecification` to the typed adapter. A denial cannot reach the adapter. The current adapter creates nothing and returns a safe skipped outcome.
+
+Pipeline `gh09-v1` remains compatible because no persisted step id, sequence, retry classification or side-effect classification changed. Unknown future runtime effects remain subject to GH-09 reconciliation before retry.

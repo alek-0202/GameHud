@@ -32,3 +32,10 @@ These invariants are permanent GamesHud security rules. Future implementation ta
 - Secrets must never be intentionally logged.
 - Encryption keys and bootstrap secrets must never be hardcoded, committed or stored next to ciphertext as protection.
 - Public or multi-user operation must have audit logging for destructive and privileged actions.
+- Runtime mutation is deny-by-default and client input must never become provider options directly.
+- Only a validated runtime specification may cross the runtime adapter boundary.
+- Runtime images must be backend-controlled game-definition metadata.
+- Only managed reservations owned by the same game server and operation may become mounts or port bindings.
+- Game containers must never receive the Docker socket, privileged mode, host namespaces, arbitrary devices, capabilities, security options, commands, entrypoints or client-provided environment dictionaries.
+- Plaintext secrets must never enter persisted or logged runtime specifications; use opaque `SecretReference` values.
+- Runtime adapters must not expose arbitrary command, argument or generic options execution surfaces.

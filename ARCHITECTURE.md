@@ -174,6 +174,8 @@ Recovery classifies persisted state as resume, reconcile, manual intervention or
 
 Host-facing steps remain explicit no-mutation implementations, so a successful foundation operation does not mean a runtime is ready. See [Provisioning State Machine](docs/provisioning.md).
 
+SEC-03 inserts a deny-by-default runtime mutation boundary at `create_runtime`. A specification is built from the validated plan, backend-controlled game definition and durable reservations, then becomes a `ValidatedRuntimeMutationSpecification` only after policy approval. `IGameRuntimeAdapter` accepts only the validated type. The current adapter performs no mutation. The persisted `gh09-v1` pipeline is unchanged.
+
 The database enforces unique managed server ids, unique `protocol + port`, unique managed storage relative paths and a single active operation slot per server and operation type. Delete behavior is restricted so deleting a database row cannot be confused with deleting an external resource.
 
 Persisted timestamps are UTC. Secret material is not persisted as normal application data and must not be stored in plaintext database fields. No user, role, organization or tenant model exists yet. The current Palworld compatibility sources remain `LegacyExternal`; GamesHud must not import or adopt legacy paths, containers, ports or settings simply because they exist.

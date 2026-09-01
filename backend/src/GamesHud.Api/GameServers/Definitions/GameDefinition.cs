@@ -16,7 +16,8 @@ public class GameDefinition
         IEnumerable<string> capabilities,
         GameRequirements? requirements = null,
         IEnumerable<GamePortDefinition>? ports = null,
-        IEnumerable<GameStorageDefinition>? storages = null)
+        IEnumerable<GameStorageDefinition>? storages = null,
+        IEnumerable<TrustedRuntimeImage>? runtimeImages = null)
     {
         if (string.IsNullOrWhiteSpace(gameId.Value))
         {
@@ -38,6 +39,7 @@ public class GameDefinition
         Requirements = requirements;
         Ports = NormalizePorts(ports);
         Storages = NormalizeStorages(storages);
+        RuntimeImages = (runtimeImages ?? []).ToArray();
     }
 
     public GameId GameId { get; }
@@ -57,6 +59,8 @@ public class GameDefinition
     public IReadOnlyCollection<GamePortDefinition> Ports { get; }
 
     public IReadOnlyCollection<GameStorageDefinition> Storages { get; }
+
+    public IReadOnlyCollection<TrustedRuntimeImage> RuntimeImages { get; }
 
     private static IReadOnlyCollection<string> NormalizeIdentifiers(
         IEnumerable<string> values,
