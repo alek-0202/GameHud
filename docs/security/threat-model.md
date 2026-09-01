@@ -329,6 +329,8 @@ Remaining risks include image digest pinning/signing and registry trust, symlink
 
 GH-10 mitigates duplicate-mutation and provider-boundary risks with stable execution identity, backend-controlled resource identity, typed outcomes and safe exception translation. Cancellation races and crashes after provider dispatch are classified as unknown and require GH-09 reconciliation. Provider-specific idempotency, inspection, timeout, malicious metadata validation and real compensation remain future implementation risks; no provider side effect is executed by GH-10.
 
+GH-11 mitigates arbitrary host-path and cross-server directory mutation by reconstructing exact Managed reservation targets below `DataRoot`, rejecting ownership/definition/operation mismatches and inspecting existing symlink/reparse components. It avoids unsafe adoption, destructive compensation and permission escalation assumptions. Remaining filesystem risk includes privileged TOCTOU replacement between inspection and creation, platform-specific link semantics, external tampering with a legitimately reserved directory and the absence of handle-based sandboxing. These risks require future provider hardening before destructive writes or deletion.
+
 GH-08/GH-09 foundation status:
 
 - The client request cannot supply host paths, container images, mounts, privileged mode or shell commands.

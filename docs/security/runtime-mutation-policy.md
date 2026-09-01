@@ -23,3 +23,5 @@ The current adapter deliberately reports that no mutation was executed. The `cre
 GH-10 adds a central mutation executor after policy approval. The adapter now receives a typed execution context containing the validated specification and stable backend identities. Provider exceptions, unsupported results and cancellation after invocation are translated into safe unknown outcomes that require reconciliation. Cancellation observed before invocation does not call the adapter.
 
 Resource checks are currently structural and use game minimum requirements when available. Host-wide quotas, image pinning/signing, registry authentication, symlink/race hardening and a real runtime reconciler remain future work.
+
+GH-11 storage preparation remains upstream of runtime creation: only directories represented by durable Managed storage reservations are created. Runtime mounts still consume those same approved reservations; filesystem preparation does not permit client paths or create mounts.

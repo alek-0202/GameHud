@@ -178,6 +178,8 @@ SEC-03 inserts a deny-by-default runtime mutation boundary at `create_runtime`. 
 
 GH-10 inserts `IRuntimeMutationExecutor` between the validated specification and the typed runtime adapter. Its closed execution context provides stable operation/step/mutation identity, safe structured outcomes and backend-controlled resource identity. Provider exceptions or cancellation after invocation become unknown outcomes requiring GH-09 reconciliation, never blind retry. The no-mutation adapter remains the only registered provider.
 
+GH-11 makes `prepare_storage` the first real provisioning mutation. It reloads durable Managed reservations, builds a typed validated target under `DataRoot`, checks containment and existing symlink/reparse components, then calls a narrowly scoped directory provider. Preparation is idempotent and has real GH-09 reconciliation. Compensation is non-destructive.
+
 The database enforces unique managed server ids, unique `protocol + port`, unique managed storage relative paths and a single active operation slot per server and operation type. Delete behavior is restricted so deleting a database row cannot be confused with deleting an external resource.
 
 Persisted timestamps are UTC. Secret material is not persisted as normal application data and must not be stored in plaintext database fields. No user, role, organization or tenant model exists yet. The current Palworld compatibility sources remain `LegacyExternal`; GamesHud must not import or adopt legacy paths, containers, ports or settings simply because they exist.

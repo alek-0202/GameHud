@@ -130,3 +130,5 @@ SEC-03 replaces the `create_runtime` no-op with a policy-gated no-mutation step.
 Pipeline `gh09-v1` remains compatible because no persisted step id, sequence, retry classification or side-effect classification changed. Unknown future runtime effects remain subject to GH-09 reconciliation before retry.
 
 GH-10 places a mutation executor after policy approval. The engine checkpoints `create_runtime` as `Running` before the executor can invoke the adapter. Success, known failure and unknown outcomes are classified without exposing provider exceptions. Unknown outcomes persist as `Failed/unknown`, retain the active slot and route through the existing `IProvisioningStepReconciler`. No pipeline-version bump or schema migration is required.
+
+GH-11 implements the existing `prepare_storage` mutation step. After its `Running` checkpoint, the step validates durable Managed reservations and creates only their deterministic directories under `DataRoot`. Safe existing directories are idempotent success; uncertain effects are `Failed/unknown` and reconcile through the existing state machine. The step order, retry metadata and `gh09-v1` version remain unchanged.

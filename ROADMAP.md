@@ -289,6 +289,9 @@ Status: In progress
 - GH-10 runtime mutation execution foundation (Completed)
 - Stable mutation/resource identities, typed provider outcomes and safe exception/cancellation translation
 - Unknown runtime outcomes route to GH-09 reconciliation without blind retry
+- GH-11 managed storage preparation (Completed)
+- Typed Managed targets, DataRoot containment and symlink/reparse inspection before directory creation
+- Idempotent directory preparation and real storage reconciliation without destructive compensation
 
 Remaining:
 

@@ -48,6 +48,9 @@ builder.Services.AddSingleton<IPortAvailabilityService, PortAvailabilityService>
 builder.Services.AddScoped<IPortPlanner, PortPlanner>();
 builder.Services.AddSingleton<IManagedStoragePathBuilder, ManagedStoragePathBuilder>();
 builder.Services.AddScoped<IGameStoragePlanner, GameStoragePlanner>();
+builder.Services.AddScoped<IManagedStorageTargetBuilder, ManagedStorageTargetBuilder>();
+builder.Services.AddSingleton<IManagedDirectoryOperations, SystemManagedDirectoryOperations>();
+builder.Services.AddSingleton<IManagedStorageProvider, ManagedStorageProvider>();
 builder.Services.AddSingleton<IPersistenceLayoutResolver, PersistenceLayoutResolver>();
 builder.Services.AddDbContext<GamesHudDbContext>((serviceProvider, options) =>
 {
@@ -69,7 +72,10 @@ builder.Services.AddScoped<IRuntimeSpecificationBuilder, RuntimeSpecificationBui
 builder.Services.AddSingleton<IGameRuntimeAdapter, NoHostMutationGameRuntimeAdapter>();
 builder.Services.AddScoped<IRuntimeMutationExecutor, RuntimeMutationExecutor>();
 builder.Services.AddScoped<IProvisioningStep, CreateRuntimeProvisioningStep>();
-foreach (var stepId in ProvisioningStepIds.ExecutableFoundation.Where(id => id != ProvisioningStepIds.CreateRuntime))
+builder.Services.AddScoped<IProvisioningStep, PrepareStorageProvisioningStep>();
+builder.Services.AddScoped<IProvisioningStepReconciler, PrepareStorageReconciler>();
+foreach (var stepId in ProvisioningStepIds.ExecutableFoundation.Where(id =>
+    id != ProvisioningStepIds.CreateRuntime && id != ProvisioningStepIds.PrepareStorage))
 {
     builder.Services.AddScoped<IProvisioningStep>(_ => new NoHostMutationProvisioningStep(stepId));
 }

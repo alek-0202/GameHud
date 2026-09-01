@@ -28,3 +28,5 @@ GH-09 persists `Running` before invoking the step. Therefore the crash windows a
 The existing `IProvisioningStepReconciler` outcomes remain `effect_exists`, `effect_absent` and `ambiguous`. Compensation is allowed only after a known applied effect, supported compensation and proven `Managed` ownership. LegacyExternal resources are never mutation or compensation targets.
 
 No timeout default is introduced because no real provider call exists. A future provider must use a bounded, configurable timeout and treat expiry after dispatch as an unknown outcome.
+
+GH-11 applies the same execution principles to managed storage. `prepare_storage` validates and reloads durable state before calling its typed filesystem provider. Local deterministic failures are known failures; inaccessible or unsafe reconciliation is ambiguous. The provider has no generic write or delete API.

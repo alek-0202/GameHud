@@ -44,3 +44,9 @@ These invariants are permanent GamesHud security rules. Future implementation ta
 - Cancellation after provider invocation does not prove that a mutation is absent.
 - Compensation requires proven Managed ownership and a known applied effect.
 - Provider resource identities must be backend-controlled and stable for reconciliation.
+- Managed storage paths must be derived exclusively by the backend from definitions, reservations, server identity and configured DataRoot.
+- Filesystem provisioning mutations are restricted to validated Managed targets contained by DataRoot.
+- LegacyExternal storage must never be prepared, adopted or compensated automatically.
+- Existing filesystem resources must not be automatically adopted without durable ownership proof.
+- Destructive storage compensation requires stronger proof than existence; generic recursive deletion is forbidden.
+- Filesystem reconciliation must precede retry after an uncertain mutation outcome.
