@@ -147,6 +147,8 @@ dotnet test
 dotnet run --project src/GamesHud.Api/GamesHud.Api.csproj
 ```
 
+The normal backend test suite does not require a Docker daemon and does not create containers. Managed provisioning supports a create-only Docker boundary: the approved image must already exist locally, and a newly created Managed container remains stopped.
+
 The API runs locally at:
 
 ```text

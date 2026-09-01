@@ -298,6 +298,7 @@ Remaining:
 - Durable server registration UI
 - Non-Palworld plugin implementation
 - Migration of all temporary Palworld features onto server-scoped contracts
+- GH-12 Managed Docker runtime creation (Completed: create-only, stopped, reconciliable)
 
 ---
 

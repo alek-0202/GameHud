@@ -18,10 +18,12 @@ The specification contains typed ports, managed mounts, opaque `SecretReference`
 
 Mount sources are reconstructed below the configured managed data root and checked for containment. Known engine and system paths are denied as defense in depth. No directory is created. Port bindings must correspond to persisted `reserved` reservations and to their game definitions; internal exposure cannot become public.
 
-The current adapter deliberately reports that no mutation was executed. The `create_runtime` step invokes policy before this adapter. Pipeline `gh09-v1` is unchanged because step identity, order and recovery semantics did not change. A future real adapter remains a mutation step: unknown outcomes require reconciliation before retry.
+GH-12 replaces the no-mutation adapter with a Docker.DotNet create-only adapter. The `create_runtime` step invokes policy before this adapter. Pipeline `gh09-v1` is unchanged because step identity, order and recovery semantics did not change. Unknown outcomes require real Docker reconciliation before retry.
 
 GH-10 adds a central mutation executor after policy approval. The adapter now receives a typed execution context containing the validated specification and stable backend identities. Provider exceptions, unsupported results and cancellation after invocation are translated into safe unknown outcomes that require reconciliation. Cancellation observed before invocation does not call the adapter.
 
-Resource checks are currently structural and use game minimum requirements when available. Host-wide quotas, image pinning/signing, registry authentication, symlink/race hardening and a real runtime reconciler remain future work.
+Resource checks use game minimum requirements when available and map only CPU count and memory. Before create, managed mount directories must exist and their ancestry must contain no reparse point. Docker socket sources and targets are rejected. Image acquisition, digest pinning/signing, registry authentication, and stronger provider-specific quota controls remain future work.
+
+The provider request contains only the trusted image reference, deterministic name, four fixed ownership labels, definition-derived exposed ports, public reservation-derived bindings, Managed bind mounts, non-privileged default networking, approved resource limits, and `unless-stopped`. It contains no command, entrypoint, environment, device, capability, security option, host namespace, arbitrary label, or generic Docker option. `unless-stopped` does not start a newly created container; GH-12 makes no start call.
 
 GH-11 storage preparation remains upstream of runtime creation: only directories represented by durable Managed storage reservations are created. Runtime mounts still consume those same approved reservations; filesystem preparation does not permit client paths or create mounts.

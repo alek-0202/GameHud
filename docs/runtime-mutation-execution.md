@@ -27,6 +27,10 @@ GH-09 persists `Running` before invoking the step. Therefore the crash windows a
 
 The existing `IProvisioningStepReconciler` outcomes remain `effect_exists`, `effect_absent` and `ambiguous`. Compensation is allowed only after a known applied effect, supported compensation and proven `Managed` ownership. LegacyExternal resources are never mutation or compensation targets.
 
-No timeout default is introduced because no real provider call exists. A future provider must use a bounded, configurable timeout and treat expiry after dispatch as an unknown outcome.
+GH-12 supplies the first real provider call: Docker container creation only. Docker SDK cancellation is propagated before dispatch; any exception, cancellation, timeout, or lost response from `CreateContainerAsync` is classified as unknown and requires reconciliation. No adapter retry is performed.
+
+The Docker adapter uses Docker.DotNet and maps the validated specification internally to `CreateContainerParameters`. It first proves that the trusted image exists locally and that no conflicting deterministic identity exists. It never pulls an image and never starts, stops, restarts, removes, executes in, creates a network for, or creates a volume for a container. Successful create captures Docker's returned ID only as immediate proof; recovery uses the stable `gameshud-<GameServerId>` name and ownership labels, so no schema migration is required.
+
+Real reconciliation lists all container states and then inspects the unique candidate. `effect_exists` requires the deterministic name, complete GamesHud ownership labels, trusted image, stopped state, bind set, public port bindings, resource limits, restart policy, non-privileged mode, and default network mode to match. Missing identity is `effect_absent`; collision, multiple candidates, provider failure, running state, or critical drift is `ambiguous`.
 
 GH-11 applies the same execution principles to managed storage. `prepare_storage` validates and reloads durable state before calling its typed filesystem provider. Local deterministic failures are known failures; inaccessible or unsafe reconciliation is ambiguous. The provider has no generic write or delete API.

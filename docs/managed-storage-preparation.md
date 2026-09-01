@@ -24,3 +24,5 @@ Cancellation checked before each local create guarantees that already-observed c
 Compensation is intentionally non-destructive. GH-11 never deletes directories because current persistence cannot prove that a directory was newly created by this attempt or remained empty and untouched. Recursive deletion is not exposed by the provider.
 
 Tests use unique temporary roots only. GH-11 creates no file, Docker volume, bind mount, container, network, game installation or Palworld resource.
+
+GH-12 consumes these same durable targets as bind-mount sources only after confirming that each directory still exists and no path ancestor is a reparse point. It creates no Docker volume, accepts no external storage, and rejects Docker socket paths. A later runtime failure does not delete prepared storage.

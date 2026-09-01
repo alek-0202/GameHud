@@ -18,6 +18,8 @@ GamesHud work must never:
 
 Use a disposable container for lifecycle homologation.
 
+Managed runtime provisioning does not pull images. The trusted game image must already be present locally; otherwise creation fails safely with `runtime_image_unavailable`. GH-12 creates the container only and leaves it stopped.
+
 ## Deployment Location
 
 The expected VPS location is:

@@ -107,7 +107,7 @@ The database transaction cannot include a future external side effect. A process
 
 At startup, `ProvisioningRecoveryStartupObserver` only classifies incomplete operations and logs operation id, decision, step id and reason code. It does not execute steps, mutate the host or automatically resume any operation.
 
-`IProvisioningStepReconciler` is the future game/runtime adapter boundary. A reconciler may report effect present, absent or ambiguous. GH-09 provides the contract and fake tests only; it does not provide a Docker reconciler. Reconciliation produces a decision and does not silently advance persisted state.
+`IProvisioningStepReconciler` is the game/runtime adapter boundary. A reconciler may report effect present, absent or ambiguous. GH-12 implements real Docker inspection for `create_runtime`; reconciliation produces a decision and does not silently advance persisted state.
 
 ## Cancellation And Compensation
 
@@ -132,3 +132,5 @@ Pipeline `gh09-v1` remains compatible because no persisted step id, sequence, re
 GH-10 places a mutation executor after policy approval. The engine checkpoints `create_runtime` as `Running` before the executor can invoke the adapter. Success, known failure and unknown outcomes are classified without exposing provider exceptions. Unknown outcomes persist as `Failed/unknown`, retain the active slot and route through the existing `IProvisioningStepReconciler`. No pipeline-version bump or schema migration is required.
 
 GH-11 implements the existing `prepare_storage` mutation step. After its `Running` checkpoint, the step validates durable Managed reservations and creates only their deterministic directories under `DataRoot`. Safe existing directories are idempotent success; uncertain effects are `Failed/unknown` and reconcile through the existing state machine. The step order, retry metadata and `gh09-v1` version remain unchanged.
+
+GH-12 implements `create_runtime` with Docker.DotNet. It creates one backend-named and backend-labelled Managed container from the locally available trusted image, durable port reservations, and prepared Managed storage. Internal ports are exposed only inside the container and are not published. Docker default networking is used without network creation; privileged mode and host namespaces are unavailable; image command/entrypoint are preserved; no environment or plaintext secrets are injected. The container is never started by this step. Compensation is deliberately non-destructive, leaving a created/stopped Managed container for reconciliation and inspection.

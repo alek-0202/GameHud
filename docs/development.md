@@ -63,6 +63,8 @@ cd backend
 dotnet test
 ```
 
+The normal suite uses a fake typed Docker provider for managed runtime creation. It neither requires a Docker daemon nor mutates the developer host; any future real-Docker integration test must be explicitly isolated and skippable.
+
 Run:
 
 ```powershell

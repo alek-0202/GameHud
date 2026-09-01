@@ -69,9 +69,15 @@ builder.Services.AddScoped<IProvisioningEngine, ProvisioningEngine>();
 builder.Services.AddScoped<IGameServerProvisioningService, GameServerProvisioningService>();
 builder.Services.AddSingleton<IRuntimeMutationPolicy, RuntimeMutationPolicy>();
 builder.Services.AddScoped<IRuntimeSpecificationBuilder, RuntimeSpecificationBuilder>();
-builder.Services.AddSingleton<IGameRuntimeAdapter, NoHostMutationGameRuntimeAdapter>();
+builder.Services.AddScoped<IRuntimeReconciliationSpecificationBuilder>(services =>
+    (RuntimeSpecificationBuilder)services.GetRequiredService<IRuntimeSpecificationBuilder>());
+builder.Services.AddSingleton<IDockerManagedRuntimeClient, DockerManagedRuntimeClient>();
+builder.Services.AddSingleton<IManagedRuntimeStorageValidator, ManagedRuntimeStorageValidator>();
+builder.Services.AddSingleton<DockerGameRuntimeAdapter>();
+builder.Services.AddSingleton<IGameRuntimeAdapter>(services => services.GetRequiredService<DockerGameRuntimeAdapter>());
 builder.Services.AddScoped<IRuntimeMutationExecutor, RuntimeMutationExecutor>();
 builder.Services.AddScoped<IProvisioningStep, CreateRuntimeProvisioningStep>();
+builder.Services.AddScoped<IProvisioningStepReconciler, CreateRuntimeReconciler>();
 builder.Services.AddScoped<IProvisioningStep, PrepareStorageProvisioningStep>();
 builder.Services.AddScoped<IProvisioningStepReconciler, PrepareStorageReconciler>();
 foreach (var stepId in ProvisioningStepIds.ExecutableFoundation.Where(id =>

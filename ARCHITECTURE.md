@@ -546,6 +546,12 @@ GamesHud development, deployment, testing, and maintenance must never:
 
 Lifecycle homologation must use a disposable container created specifically for GamesHud.
 
+### Managed Runtime Creation
+
+The provisioning engine never receives Docker SDK request types. SEC-03 produces a `ValidatedRuntimeMutationSpecification`; GH-10 executes it through the typed runtime adapter; GH-12 alone translates it to Docker.DotNet `CreateContainerParameters`. This boundary supports only creation and always leaves the container stopped. Stable name and ownership labels provide reconciliation identity without persisting a provider ID or changing the database schema.
+
+The adapter uses the existing configured/default Docker endpoint, verifies the trusted image locally, inspects deterministic identity before creation, and fails closed on collision or ambiguity. It does not adopt LegacyExternal resources and exposes no start, delete, pull, exec, network-create, or volume-create capability.
+
 ---
 
 ## Development Principles

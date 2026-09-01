@@ -50,3 +50,7 @@ These invariants are permanent GamesHud security rules. Future implementation ta
 - Existing filesystem resources must not be automatically adopted without durable ownership proof.
 - Destructive storage compensation requires stronger proof than existence; generic recursive deletion is forbidden.
 - Filesystem reconciliation must precede retry after an uncertain mutation outcome.
+- Managed container creation must use a locally available trusted image and must never fall back to or automatically pull another image.
+- Managed container identity must be a deterministic backend name plus backend ownership labels; name similarity alone never permits adoption.
+- Container creation must leave the resource stopped, and an uncertain create must be reconciled before another create attempt.
+- Internal or administrative game ports must never be automatically published on the host.

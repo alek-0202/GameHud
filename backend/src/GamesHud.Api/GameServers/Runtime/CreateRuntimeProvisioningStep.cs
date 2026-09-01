@@ -43,7 +43,7 @@ public sealed class CreateRuntimeProvisioningStep : IProvisioningStep
         var execution = await _executor.ExecuteCreateAsync(executionContext, cancellationToken);
         return execution.Status switch
         {
-            RuntimeMutationOutcomeStatuses.Success => ProvisioningStepResult.Skipped(execution.SafeMessage!),
+            RuntimeMutationOutcomeStatuses.Success => ProvisioningStepResult.Success(),
             RuntimeMutationOutcomeStatuses.CancelledBeforeInvocation => throw new OperationCanceledException(cancellationToken),
             RuntimeMutationOutcomeStatuses.KnownFailure => ProvisioningStepResult.Failure(
                 execution.SafeCode!, execution.SafeMessage!, ProvisioningFailureTypes.Transient),
@@ -51,5 +51,40 @@ public sealed class CreateRuntimeProvisioningStep : IProvisioningStep
                 execution.SafeCode ?? RuntimeMutationExecutionErrorCodes.ProviderOutcomeUnknown,
                 execution.SafeMessage ?? "Runtime provider outcome is unknown.", ProvisioningFailureTypes.Unknown)
         };
+    }
+}
+
+internal sealed class CreateRuntimeReconciler : IProvisioningStepReconciler
+{
+    private readonly IRuntimeReconciliationSpecificationBuilder _builder;
+    private readonly IRuntimeMutationPolicy _policy;
+    private readonly IManagedStoragePathBuilder _paths;
+    private readonly DockerGameRuntimeAdapter _adapter;
+
+    public CreateRuntimeReconciler(IRuntimeReconciliationSpecificationBuilder builder, IRuntimeMutationPolicy policy,
+        IManagedStoragePathBuilder paths, DockerGameRuntimeAdapter adapter)
+    {
+        _builder = builder;
+        _policy = policy;
+        _paths = paths;
+        _adapter = adapter;
+    }
+
+    public string StepId => ProvisioningStepIds.CreateRuntime;
+
+    public async Task<ProvisioningReconciliationResult> InspectAsync(
+        ProvisioningOperationSnapshot operation, ProvisioningStepSnapshot step, CancellationToken cancellationToken)
+    {
+        var gameServerId = new GamesHud.Api.GameServers.Domain.GameServerId(operation.GameServerId);
+        var built = await _builder.BuildForReconciliationAsync(operation.OperationId, gameServerId, cancellationToken);
+        if (built.Specification is null || built.Definition is null)
+            return new(ProvisioningReconciliationOutcomes.Ambiguous, "Managed runtime identity could not be reconstructed safely.");
+        var root = _paths.CreateLayout(gameServerId).DataRoot;
+        var validated = _policy.Validate(built.Specification, built.Definition, root);
+        if (!validated.Allowed)
+            return new(ProvisioningReconciliationOutcomes.Ambiguous, "Managed runtime identity could not be reconstructed safely.");
+        var context = new RuntimeMutationExecutionContext(validated.Specification!, RuntimeMutationKind.CreateRuntime,
+            ProvisioningStepIds.CreateRuntime, Math.Max(step.Attempt, 1));
+        return await _adapter.ReconcileAsync(context, cancellationToken);
     }
 }
