@@ -177,6 +177,7 @@ Permanent security invariants are documented in [Security Invariants](docs/secur
 - Scheduler and future provisioning flows must never accept arbitrary shell, Docker exec, compose or user-defined commands.
 - Managed resource deletion must require durable ownership proof and auditability.
 - Future runtime adapters may accept only policy-approved validated specifications; they must not expose arbitrary command, argument or generic provider-option APIs.
+- Runtime provider exceptions and ambiguous cancellation must be translated to safe unknown outcomes and reconciled before retry.
 
 ---
 

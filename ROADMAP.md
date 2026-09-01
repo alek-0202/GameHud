@@ -286,6 +286,9 @@ Status: In progress
 - Typed unvalidated/validated runtime specifications and deny-by-default policy
 - Backend-controlled runtime images, managed reservation mount/port enforcement and opaque secret references
 - Typed no-mutation runtime adapter boundary integrated before `create_runtime`
+- GH-10 runtime mutation execution foundation (Completed)
+- Stable mutation/resource identities, typed provider outcomes and safe exception/cancellation translation
+- Unknown runtime outcomes route to GH-09 reconciliation without blind retry
 
 Remaining:
 

@@ -128,3 +128,5 @@ No public provisioning status or mutation endpoint and no frontend workflow are 
 SEC-03 replaces the `create_runtime` no-op with a policy-gated no-mutation step. It reconstructs mounts and ports from durable managed reservations for the same server and operation, selects the trusted image from `GameDefinition`, and sends only an approved `ValidatedRuntimeMutationSpecification` to the typed adapter. A denial cannot reach the adapter. The current adapter creates nothing and returns a safe skipped outcome.
 
 Pipeline `gh09-v1` remains compatible because no persisted step id, sequence, retry classification or side-effect classification changed. Unknown future runtime effects remain subject to GH-09 reconciliation before retry.
+
+GH-10 places a mutation executor after policy approval. The engine checkpoints `create_runtime` as `Running` before the executor can invoke the adapter. Success, known failure and unknown outcomes are classified without exposing provider exceptions. Unknown outcomes persist as `Failed/unknown`, retain the active slot and route through the existing `IProvisioningStepReconciler`. No pipeline-version bump or schema migration is required.

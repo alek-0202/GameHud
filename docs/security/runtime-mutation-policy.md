@@ -20,4 +20,6 @@ Mount sources are reconstructed below the configured managed data root and check
 
 The current adapter deliberately reports that no mutation was executed. The `create_runtime` step invokes policy before this adapter. Pipeline `gh09-v1` is unchanged because step identity, order and recovery semantics did not change. A future real adapter remains a mutation step: unknown outcomes require reconciliation before retry.
 
+GH-10 adds a central mutation executor after policy approval. The adapter now receives a typed execution context containing the validated specification and stable backend identities. Provider exceptions, unsupported results and cancellation after invocation are translated into safe unknown outcomes that require reconciliation. Cancellation observed before invocation does not call the adapter.
+
 Resource checks are currently structural and use game minimum requirements when available. Host-wide quotas, image pinning/signing, registry authentication, symlink/race hardening and a real runtime reconciler remain future work.

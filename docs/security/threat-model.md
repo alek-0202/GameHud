@@ -327,6 +327,8 @@ SEC-03 mitigates direct runtime injection by introducing a typed deny-by-default
 
 Remaining risks include image digest pinning/signing and registry trust, symlink/junction and TOCTOU filesystem hardening, configurable host-wide resource quotas, real provider reconciliation, audit/authorization and the inherent privilege of the GamesHud backend Docker socket. SEC-03 executes no real runtime mutation.
 
+GH-10 mitigates duplicate-mutation and provider-boundary risks with stable execution identity, backend-controlled resource identity, typed outcomes and safe exception translation. Cancellation races and crashes after provider dispatch are classified as unknown and require GH-09 reconciliation. Provider-specific idempotency, inspection, timeout, malicious metadata validation and real compensation remain future implementation risks; no provider side effect is executed by GH-10.
+
 GH-08/GH-09 foundation status:
 
 - The client request cannot supply host paths, container images, mounts, privileged mode or shell commands.

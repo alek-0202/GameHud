@@ -83,7 +83,9 @@ public sealed class RuntimeMutationPolicyTests
         var requestProperties = typeof(CreateGameServerProvisioningRequest).GetProperties().Select(item => item.Name).ToArray();
         Assert.DoesNotContain(requestProperties, name => new[] { "Image", "Command", "Mounts", "Environment", "Privileged", "Network", "Devices" }.Contains(name));
         var method = Assert.Single(typeof(IGameRuntimeAdapter).GetMethods());
-        Assert.Equal(typeof(ValidatedRuntimeMutationSpecification), method.GetParameters()[0].ParameterType);
+        Assert.Equal(typeof(RuntimeMutationExecutionContext), method.GetParameters()[0].ParameterType);
+        Assert.Equal(typeof(ValidatedRuntimeMutationSpecification),
+            typeof(RuntimeMutationExecutionContext).GetProperty(nameof(RuntimeMutationExecutionContext.Specification))!.PropertyType);
         Assert.Empty(typeof(ValidatedRuntimeMutationSpecification).GetConstructors());
         Assert.DoesNotContain(typeof(RuntimeMutationSpecification).GetProperties(), property =>
             property.Name is "Command" or "Entrypoint" or "Environment" or "Privileged" or "Devices" or "SecurityOptions");

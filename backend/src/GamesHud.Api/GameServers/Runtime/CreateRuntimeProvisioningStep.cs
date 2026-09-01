@@ -7,16 +7,16 @@ public sealed class CreateRuntimeProvisioningStep : IProvisioningStep
 {
     private readonly IRuntimeSpecificationBuilder _builder;
     private readonly IRuntimeMutationPolicy _policy;
-    private readonly IGameRuntimeAdapter _adapter;
+    private readonly IRuntimeMutationExecutor _executor;
     private readonly IManagedStoragePathBuilder _paths;
     private readonly ILogger<CreateRuntimeProvisioningStep> _logger;
 
     public CreateRuntimeProvisioningStep(IRuntimeSpecificationBuilder builder, IRuntimeMutationPolicy policy,
-        IGameRuntimeAdapter adapter, IManagedStoragePathBuilder paths, ILogger<CreateRuntimeProvisioningStep> logger)
+        IRuntimeMutationExecutor executor, IManagedStoragePathBuilder paths, ILogger<CreateRuntimeProvisioningStep> logger)
     {
         _builder = builder;
         _policy = policy;
-        _adapter = adapter;
+        _executor = executor;
         _paths = paths;
         _logger = logger;
     }
@@ -38,9 +38,18 @@ public sealed class CreateRuntimeProvisioningStep : IProvisioningStep
         if (!result.Allowed)
             return ProvisioningStepResult.Failure(RuntimePolicyErrorCodes.RuntimePolicyDenied, "Runtime policy denied the mutation.");
 
-        var adapterResult = await _adapter.CreateAsync(result.Specification!, cancellationToken);
-        return adapterResult.Succeeded
-            ? ProvisioningStepResult.Skipped(adapterResult.SafeMessage)
-            : ProvisioningStepResult.Failure(RuntimePolicyErrorCodes.UnsafeRuntimeConfiguration, adapterResult.SafeMessage);
+        var executionContext = new RuntimeMutationExecutionContext(
+            result.Specification!, RuntimeMutationKind.CreateRuntime, ProvisioningStepIds.CreateRuntime, attempt: 1);
+        var execution = await _executor.ExecuteCreateAsync(executionContext, cancellationToken);
+        return execution.Status switch
+        {
+            RuntimeMutationOutcomeStatuses.Success => ProvisioningStepResult.Skipped(execution.SafeMessage!),
+            RuntimeMutationOutcomeStatuses.CancelledBeforeInvocation => throw new OperationCanceledException(cancellationToken),
+            RuntimeMutationOutcomeStatuses.KnownFailure => ProvisioningStepResult.Failure(
+                execution.SafeCode!, execution.SafeMessage!, ProvisioningFailureTypes.Transient),
+            _ => ProvisioningStepResult.Failure(
+                execution.SafeCode ?? RuntimeMutationExecutionErrorCodes.ProviderOutcomeUnknown,
+                execution.SafeMessage ?? "Runtime provider outcome is unknown.", ProvisioningFailureTypes.Unknown)
+        };
     }
 }

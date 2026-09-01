@@ -67,6 +67,7 @@ builder.Services.AddScoped<IGameServerProvisioningService, GameServerProvisionin
 builder.Services.AddSingleton<IRuntimeMutationPolicy, RuntimeMutationPolicy>();
 builder.Services.AddScoped<IRuntimeSpecificationBuilder, RuntimeSpecificationBuilder>();
 builder.Services.AddSingleton<IGameRuntimeAdapter, NoHostMutationGameRuntimeAdapter>();
+builder.Services.AddScoped<IRuntimeMutationExecutor, RuntimeMutationExecutor>();
 builder.Services.AddScoped<IProvisioningStep, CreateRuntimeProvisioningStep>();
 foreach (var stepId in ProvisioningStepIds.ExecutableFoundation.Where(id => id != ProvisioningStepIds.CreateRuntime))
 {

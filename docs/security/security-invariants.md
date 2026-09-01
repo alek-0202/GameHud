@@ -39,3 +39,8 @@ These invariants are permanent GamesHud security rules. Future implementation ta
 - Game containers must never receive the Docker socket, privileged mode, host namespaces, arbitrary devices, capabilities, security options, commands, entrypoints or client-provided environment dictionaries.
 - Plaintext secrets must never enter persisted or logged runtime specifications; use opaque `SecretReference` values.
 - Runtime adapters must not expose arbitrary command, argument or generic options execution surfaces.
+- Runtime provider invocation must pass through the mutation execution boundary.
+- Provider exceptions must not cross the runtime boundary as raw public or persisted errors.
+- Cancellation after provider invocation does not prove that a mutation is absent.
+- Compensation requires proven Managed ownership and a known applied effect.
+- Provider resource identities must be backend-controlled and stable for reconciliation.
