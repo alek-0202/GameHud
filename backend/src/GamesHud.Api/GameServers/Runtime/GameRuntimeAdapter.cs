@@ -10,6 +10,7 @@ namespace GamesHud.Api.GameServers.Runtime;
 public interface IGameRuntimeAdapter
 {
     Task<RuntimeProviderOutcome> CreateAsync(RuntimeMutationExecutionContext context, CancellationToken cancellationToken);
+    Task<RuntimeProviderOutcome> StartAsync(RuntimeMutationExecutionContext context, CancellationToken cancellationToken);
 }
 
 public sealed record RuntimeProviderOutcome(string Status, string? SafeCode = null, string? SafeMessage = null)
@@ -25,6 +26,10 @@ public static class DockerRuntimeErrorCodes
     public const string ProviderUnavailable = "runtime_provider_unavailable";
     public const string IdentityConflict = "runtime_identity_conflict";
     public const string OutcomeUnknown = "runtime_create_outcome_unknown";
+    public const string NotFound = "runtime_not_found";
+    public const string StartConflict = "runtime_start_conflict";
+    public const string StartFailed = "runtime_start_failed";
+    public const string StartUnknown = "runtime_start_unknown";
 }
 
 internal static class DockerManagedRuntimeLabels
@@ -41,6 +46,7 @@ internal interface IDockerManagedRuntimeClient
     Task<IReadOnlyCollection<ContainerListResponse>> ListAsync(CancellationToken cancellationToken);
     Task<ContainerInspectResponse> InspectAsync(string id, CancellationToken cancellationToken);
     Task<CreateContainerResponse> CreateAsync(CreateContainerParameters parameters, CancellationToken cancellationToken);
+    Task<bool> StartAsync(string id, CancellationToken cancellationToken);
 }
 
 internal interface IManagedRuntimeStorageValidator
@@ -117,6 +123,12 @@ internal sealed class DockerManagedRuntimeClient : IDockerManagedRuntimeClient
         return await client.Containers.CreateContainerAsync(parameters, cancellationToken);
     }
 
+    public async Task<bool> StartAsync(string id, CancellationToken cancellationToken)
+    {
+        using var client = CreateClient();
+        return await client.Containers.StartContainerAsync(id, new ContainerStartParameters(), cancellationToken);
+    }
+
     private IDockerClient CreateClient() => string.IsNullOrWhiteSpace(_options.Value.Endpoint)
         ? new DockerClientConfiguration().CreateClient()
         : new DockerClientConfiguration(new Uri(_options.Value.Endpoint)).CreateClient();
@@ -163,7 +175,28 @@ internal static class DockerCreateContainerMapper
     }
 }
 
-internal sealed class DockerGameRuntimeAdapter : IGameRuntimeAdapter
+internal static class ManagedRuntimeStates
+{
+    public const string Absent = "absent";
+    public const string Created = "created";
+    public const string Exited = "exited";
+    public const string Running = "running";
+    public const string Paused = "paused";
+    public const string Restarting = "restarting";
+    public const string Removing = "removing";
+    public const string Dead = "dead";
+    public const string Ambiguous = "ambiguous";
+}
+
+internal sealed record ManagedRuntimeInspection(string State, string? ContainerId = null, string? DockerHealth = null);
+
+internal interface IManagedRuntimeInspector
+{
+    Task<ManagedRuntimeInspection> InspectManagedAsync(
+        RuntimeMutationExecutionContext context, CancellationToken cancellationToken);
+}
+
+internal sealed class DockerGameRuntimeAdapter : IGameRuntimeAdapter, IManagedRuntimeInspector
 {
     private readonly IDockerManagedRuntimeClient _client;
     private readonly IManagedRuntimeStorageValidator _storage;
@@ -210,6 +243,83 @@ internal sealed class DockerGameRuntimeAdapter : IGameRuntimeAdapter
         }
     }
 
+    public async Task<RuntimeProviderOutcome> StartAsync(RuntimeMutationExecutionContext context, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        cancellationToken.ThrowIfCancellationRequested();
+        ManagedRuntimeInspection inspection;
+        try
+        {
+            inspection = await InspectManagedAsync(context, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception)
+        {
+            return RuntimeProviderOutcome.KnownFailure(DockerRuntimeErrorCodes.ProviderUnavailable,
+                "Docker could not be inspected before runtime start.");
+        }
+
+        if (inspection.State == ManagedRuntimeStates.Running)
+            return RuntimeProviderOutcome.Success("Managed runtime is already running.");
+        if (inspection.State == ManagedRuntimeStates.Absent)
+            return RuntimeProviderOutcome.KnownFailure(DockerRuntimeErrorCodes.NotFound, "Managed runtime container was not found.");
+        if (inspection.State is not ManagedRuntimeStates.Created and not ManagedRuntimeStates.Exited)
+            return RuntimeProviderOutcome.KnownFailure(DockerRuntimeErrorCodes.StartConflict,
+                "Managed runtime is not in a safe state for start.");
+
+        try
+        {
+            var accepted = await _client.StartAsync(inspection.ContainerId!, cancellationToken);
+            if (!accepted)
+                return RuntimeProviderOutcome.KnownFailure(DockerRuntimeErrorCodes.StartFailed, "Docker rejected managed runtime start.");
+            var confirmed = await InspectManagedAsync(context, cancellationToken);
+            return confirmed.State == ManagedRuntimeStates.Running
+                ? RuntimeProviderOutcome.Success("Managed runtime is running.")
+                : RuntimeProviderOutcome.Unknown(DockerRuntimeErrorCodes.StartUnknown,
+                    "Managed runtime start outcome is unknown.");
+        }
+        catch (Exception)
+        {
+            return RuntimeProviderOutcome.Unknown(DockerRuntimeErrorCodes.StartUnknown,
+                "Managed runtime start outcome is unknown.");
+        }
+    }
+
+    public async Task<ManagedRuntimeInspection> InspectManagedAsync(
+        RuntimeMutationExecutionContext context, CancellationToken cancellationToken)
+    {
+        var expected = DockerCreateContainerMapper.Map(context);
+        var containers = await _client.ListAsync(cancellationToken);
+        var identity = Classify(containers, expected);
+        if (identity == ProvisioningReconciliationOutcomes.EffectAbsent)
+            return new(ManagedRuntimeStates.Absent);
+        if (identity == ProvisioningReconciliationOutcomes.Ambiguous)
+            return new(ManagedRuntimeStates.Ambiguous);
+        var expectedName = "/" + expected.Name;
+        var candidate = containers.Single(container => container.Names?.Contains(expectedName, StringComparer.Ordinal) == true);
+        var actual = await _client.InspectAsync(candidate.ID, cancellationToken);
+        if (!CriticalConfigurationMatches(actual, expected)) return new(ManagedRuntimeStates.Ambiguous);
+        var state = NormalizeState(actual.State);
+        return new(state, candidate.ID, actual.State?.Health?.Status);
+    }
+
+    private static string NormalizeState(ContainerState? state)
+    {
+        if (state is null) return ManagedRuntimeStates.Ambiguous;
+        if (state.Paused) return ManagedRuntimeStates.Paused;
+        if (state.Restarting) return ManagedRuntimeStates.Restarting;
+        if (state.Dead) return ManagedRuntimeStates.Dead;
+        if (state.Running) return ManagedRuntimeStates.Running;
+        return state.Status switch
+        {
+            "created" => ManagedRuntimeStates.Created,
+            "exited" => ManagedRuntimeStates.Exited,
+            "removing" => ManagedRuntimeStates.Removing,
+            "dead" => ManagedRuntimeStates.Dead,
+            _ => ManagedRuntimeStates.Ambiguous
+        };
+    }
+
     public async Task<ProvisioningReconciliationResult> ReconcileAsync(RuntimeMutationExecutionContext context, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -238,13 +348,15 @@ internal sealed class DockerGameRuntimeAdapter : IGameRuntimeAdapter
         var candidate = containers.Single(container => container.Names?.Contains(expectedName, StringComparer.Ordinal) == true);
         var inspected = await _client.InspectAsync(candidate.ID, cancellationToken);
         return CriticalConfigurationMatches(inspected, expected)
+            && inspected.State is not null && !inspected.State.Running
+            && !inspected.State.Paused && !inspected.State.Restarting && !inspected.State.Dead
             ? ProvisioningReconciliationOutcomes.EffectExists
             : ProvisioningReconciliationOutcomes.Ambiguous;
     }
 
     internal static bool CriticalConfigurationMatches(ContainerInspectResponse actual, CreateContainerParameters expected)
     {
-        if (actual.State?.Running == true || actual.Config?.Image != expected.Image || actual.HostConfig is null) return false;
+        if (actual.Config?.Image != expected.Image || actual.HostConfig is null) return false;
         if (actual.HostConfig.Privileged || actual.HostConfig.NetworkMode != expected.HostConfig.NetworkMode
             || actual.HostConfig.NanoCPUs != expected.HostConfig.NanoCPUs || actual.HostConfig.Memory != expected.HostConfig.Memory
             || actual.HostConfig.RestartPolicy?.Name != expected.HostConfig.RestartPolicy.Name) return false;

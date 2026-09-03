@@ -21,6 +21,23 @@ public sealed class RuntimeMutationExecutorTests
     }
 
     [Fact]
+    public async Task StartUsesTypedExecutorPath()
+    {
+        RuntimeMutationKind observed = default;
+        var adapter = new FakeAdapter((context, _) =>
+        {
+            observed = context.MutationKind;
+            return Task.FromResult(RuntimeProviderOutcome.Success("started"));
+        });
+        var create = CreateContext();
+        var start = new RuntimeMutationExecutionContext(create.Specification, RuntimeMutationKind.StartRuntime,
+            ProvisioningStepIds.StartRuntime, 1);
+        var result = await CreateExecutor(adapter).ExecuteStartAsync(start, CancellationToken.None);
+        Assert.Equal(RuntimeMutationOutcomeStatuses.Success, result.Status);
+        Assert.Equal(RuntimeMutationKind.StartRuntime, observed);
+    }
+
+    [Fact]
     public async Task KnownProviderFailureBecomesSafeRetryableFailure()
     {
         var adapter = new FakeAdapter((_, _) => Task.FromResult(RuntimeProviderOutcome.KnownFailure("provider_rejected", "Safe failure.")));
@@ -101,10 +118,14 @@ public sealed class RuntimeMutationExecutorTests
     [Fact]
     public void AdapterContractAcceptsOnlyTypedExecutionContext()
     {
-        var method = Assert.Single(typeof(IGameRuntimeAdapter).GetMethods());
-        Assert.Equal(typeof(RuntimeMutationExecutionContext), method.GetParameters()[0].ParameterType);
-        Assert.DoesNotContain(method.GetParameters(), parameter =>
-            parameter.ParameterType == typeof(string) || parameter.ParameterType.IsGenericType);
+        var methods = typeof(IGameRuntimeAdapter).GetMethods();
+        Assert.Equal(2, methods.Length);
+        Assert.All(methods, method =>
+        {
+            Assert.Equal(typeof(RuntimeMutationExecutionContext), method.GetParameters()[0].ParameterType);
+            Assert.DoesNotContain(method.GetParameters(), parameter =>
+                parameter.ParameterType == typeof(string) || parameter.ParameterType.IsGenericType);
+        });
     }
 
     [Fact]
@@ -163,6 +184,12 @@ public sealed class RuntimeMutationExecutorTests
             CallCount++;
             return callback(context, cancellationToken);
         }
+
+        public Task<RuntimeProviderOutcome> StartAsync(RuntimeMutationExecutionContext context, CancellationToken cancellationToken)
+        {
+            CallCount++;
+            return callback(context, cancellationToken);
+        }
     }
 
     private sealed class FakeBuilder(RuntimeMutationSpecification specification) : IRuntimeSpecificationBuilder
@@ -185,6 +212,9 @@ public sealed class RuntimeMutationExecutorTests
             CallCount++;
             throw new InvalidOperationException("Executor must not be called.");
         }
+
+        public Task<RuntimeMutationExecutionResult> ExecuteStartAsync(RuntimeMutationExecutionContext context, CancellationToken cancellationToken) =>
+            ExecuteCreateAsync(context, cancellationToken);
     }
 
     private sealed class FakePaths : IManagedStoragePathBuilder

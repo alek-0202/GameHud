@@ -33,4 +33,6 @@ The Docker adapter uses Docker.DotNet and maps the validated specification inter
 
 Real reconciliation lists all container states and then inspects the unique candidate. `effect_exists` requires the deterministic name, complete GamesHud ownership labels, trusted image, stopped state, bind set, public port bindings, resource limits, restart policy, non-privileged mode, and default network mode to match. Missing identity is `effect_absent`; collision, multiple candidates, provider failure, running state, or critical drift is `ambiguous`.
 
+GH-13 evolves the closed mutation kind with `StartRuntime`. The same executor invokes a dedicated typed adapter method; it does not accept an operation string or Docker options. Start reconciliation treats a proven running runtime as `effect_exists`, proven created/exited as `effect_absent`, and paused/restarting/dead/foreign/drift/provider failure as ambiguous. Readiness inspection does not pass through the mutation executor.
+
 GH-11 applies the same execution principles to managed storage. `prepare_storage` validates and reloads durable state before calling its typed filesystem provider. Local deterministic failures are known failures; inaccessible or unsafe reconciliation is ambiguous. The provider has no generic write or delete API.

@@ -299,6 +299,7 @@ Remaining:
 - Non-Palworld plugin implementation
 - Migration of all temporary Palworld features onto server-scoped contracts
 - GH-12 Managed Docker runtime creation (Completed: create-only, stopped, reconciliable)
+- GH-13 Managed runtime start and generic readiness (Completed: typed start, reconciliation, bounded read-only health)
 
 ---
 

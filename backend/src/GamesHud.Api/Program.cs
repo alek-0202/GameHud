@@ -34,6 +34,7 @@ builder.Services.Configure<ScheduledOperationOptions>(builder.Configuration.GetS
 builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection(StorageOptions.SectionName));
 builder.Services.Configure<PersistenceOptions>(builder.Configuration.GetSection(PersistenceOptions.SectionName));
 builder.Services.Configure<SecretStorageOptions>(builder.Configuration.GetSection(SecretStorageOptions.SectionName));
+builder.Services.Configure<RuntimeHealthOptions>(builder.Configuration.GetSection(RuntimeHealthOptions.SectionName));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<PalworldGameDefinition>();
 builder.Services.AddSingleton<GameDefinition>(serviceProvider =>
@@ -75,13 +76,19 @@ builder.Services.AddSingleton<IDockerManagedRuntimeClient, DockerManagedRuntimeC
 builder.Services.AddSingleton<IManagedRuntimeStorageValidator, ManagedRuntimeStorageValidator>();
 builder.Services.AddSingleton<DockerGameRuntimeAdapter>();
 builder.Services.AddSingleton<IGameRuntimeAdapter>(services => services.GetRequiredService<DockerGameRuntimeAdapter>());
+builder.Services.AddSingleton<IManagedRuntimeInspector>(services => services.GetRequiredService<DockerGameRuntimeAdapter>());
 builder.Services.AddScoped<IRuntimeMutationExecutor, RuntimeMutationExecutor>();
 builder.Services.AddScoped<IProvisioningStep, CreateRuntimeProvisioningStep>();
 builder.Services.AddScoped<IProvisioningStepReconciler, CreateRuntimeReconciler>();
+builder.Services.AddScoped<IProvisioningStep, StartRuntimeProvisioningStep>();
+builder.Services.AddScoped<IProvisioningStepReconciler, StartRuntimeReconciler>();
+builder.Services.AddSingleton<IRuntimeHealthDelay, RuntimeHealthDelay>();
+builder.Services.AddScoped<IProvisioningStep, VerifyRuntimeHealthProvisioningStep>();
 builder.Services.AddScoped<IProvisioningStep, PrepareStorageProvisioningStep>();
 builder.Services.AddScoped<IProvisioningStepReconciler, PrepareStorageReconciler>();
 foreach (var stepId in ProvisioningStepIds.ExecutableFoundation.Where(id =>
-    id != ProvisioningStepIds.CreateRuntime && id != ProvisioningStepIds.PrepareStorage))
+    id != ProvisioningStepIds.CreateRuntime && id != ProvisioningStepIds.PrepareStorage
+    && id != ProvisioningStepIds.StartRuntime && id != ProvisioningStepIds.VerifyHealth))
 {
     builder.Services.AddScoped<IProvisioningStep>(_ => new NoHostMutationProvisioningStep(stepId));
 }

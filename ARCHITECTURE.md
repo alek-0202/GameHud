@@ -552,6 +552,8 @@ The provisioning engine never receives Docker SDK request types. SEC-03 produces
 
 The adapter uses the existing configured/default Docker endpoint, verifies the trusted image locally, inspects deterministic identity before creation, and fails closed on collision or ambiguity. It does not adopt LegacyExternal resources and exposes no start, delete, pull, exec, network-create, or volume-create capability.
 
+GH-13 adds start as a second typed mutation without changing create semantics. Start proves the same Managed identity and critical configuration before `StartContainerAsync`, then proves `Running` afterward. Generic runtime readiness is a separate read-only step with bounded polling; container running state is not game-specific health. No LegacyExternal or foreign runtime participates in managed start/readiness.
+
 ---
 
 ## Development Principles

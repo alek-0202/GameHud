@@ -2,7 +2,7 @@ using GamesHud.Api.GameServers.Domain;
 
 namespace GamesHud.Api.GameServers.Runtime;
 
-public enum RuntimeMutationKind { CreateRuntime }
+public enum RuntimeMutationKind { CreateRuntime, StartRuntime }
 
 public static class RuntimeMutationOutcomeStatuses
 {

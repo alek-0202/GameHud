@@ -147,7 +147,7 @@ dotnet test
 dotnet run --project src/GamesHud.Api/GamesHud.Api.csproj
 ```
 
-The normal backend test suite does not require a Docker daemon and does not create containers. Managed provisioning supports a create-only Docker boundary: the approved image must already exist locally, and a newly created Managed container remains stopped.
+The normal backend test suite does not require a Docker daemon and does not create or start containers. Managed provisioning creates a stopped container, starts it in a distinct typed step, and then performs bounded read-only runtime readiness verification. Start success and health success are separate outcomes.
 
 The API runs locally at:
 
@@ -189,6 +189,11 @@ Metrics:
 Storage:
 
 - `Storage__DataRoot`
+
+Managed runtime readiness:
+
+- `RuntimeHealth__TimeoutSeconds` (default `60`)
+- `RuntimeHealth__PollIntervalSeconds` (default `2`)
 
 When this value is empty or unset, GamesHud uses a safe app-local fallback under the backend application base directory. Storage planning uses this root to compute deterministic managed server paths, but it does not create directories, copy files, move existing data or reserve durable state.
 

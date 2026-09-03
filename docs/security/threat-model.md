@@ -673,12 +673,14 @@ Required controls:
 | THR-026 | Secrets persisted without model | Future persistence | Database stores tokens/passwords in normal fields and returns them. | Credential compromise. | Future medium | High | Current SQLite schema stores no secrets; SEC-02 provides opaque references, encrypted local storage and response redaction rules. | Future features could bypass the boundary or mishandle partial failures across persistence domains. | Enforce `SecretReference` and `ISecretStore` in every durable secret flow. | SEC-02 |
 | THR-027 | Partial provisioning failure | Provisioning | Directory/container created but API reports success or retries unsafely. | Orphaned resources, duplicate/conflicting identity, data loss. | Medium | High | GH-09 checkpoints unknown effects; GH-11 reconciles Managed storage; GH-12 uses deterministic Docker identity, create-only dispatch, no internal retry, and real stopped-container/config reconciliation. | No automatic recovery or safe owned-resource deletion/rollback. | Audited recovery workflow and owned-resource rollback. | GH-15 |
 | THR-028 | Container exec expansion | Docker exec | Future feature lets user or plugin influence exec command. | Container or host escape path. | Future medium | High | Current exec commands fixed. | No generic command policy yet. | No arbitrary command input; allowlisted templates. | SEC-06/GH-08 |
+| THR-029 | Managed start identity spoofing or replay | Docker runtime | A foreign/name-spoofed container is started, or an uncertain start is blindly repeated. | Unauthorized workload execution or duplicated lifecycle mutation. | Low-medium | High | Deterministic name plus complete ownership labels, trusted image/config inspection, typed start, idempotent running state, and real reconciliation. | A privileged host actor can spoof labels; no audit actor identity yet. | Authorization, audit, stronger provider attestation. | SEC-04/SEC-05 |
+| THR-030 | False readiness or health polling exhaustion | Provisioning health | Running is mistaken for game health, health is spoofed, or polling never terminates. | Incorrect successful provisioning or resource exhaustion. | Medium | Medium | Generic readiness is distinct from game health; Docker HEALTHCHECK is additive; polling is bounded/cancellable; health never mutates lifecycle. | Game-specific readiness is not yet modeled and Docker health is image-controlled. | Typed plugin readiness and health provenance. | GH-14 |
 
 Severity counts:
 
 - Critical: 4
-- High: 15
-- Medium: 9
+- High: 16
+- Medium: 10
 - Low: 0
 
 ## Security Gates

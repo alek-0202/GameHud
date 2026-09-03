@@ -420,3 +420,11 @@ The chat command `/push` means:
 - Do not create a pull request unless explicitly requested.
 
 If unrelated changes, failing validations, missing credentials, or remote push errors are detected, stop and report the blocker instead of forcing the push.
+
+## 19. Managed Runtime Start And Health
+
+- Managed runtime start must remain a distinct typed mutation and may target only a container with proven GamesHud ownership, trusted identity, and expected critical configuration.
+- A running container is not automatically game-healthy. Generic runtime readiness and future game-specific health must remain distinct.
+- Unknown start outcomes require reconciliation before retry.
+- Health verification must be read-only, bounded, cancellable, and must never trigger implicit stop, restart, remove, recreate, or adoption.
+- Managed provisioning must never start or inspect LegacyExternal Palworld as its managed runtime.

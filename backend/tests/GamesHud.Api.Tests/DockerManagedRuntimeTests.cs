@@ -148,6 +148,7 @@ public sealed class DockerManagedRuntimeTests
         public ContainerInspectResponse Inspection { get; init; } = new();
         public Exception? CreateException { get; init; }
         public int CreateCalls { get; private set; }
+        public Task<bool> StartAsync(string id, CancellationToken cancellationToken) => Task.FromResult(true);
         public Task<bool> ImageExistsAsync(string image, CancellationToken cancellationToken) => Task.FromResult(ImageExists);
         public Task<IReadOnlyCollection<ContainerListResponse>> ListAsync(CancellationToken cancellationToken) => Task.FromResult(Containers);
         public Task<ContainerInspectResponse> InspectAsync(string id, CancellationToken cancellationToken) => Task.FromResult(Inspection);

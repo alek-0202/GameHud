@@ -54,3 +54,9 @@ These invariants are permanent GamesHud security rules. Future implementation ta
 - Managed container identity must be a deterministic backend name plus backend ownership labels; name similarity alone never permits adoption.
 - Container creation must leave the resource stopped, and an uncertain create must be reconciled before another create attempt.
 - Internal or administrative game ports must never be automatically published on the host.
+- Only Managed runtimes with proven deterministic identity, ownership, trusted image, and critical configuration may be started.
+- Runtime start is a distinct typed mutation; it must not expose arbitrary Docker configuration or be blindly replayed.
+- Unknown runtime start outcomes require reconciliation before retry.
+- A running container is not automatically game-healthy.
+- Runtime health verification is read-only, bounded, and never triggers implicit lifecycle mutation.
+- Foreign and LegacyExternal containers are never started or adopted by Managed provisioning.

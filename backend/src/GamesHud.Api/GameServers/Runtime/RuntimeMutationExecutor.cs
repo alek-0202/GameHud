@@ -5,6 +5,7 @@ namespace GamesHud.Api.GameServers.Runtime;
 public interface IRuntimeMutationExecutor
 {
     Task<RuntimeMutationExecutionResult> ExecuteCreateAsync(RuntimeMutationExecutionContext context, CancellationToken cancellationToken);
+    Task<RuntimeMutationExecutionResult> ExecuteStartAsync(RuntimeMutationExecutionContext context, CancellationToken cancellationToken);
 }
 
 public sealed class RuntimeMutationExecutor : IRuntimeMutationExecutor
@@ -19,6 +20,14 @@ public sealed class RuntimeMutationExecutor : IRuntimeMutationExecutor
     }
 
     public async Task<RuntimeMutationExecutionResult> ExecuteCreateAsync(RuntimeMutationExecutionContext context, CancellationToken cancellationToken)
+        => await ExecuteAsync(context, _adapter.CreateAsync, cancellationToken);
+
+    public async Task<RuntimeMutationExecutionResult> ExecuteStartAsync(RuntimeMutationExecutionContext context, CancellationToken cancellationToken)
+        => await ExecuteAsync(context, _adapter.StartAsync, cancellationToken);
+
+    private async Task<RuntimeMutationExecutionResult> ExecuteAsync(RuntimeMutationExecutionContext context,
+        Func<RuntimeMutationExecutionContext, CancellationToken, Task<RuntimeProviderOutcome>> operation,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(context);
         if (cancellationToken.IsCancellationRequested)
@@ -29,7 +38,7 @@ public sealed class RuntimeMutationExecutor : IRuntimeMutationExecutor
         RuntimeProviderOutcome outcome;
         try
         {
-            outcome = await _adapter.CreateAsync(context, cancellationToken);
+            outcome = await operation(context, cancellationToken);
         }
         catch (Exception exception)
         {
