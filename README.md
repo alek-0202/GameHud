@@ -210,6 +210,8 @@ Temporary Palworld integration:
 - `Palworld__Backups__LifecycleTimeoutSeconds`
 - `Palworld__Updates__CommandTimeoutSeconds`
 - `Palworld__Updates__LifecycleTimeoutSeconds`
+- `Palworld__Updates__StartupVerificationTimeoutSeconds`
+- `Palworld__Updates__VerificationRetryDelayMilliseconds`
 - `Palworld__RestApi__BaseUrl`
 - `Palworld__RestApi__Username`
 - `Palworld__RestApi__Password`

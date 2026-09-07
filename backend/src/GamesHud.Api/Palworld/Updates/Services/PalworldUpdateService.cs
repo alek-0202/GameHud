@@ -175,7 +175,7 @@ public sealed class PalworldUpdateService : IPalworldUpdateService
             await StartConfiguredContainerAsync(containerName, cancellationToken);
             containerStopped = false;
 
-            var healthCheckStatus = await CheckHealthAsync(containerName, cancellationToken);
+            var healthCheckStatus = await WaitForPostUpdateHealthAsync(containerName, cancellationToken);
             await GetVerifiedInstalledManifestAfterUpdateAsync(
                 containerName,
                 updateStatus,
@@ -610,34 +610,64 @@ public sealed class PalworldUpdateService : IPalworldUpdateService
         }
     }
 
-    private async Task<string> CheckHealthAsync(
+    private async Task<string> WaitForPostUpdateHealthAsync(
         string containerName,
         CancellationToken cancellationToken)
     {
-        try
-        {
-            var container = await _containerService.GetContainerDetailsAsync(containerName, cancellationToken);
+        var options = ResolveUpdateOptions();
+        var timeout = TimeSpan.FromSeconds(options.StartupVerificationTimeoutSeconds);
+        var retryDelay = TimeSpan.FromMilliseconds(options.VerificationRetryDelayMilliseconds);
+        var deadline = DateTimeOffset.UtcNow.Add(timeout);
+        Exception? lastException = null;
+        var lastStatus = "not-checked";
 
-            if (container is null)
+        while (true)
+        {
+            try
             {
-                throw new PalworldUpdateLifecycleException("Configured Palworld container was not found.");
+                var container = await _containerService.GetContainerDetailsAsync(containerName, cancellationToken);
+
+                if (container is null)
+                {
+                    lastStatus = "container-not-found";
+                    throw new PalworldUpdateLifecycleException("Configured Palworld container was not found.");
+                }
+
+                if (!container.State.Equals("running", StringComparison.OrdinalIgnoreCase))
+                {
+                    lastStatus = $"container-{container.State}";
+                    throw new PalworldUpdateLifecycleException("Configured Palworld container is not running after update.");
+                }
+
+                await _palworldRestService.GetMetricsAsync(cancellationToken);
+
+                return "healthy";
+            }
+            catch (Exception exception) when (exception is PalworldRestException or PalworldUpdateLifecycleException)
+            {
+                lastException = exception;
+
+                if (exception is PalworldRestException)
+                {
+                    lastStatus = "container-running-rest-unavailable";
+                }
             }
 
-            if (!container.State.Equals("running", StringComparison.OrdinalIgnoreCase))
+            if (DateTimeOffset.UtcNow >= deadline)
             {
-                throw new PalworldUpdateLifecycleException("Configured Palworld container is not running after update.");
+                throw new PalworldUpdateFailedException(
+                    PalworldUpdateSteps.Health,
+                    $"Palworld did not become healthy within {options.StartupVerificationTimeoutSeconds} seconds after update start. Last status: {lastStatus}.",
+                    lastException);
             }
 
-            await _palworldRestService.GetMetricsAsync(cancellationToken);
+            var remaining = deadline - DateTimeOffset.UtcNow;
+            var delay = remaining < retryDelay ? remaining : retryDelay;
 
-            return "healthy";
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            throw new PalworldUpdateFailedException(
-                PalworldUpdateSteps.Health,
-                "Palworld health check failed after update.",
-                exception);
+            if (delay > TimeSpan.Zero)
+            {
+                await Task.Delay(delay, cancellationToken);
+            }
         }
     }
 
@@ -679,7 +709,9 @@ public sealed class PalworldUpdateService : IPalworldUpdateService
         return new PalworldUpdateOptions
         {
             CommandTimeoutSeconds = Math.Clamp(options.CommandTimeoutSeconds, 5, 300),
-            LifecycleTimeoutSeconds = Math.Clamp(options.LifecycleTimeoutSeconds, 1, 120)
+            LifecycleTimeoutSeconds = Math.Clamp(options.LifecycleTimeoutSeconds, 1, 120),
+            StartupVerificationTimeoutSeconds = Math.Clamp(options.StartupVerificationTimeoutSeconds, 1, 900),
+            VerificationRetryDelayMilliseconds = Math.Clamp(options.VerificationRetryDelayMilliseconds, 1, 30000)
         };
     }
 

@@ -143,6 +143,10 @@ Temporary Palworld settings, REST and backups are configured separately:
 - `Palworld__Updates__CommandTimeoutSeconds`
 - `Palworld:Updates:LifecycleTimeoutSeconds`
 - `Palworld__Updates__LifecycleTimeoutSeconds`
+- `Palworld:Updates:StartupVerificationTimeoutSeconds`
+- `Palworld__Updates__StartupVerificationTimeoutSeconds`
+- `Palworld:Updates:VerificationRetryDelayMilliseconds`
+- `Palworld__Updates__VerificationRetryDelayMilliseconds`
 - `Palworld:RestApi:BaseUrl`
 - `Palworld__RestApi__BaseUrl`
 - `Palworld:RestApi:Username`

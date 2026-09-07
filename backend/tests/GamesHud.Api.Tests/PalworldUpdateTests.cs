@@ -390,6 +390,53 @@ public sealed class PalworldUpdateTests
     }
 
     [Fact]
+    public async Task ApplyUpdateWaitsForPalworldRestAfterStart()
+    {
+        var events = new List<string>();
+        var restService = new RecordingRestService(events)
+        {
+            HealthFailuresBeforeSuccess = 2
+        };
+        var service = CreateService(
+            restService: restService,
+            backupService: new RecordingBackupService(events),
+            containerService: new RecordingContainerService(events),
+            commandService: new RecordingCommandService(),
+            updateRunner: new RecordingUpdateRunner(events));
+
+        var result = await service.ApplyUpdateAsync(
+            PalworldUpdateService.UpdateConfirmation,
+            CancellationToken.None);
+
+        Assert.True(result.UpdateApplied);
+        Assert.Equal(3, events.Count(static item => item == "health"));
+    }
+
+    [Fact]
+    public async Task ApplyUpdateReportsHealthTimeoutWhenPalworldRestNeverReturns()
+    {
+        var events = new List<string>();
+        var restService = new RecordingRestService(events)
+        {
+            FailHealth = true
+        };
+        var service = CreateService(
+            restService: restService,
+            backupService: new RecordingBackupService(events),
+            containerService: new RecordingContainerService(events),
+            commandService: new RecordingCommandService(),
+            updateRunner: new RecordingUpdateRunner(events));
+
+        var exception = await Assert.ThrowsAsync<PalworldUpdateFailedException>(
+            () => service.ApplyUpdateAsync(
+                PalworldUpdateService.UpdateConfirmation,
+                CancellationToken.None));
+
+        Assert.Equal(PalworldUpdateSteps.Health, exception.FailedStep);
+        Assert.Contains("did not become healthy", exception.Message);
+    }
+
+    [Fact]
     public async Task DuplicateUpdateIsBlocked()
     {
         var operationState = new PalworldUpdateOperationState();
@@ -453,13 +500,11 @@ public sealed class PalworldUpdateTests
         IPalworldContainerCommandService? commandService = null,
         IPalworldUpdateRunner? updateRunner = null,
         INotificationService? notificationService = null,
-        PalworldUpdateOperationState? operationState = null)
+        PalworldUpdateOperationState? operationState = null,
+        PalworldOptions? options = null)
     {
         return new PalworldUpdateService(
-            Options.Create(new PalworldOptions
-            {
-                ContainerName = "palworld-server"
-            }),
+            Options.Create(options ?? CreateOptions()),
             restService ?? new RecordingRestService(new List<string>()),
             backupService ?? new RecordingBackupService(new List<string>()),
             containerService ?? new RecordingContainerService(new List<string>()),
@@ -468,6 +513,19 @@ public sealed class PalworldUpdateTests
             notificationService ?? new RecordingNotificationService(),
             operationState ?? new PalworldUpdateOperationState(),
             NullLogger<PalworldUpdateService>.Instance);
+    }
+
+    private static PalworldOptions CreateOptions()
+    {
+        return new PalworldOptions
+        {
+            ContainerName = "palworld-server",
+            Updates = new PalworldUpdateOptions
+            {
+                StartupVerificationTimeoutSeconds = 1,
+                VerificationRetryDelayMilliseconds = 1
+            }
+        };
     }
 
     private sealed class RecordingNotificationService : INotificationService
@@ -508,6 +566,8 @@ public sealed class PalworldUpdateTests
 
         public bool FailHealth { get; set; }
 
+        public int HealthFailuresBeforeSuccess { get; set; }
+
         public Task<PalworldRestInfo> GetInfoAsync(CancellationToken cancellationToken)
         {
             return Task.FromResult(new PalworldRestInfo("v1.0.3", "Palworld", null, "world-guid"));
@@ -534,6 +594,12 @@ public sealed class PalworldUpdateTests
             else
             {
                 _events.Add("health");
+            }
+
+            if (_metricsCalls > 1 && HealthFailuresBeforeSuccess > 0)
+            {
+                HealthFailuresBeforeSuccess--;
+                throw new PalworldRestUnavailableException("health not ready");
             }
 
             if (FailHealth && _metricsCalls > 1)

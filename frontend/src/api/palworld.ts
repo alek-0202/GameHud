@@ -26,6 +26,11 @@ export class PalworldApiRequestError extends Error {
   }
 }
 
+interface ProblemDetailsResponse {
+  title?: unknown
+  detail?: unknown
+}
+
 export async function fetchPalworldConfig(
   signal?: AbortSignal,
   serverId?: string,
@@ -248,9 +253,38 @@ async function fetchJson<TResponse>(
   if (!response.ok) {
     throw new PalworldApiRequestError(
       response.status,
-      `Palworld request failed with status ${response.status}.`,
+      await readErrorMessage(response),
     )
   }
 
   return response.json() as Promise<TResponse>
+}
+
+async function readErrorMessage(response: Response): Promise<string> {
+  const fallback = `Palworld request failed with status ${response.status}.`
+  const contentType = response.headers.get('content-type') ?? ''
+
+  if (contentType.includes('application/json')) {
+    try {
+      const problem = await response.json() as ProblemDetailsResponse
+
+      if (typeof problem.detail === 'string' && problem.detail.trim().length > 0) {
+        return problem.detail
+      }
+
+      if (typeof problem.title === 'string' && problem.title.trim().length > 0) {
+        return problem.title
+      }
+    } catch {
+      return fallback
+    }
+  }
+
+  try {
+    const text = await response.text()
+
+    return text.trim().length > 0 ? text : fallback
+  } catch {
+    return fallback
+  }
 }

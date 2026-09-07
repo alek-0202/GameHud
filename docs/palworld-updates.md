@@ -94,11 +94,13 @@ Manual update flow:
 7. Stop only the configured Palworld container.
 8. Prepare the image-compatible update-on-boot step.
 9. Start only the configured Palworld container.
-10. Run health check.
+10. Wait for health check after the image startup/update sequence.
 11. Re-read installed manifest information and require it to match the expected available manifest.
 12. Return the result.
 
 The actual SteamCMD update is performed by the Palworld container startup scripts when the container starts with `UPDATE_ON_BOOT=true`.
+
+The post-start health check waits up to `Palworld__Updates__StartupVerificationTimeoutSeconds` and retries every `Palworld__Updates__VerificationRetryDelayMilliseconds`, because the production image can spend several minutes applying the update before the Palworld REST API is reachable again.
 
 Only one update apply operation can run at a time in a single GamesHud API process. A duplicate request is rejected before save, backup, stop or start actions.
 

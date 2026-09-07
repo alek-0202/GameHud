@@ -50,4 +50,8 @@ public sealed class PalworldUpdateOptions
     public int CommandTimeoutSeconds { get; set; } = 60;
 
     public int LifecycleTimeoutSeconds { get; set; } = 30;
+
+    public int StartupVerificationTimeoutSeconds { get; set; } = 300;
+
+    public int VerificationRetryDelayMilliseconds { get; set; } = 5000;
 }

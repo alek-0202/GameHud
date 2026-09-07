@@ -131,6 +131,23 @@ describe('PalworldUpdateConfirmationDialog', () => {
     expect(onSubmit).toHaveBeenCalledTimes(1)
     expect(onCancel).toHaveBeenCalledTimes(1)
   })
+
+  it('shows update errors inside the confirmation modal', () => {
+    render(
+      <PalworldUpdateConfirmationDialog
+        confirmationText={updateConfirmation}
+        errorMessage="Palworld did not become healthy within 300 seconds after update start."
+        isUpdating={false}
+        onCancel={vi.fn()}
+        onConfirmationTextChange={vi.fn()}
+        onSubmit={vi.fn()}
+        playersOnline={0}
+        update={createUpdateStatus({ updateStatus: 'update_available' })}
+      />,
+    )
+
+    expect(screen.getByText(/did not become healthy/i)).toBeInTheDocument()
+  })
 })
 
 function renderPanel(update: PalworldUpdateStatus) {

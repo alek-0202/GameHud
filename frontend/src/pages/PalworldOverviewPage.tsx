@@ -343,8 +343,12 @@ export function PalworldOverviewPage() {
       {showUpdateModal && updateState.update !== null && (
         <PalworldUpdateConfirmationDialog
           confirmationText={updateConfirmationText}
+          errorMessage={updateError}
           isUpdating={updateState.isUpdating}
-          onCancel={() => setShowUpdateModal(false)}
+          onCancel={() => {
+            setShowUpdateModal(false)
+            setUpdateError(null)
+          }}
           onConfirmationTextChange={setUpdateConfirmationText}
           onSubmit={() => {
             setUpdateError(null)
@@ -353,8 +357,10 @@ export function PalworldOverviewPage() {
                 setShowUpdateModal(false)
                 setUpdateConfirmationText('')
               })
-              .catch(() => {
-                setUpdateError('Unable to update Palworld server.')
+              .catch((error: unknown) => {
+                setUpdateError(error instanceof Error
+                  ? error.message
+                  : 'Unable to update Palworld server.')
               })
           }}
           playersOnline={overview.onlinePlayers}
@@ -536,6 +542,7 @@ interface PalworldUpdateConfirmationDialogProps {
   update: PalworldUpdateStatus
   playersOnline: number
   confirmationText: string
+  errorMessage?: string | null
   isUpdating: boolean
   onConfirmationTextChange: (value: string) => void
   onCancel: () => void
@@ -546,6 +553,7 @@ export function PalworldUpdateConfirmationDialog({
   update,
   playersOnline,
   confirmationText,
+  errorMessage = null,
   isUpdating,
   onConfirmationTextChange,
   onCancel,
@@ -591,6 +599,9 @@ export function PalworldUpdateConfirmationDialog({
             value={confirmationText}
           />
         </label>
+        {errorMessage !== null && (
+          <p className="state-message state-message-error">{errorMessage}</p>
+        )}
         <div className="modal-actions">
           <button
             className="secondary-button"
