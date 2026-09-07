@@ -83,6 +83,8 @@ GAMESHUD_PALWORLD_BACKUPS_RETENTION_COUNT=24
 GAMESHUD_PALWORLD_BACKUPS_RETENTION_DAYS=7
 GAMESHUD_PALWORLD_BACKUPS_PRE_SAVE_DELAY_SECONDS=2
 GAMESHUD_PALWORLD_BACKUPS_LIFECYCLE_TIMEOUT_SECONDS=30
+GAMESHUD_PALWORLD_UPDATES_COMMAND_TIMEOUT_SECONDS=60
+GAMESHUD_PALWORLD_UPDATES_LIFECYCLE_TIMEOUT_SECONDS=30
 GAMESHUD_PALWORLD_REST_BASE_URL=http://internal-palworld-rest:8212
 GAMESHUD_PALWORLD_REST_USERNAME=admin
 GAMESHUD_PALWORLD_REST_PASSWORD=change-me
@@ -135,6 +137,8 @@ Palworld__Backups__RetentionCount=${GAMESHUD_PALWORLD_BACKUPS_RETENTION_COUNT}
 Palworld__Backups__RetentionDays=${GAMESHUD_PALWORLD_BACKUPS_RETENTION_DAYS}
 Palworld__Backups__PreBackupSaveDelaySeconds=${GAMESHUD_PALWORLD_BACKUPS_PRE_SAVE_DELAY_SECONDS}
 Palworld__Backups__LifecycleTimeoutSeconds=${GAMESHUD_PALWORLD_BACKUPS_LIFECYCLE_TIMEOUT_SECONDS}
+Palworld__Updates__CommandTimeoutSeconds=${GAMESHUD_PALWORLD_UPDATES_COMMAND_TIMEOUT_SECONDS}
+Palworld__Updates__LifecycleTimeoutSeconds=${GAMESHUD_PALWORLD_UPDATES_LIFECYCLE_TIMEOUT_SECONDS}
 Palworld__RestApi__BaseUrl=${GAMESHUD_PALWORLD_REST_BASE_URL}
 Palworld__RestApi__Username=${GAMESHUD_PALWORLD_REST_USERNAME}
 Palworld__RestApi__Password=${GAMESHUD_PALWORLD_REST_PASSWORD}
@@ -218,7 +222,10 @@ GamesHud can check and manually apply updates for the configured Palworld contai
 
 - Updates are not automatic in GamesHud.
 - The configured Palworld container must already use `UPDATE_ON_BOOT=true`.
+- GamesHud verifies `UPDATE_ON_BOOT=true` from the effective environment of the configured Docker container.
 - GamesHud does not modify Palworld container environment variables and does not recreate the container.
+- Changing `.env` or Compose files alone does not change the environment of an already-created Palworld container.
+- Update checks are read-only and only read REST version data plus Steam manifest metadata from the configured Palworld container.
 - Update apply requires strong confirmation.
 - Update apply announces maintenance when REST is available, saves the world, creates a `pre-update` backup, stops only the configured Palworld container, starts only the configured Palworld container and checks health.
 - Binary rollback is not promised in this phase.

@@ -32,6 +32,8 @@ services:
       Palworld__Backups__RetentionDays: ${GAMESHUD_PALWORLD_BACKUPS_RETENTION_DAYS:-7}
       Palworld__Backups__PreBackupSaveDelaySeconds: ${GAMESHUD_PALWORLD_BACKUPS_PRE_SAVE_DELAY_SECONDS:-2}
       Palworld__Backups__LifecycleTimeoutSeconds: ${GAMESHUD_PALWORLD_BACKUPS_LIFECYCLE_TIMEOUT_SECONDS:-30}
+      Palworld__Updates__CommandTimeoutSeconds: ${GAMESHUD_PALWORLD_UPDATES_COMMAND_TIMEOUT_SECONDS:-60}
+      Palworld__Updates__LifecycleTimeoutSeconds: ${GAMESHUD_PALWORLD_UPDATES_LIFECYCLE_TIMEOUT_SECONDS:-30}
       Palworld__RestApi__BaseUrl: ${GAMESHUD_PALWORLD_REST_BASE_URL:-}
       Palworld__RestApi__Username: ${GAMESHUD_PALWORLD_REST_USERNAME:-}
       Palworld__RestApi__Password: ${GAMESHUD_PALWORLD_REST_PASSWORD:-}

@@ -14,28 +14,18 @@ public sealed class PalworldUpdateService : IPalworldUpdateService
 {
     public const string UpdateConfirmation = "UPDATE PALWORLD SERVER";
 
-    private const string Strategy = "thijsvanloef-update-on-boot-steamcmd";
-    private const int LifecycleTimeoutSeconds = 30;
-
-    private static readonly IReadOnlyList<string> ReadUpdateOnBootCommand =
+    private static readonly IReadOnlyList<string> ReadLocalManifestCommand =
     [
         "sh",
         "-lc",
-        "case \"${UPDATE_ON_BOOT:-}\" in true|TRUE|1) echo true ;; *) echo false ;; esac"
+        $"manifest=$(awk '/\"{PalworldUpdateConstants.ServerDepotId}\"/{{in_depot=1}} in_depot && /\"manifest\"/{{gsub(/\"/, \"\", $2); print $2; exit}}' {PalworldUpdateConstants.AppManifestPath} 2>/dev/null || true); if [ -n \"$manifest\" ]; then printf '%s\\n' \"$manifest\"; fi"
     ];
 
-    private static readonly IReadOnlyList<string> ReadLocalBuildCommand =
+    private static readonly IReadOnlyList<string> ReadRemoteManifestCommand =
     [
         "sh",
         "-lc",
-        "grep -m1 '\"buildid\"' /palworld/steamapps/appmanifest_2394010.acf 2>/dev/null || true"
-    ];
-
-    private static readonly IReadOnlyList<string> ReadRemoteBuildCommand =
-    [
-        "sh",
-        "-lc",
-        "steamcmd +login anonymous +app_info_update 1 +app_info_print 2394010 +quit"
+        $"if [ -x {PalworldUpdateConstants.PreferredSteamCmdPath} ]; then steamcmd={PalworldUpdateConstants.PreferredSteamCmdPath}; elif command -v steamcmd.sh >/dev/null 2>&1; then steamcmd=$(command -v steamcmd.sh); elif command -v steamcmd >/dev/null 2>&1; then steamcmd=$(command -v steamcmd); else echo 'SteamCMD executable was not found.' >&2; exit 127; fi; \"$steamcmd\" +login anonymous +app_info_update 1 +app_info_print {PalworldUpdateConstants.SteamAppId} +quit"
     ];
 
     private readonly IOptions<PalworldOptions> _options;
@@ -45,6 +35,7 @@ public sealed class PalworldUpdateService : IPalworldUpdateService
     private readonly IPalworldContainerCommandService _commandService;
     private readonly IPalworldUpdateRunner _updateRunner;
     private readonly INotificationService _notificationService;
+    private readonly PalworldUpdateOperationState _operationState;
     private readonly ILogger<PalworldUpdateService> _logger;
 
     public PalworldUpdateService(
@@ -55,6 +46,7 @@ public sealed class PalworldUpdateService : IPalworldUpdateService
         IPalworldContainerCommandService commandService,
         IPalworldUpdateRunner updateRunner,
         INotificationService notificationService,
+        PalworldUpdateOperationState operationState,
         ILogger<PalworldUpdateService> logger)
     {
         _options = options;
@@ -64,6 +56,7 @@ public sealed class PalworldUpdateService : IPalworldUpdateService
         _commandService = commandService;
         _updateRunner = updateRunner;
         _notificationService = notificationService;
+        _operationState = operationState;
         _logger = logger;
     }
 
@@ -72,57 +65,72 @@ public sealed class PalworldUpdateService : IPalworldUpdateService
         var containerName = ResolveContainerName();
         var checkedAt = DateTimeOffset.UtcNow;
         var installedVersion = await TryGetInstalledVersionAsync(cancellationToken);
-        var localBuildId = await TryGetLocalBuildIdAsync(containerName, cancellationToken);
-        var remoteBuildId = await TryGetRemoteBuildIdAsync(containerName, cancellationToken);
+        var localManifestId = await TryGetLocalManifestIdAsync(containerName, cancellationToken);
+        var remoteManifestId = await TryGetRemoteManifestIdAsync(containerName, cancellationToken);
+        var updateReadiness = await GetUpdateReadinessAsync(containerName, cancellationToken);
 
-        if (remoteBuildId is null)
+        if (remoteManifestId is null)
         {
             return new PalworldUpdateStatus(
-                FormatInstalledVersion(installedVersion, localBuildId),
+                FormatInstalledVersion(installedVersion),
                 null,
-                PalworldUpdateStatuses.CheckUnavailable,
+                null,
+                null,
+                PalworldUpdateStatuses.Unavailable,
+                updateReadiness.Ready,
+                updateReadiness.Status,
+                updateReadiness.Message,
                 checkedAt,
-                Strategy,
-                "Steam build information could not be checked from the configured Palworld container.");
+                PalworldUpdateConstants.Strategy,
+                "Steam manifest information could not be checked from the configured Palworld container.");
         }
 
-        if (localBuildId is null)
+        if (localManifestId is null)
         {
             return new PalworldUpdateStatus(
-                FormatInstalledVersion(installedVersion, null),
-                FormatSteamBuild(remoteBuildId),
-                PalworldUpdateStatuses.Unknown,
+                FormatInstalledVersion(installedVersion),
+                null,
+                FormatSteamManifest(remoteManifestId),
+                remoteManifestId,
+                PalworldUpdateStatuses.Unavailable,
+                updateReadiness.Ready,
+                updateReadiness.Status,
+                updateReadiness.Message,
                 checkedAt,
-                Strategy,
-                "Latest Steam build was found, but the installed build id could not be read.");
+                PalworldUpdateConstants.Strategy,
+                "Latest Steam manifest was found, but the installed Palworld manifest could not be read.");
         }
 
-        var status = string.Equals(localBuildId, remoteBuildId, StringComparison.Ordinal)
+        var status = string.Equals(localManifestId, remoteManifestId, StringComparison.Ordinal)
             ? PalworldUpdateStatuses.UpToDate
             : PalworldUpdateStatuses.UpdateAvailable;
 
-        var response = new PalworldUpdateStatus(
-            FormatInstalledVersion(installedVersion, localBuildId),
-            FormatSteamBuild(remoteBuildId),
+        return new PalworldUpdateStatus(
+            FormatInstalledVersion(installedVersion),
+            localManifestId,
+            FormatSteamManifest(remoteManifestId),
+            remoteManifestId,
             status,
+            updateReadiness.Ready,
+            updateReadiness.Status,
+            updateReadiness.Message,
             checkedAt,
-            Strategy,
-            status == PalworldUpdateStatuses.UpdateAvailable
-                ? "A newer Steam build appears to be available."
-                : "Installed Steam build matches the latest public Steam build.");
+            PalworldUpdateConstants.Strategy,
+            CreateUpdateStatusMessage(status, updateReadiness));
+    }
 
-        if (status == PalworldUpdateStatuses.UpdateAvailable)
+    private static string CreateUpdateStatusMessage(
+        string status,
+        PalworldUpdateReadiness updateReadiness)
+    {
+        if (status == PalworldUpdateStatuses.UpdateAvailable && !updateReadiness.Ready)
         {
-            await _notificationService.NotifyAsync(
-                new NotificationEvent(
-                    NotificationEventTypes.UpdateAvailable,
-                    "Palworld update available",
-                    "A newer Palworld Steam build appears to be available.",
-                    "palworld-update-available"),
-                cancellationToken);
+            return "A newer Palworld Steam manifest is available, but automatic updates are not configured for this server.";
         }
 
-        return response;
+        return status == PalworldUpdateStatuses.UpdateAvailable
+                ? "A newer Palworld Steam manifest appears to be available."
+                : "Installed Palworld manifest matches the latest public Steam manifest.";
     }
 
     public async Task<PalworldUpdateResult> ApplyUpdateAsync(
@@ -135,6 +143,9 @@ public sealed class PalworldUpdateService : IPalworldUpdateService
                 $"Confirmation text must be exactly '{UpdateConfirmation}'.");
         }
 
+        using var operation = _operationState.TryBegin()
+            ?? throw new PalworldUpdateConflictException("A Palworld update is already running.");
+
         var containerName = ResolveContainerName();
         var updateStatus = await CheckForUpdatesAsync(cancellationToken);
 
@@ -146,7 +157,7 @@ public sealed class PalworldUpdateService : IPalworldUpdateService
                 "Palworld update can only be applied when GamesHud detects an available update.");
         }
 
-        await EnsureUpdateOnBootEnabledAsync(containerName, cancellationToken);
+        EnsureUpdateReady(updateStatus);
 
         var playersOnline = await TryGetPlayersOnlineAsync(cancellationToken);
         var announcementStatus = await TryAnnounceAsync(cancellationToken);
@@ -159,21 +170,21 @@ public sealed class PalworldUpdateService : IPalworldUpdateService
             await StopConfiguredContainerAsync(containerName, cancellationToken);
             containerStopped = true;
 
-            var preparedUpdateStatus = await PrepareUpdateAsync(containerName, cancellationToken);
+            await PrepareUpdateAsync(containerName, cancellationToken);
 
             await StartConfiguredContainerAsync(containerName, cancellationToken);
             containerStopped = false;
 
             var healthCheckStatus = await CheckHealthAsync(containerName, cancellationToken);
+            await GetVerifiedInstalledManifestAfterUpdateAsync(
+                containerName,
+                updateStatus,
+                cancellationToken);
             var installedAfter = await TryGetInstalledVersionAsync(cancellationToken);
-            var finalStatus = ResolveFinalUpdateStatus(
-                updateStatus.InstalledVersion,
-                installedAfter,
-                preparedUpdateStatus);
 
             var result = new PalworldUpdateResult(
                 updateStatus.InstalledVersion,
-                FormatInstalledVersion(installedAfter, await TryGetLocalBuildIdAsync(containerName, cancellationToken)),
+                FormatInstalledVersion(installedAfter),
                 updateStatus.AvailableVersion,
                 true,
                 playersOnline,
@@ -181,7 +192,7 @@ public sealed class PalworldUpdateService : IPalworldUpdateService
                 saveStatus,
                 backup.Id,
                 "stopped",
-                finalStatus,
+                PalworldUpdateStatuses.Applied,
                 "started",
                 healthCheckStatus,
                 DateTimeOffset.UtcNow);
@@ -242,6 +253,78 @@ public sealed class PalworldUpdateService : IPalworldUpdateService
         return ExtractFirstBuildId(output);
     }
 
+    public static string? ExtractInstalledDepotManifestId(string output)
+    {
+        if (string.IsNullOrWhiteSpace(output))
+        {
+            return null;
+        }
+
+        var trimmedOutput = output.Trim();
+
+        if (Regex.IsMatch(trimmedOutput, @"\A\d+\z", RegexOptions.CultureInvariant))
+        {
+            return trimmedOutput;
+        }
+
+        var depotBlock = ExtractVdfBlock(trimmedOutput, PalworldUpdateConstants.ServerDepotId);
+
+        if (depotBlock is not null)
+        {
+            var depotManifest = Regex.Match(
+                depotBlock,
+                "\"manifest\"\\s+\"(?<manifestId>\\d+)\"",
+                RegexOptions.CultureInvariant);
+
+            if (depotManifest.Success)
+            {
+                return depotManifest.Groups["manifestId"].Value;
+            }
+        }
+
+        return null;
+    }
+
+    public static string? ExtractLatestPublicDepotManifestId(string output)
+    {
+        if (string.IsNullOrWhiteSpace(output))
+        {
+            return null;
+        }
+
+        var depotBlock = ExtractVdfBlock(output, PalworldUpdateConstants.ServerDepotId);
+
+        if (depotBlock is null)
+        {
+            return null;
+        }
+
+        var manifestsBlock = ExtractVdfBlock(depotBlock, "manifests") ?? depotBlock;
+        var directPublicManifest = Regex.Match(
+            manifestsBlock,
+            "\"public\"\\s+\"(?<manifestId>\\d+)\"",
+            RegexOptions.CultureInvariant);
+
+        if (directPublicManifest.Success)
+        {
+            return directPublicManifest.Groups["manifestId"].Value;
+        }
+
+        var publicBlock = ExtractVdfBlock(manifestsBlock, "public");
+
+        if (publicBlock is null)
+        {
+            return null;
+        }
+
+        var manifest = Regex.Match(
+            publicBlock,
+            "\"gid\"\\s+\"(?<manifestId>\\d+)\"",
+            RegexOptions.CultureInvariant);
+
+        return manifest.Success ? manifest.Groups["manifestId"].Value : null;
+    }
+
     private async Task<string?> TryGetInstalledVersionAsync(CancellationToken cancellationToken)
     {
         try
@@ -260,7 +343,7 @@ public sealed class PalworldUpdateService : IPalworldUpdateService
         }
     }
 
-    private async Task<string?> TryGetLocalBuildIdAsync(
+    private async Task<string?> TryGetLocalManifestIdAsync(
         string containerName,
         CancellationToken cancellationToken)
     {
@@ -268,26 +351,26 @@ public sealed class PalworldUpdateService : IPalworldUpdateService
         {
             var result = await _commandService.ExecuteAsync(
                 containerName,
-                ReadLocalBuildCommand,
+                ReadLocalManifestCommand,
                 cancellationToken);
 
-            return result.ExitCode == 0 ? ExtractSteamBuildId(result.Output) : null;
+            return result.ExitCode == 0 ? ExtractInstalledDepotManifestId(result.Output) : null;
         }
         catch (PalworldUpdateException exception)
         {
-            _logger.LogWarning(exception, "Unable to read installed Palworld Steam build id.");
+            _logger.LogWarning(exception, "Unable to read installed Palworld Steam manifest id.");
 
             return null;
         }
         catch (DockerUnavailableException exception)
         {
-            _logger.LogWarning(exception, "Docker unavailable while reading Palworld Steam build id.");
+            _logger.LogWarning(exception, "Docker unavailable while reading Palworld Steam manifest id.");
 
             return null;
         }
     }
 
-    private async Task<string?> TryGetRemoteBuildIdAsync(
+    private async Task<string?> TryGetRemoteManifestIdAsync(
         string containerName,
         CancellationToken cancellationToken)
     {
@@ -295,40 +378,101 @@ public sealed class PalworldUpdateService : IPalworldUpdateService
         {
             var result = await _commandService.ExecuteAsync(
                 containerName,
-                ReadRemoteBuildCommand,
+                ReadRemoteManifestCommand,
                 cancellationToken);
 
-            return result.ExitCode == 0 ? ExtractSteamBuildId(result.Output) : null;
+            return result.ExitCode == 0 ? ExtractLatestPublicDepotManifestId(result.Output) : null;
         }
         catch (PalworldUpdateException exception)
         {
-            _logger.LogWarning(exception, "Unable to read latest Palworld Steam build id.");
+            _logger.LogWarning(exception, "Unable to read latest Palworld Steam manifest id.");
 
             return null;
         }
         catch (DockerUnavailableException exception)
         {
-            _logger.LogWarning(exception, "Docker unavailable while reading latest Palworld Steam build id.");
+            _logger.LogWarning(exception, "Docker unavailable while reading latest Palworld Steam manifest id.");
 
             return null;
         }
     }
 
-    private async Task EnsureUpdateOnBootEnabledAsync(
+    private async Task<PalworldUpdateReadiness> GetUpdateReadinessAsync(
         string containerName,
         CancellationToken cancellationToken)
     {
-        var result = await _commandService.ExecuteAsync(
-            containerName,
-            ReadUpdateOnBootCommand,
-            cancellationToken);
-
-        if (result.ExitCode != 0
-            || !result.Output.Trim().Equals("true", StringComparison.OrdinalIgnoreCase))
+        try
         {
-            throw new PalworldUpdateValidationException(
-                "The configured Palworld container must have UPDATE_ON_BOOT=true before GamesHud can apply updates safely.");
+            var value = await _commandService.ReadEnvironmentVariableAsync(
+                containerName,
+                "UPDATE_ON_BOOT",
+                cancellationToken);
+
+            if (value is null)
+            {
+                return new PalworldUpdateReadiness(
+                    false,
+                    PalworldUpdateReadinessStatuses.NotConfigured,
+                    "UPDATE_ON_BOOT is not set on the configured Palworld container.");
+            }
+
+            if (value.Trim().Equals("true", StringComparison.Ordinal))
+            {
+                return new PalworldUpdateReadiness(
+                    true,
+                    PalworldUpdateReadinessStatuses.Ready,
+                    "Automatic update-on-boot is configured on the current Palworld container.");
+            }
+
+            return new PalworldUpdateReadiness(
+                false,
+                PalworldUpdateReadinessStatuses.NotConfigured,
+                "UPDATE_ON_BOOT is not enabled on the configured Palworld container.");
         }
+        catch (Exception exception) when (exception is PalworldUpdateException or DockerUnavailableException)
+        {
+            _logger.LogWarning(exception, "Unable to verify UPDATE_ON_BOOT on the configured Palworld container.");
+
+            return new PalworldUpdateReadiness(
+                false,
+                PalworldUpdateReadinessStatuses.Unavailable,
+                "GamesHud could not verify whether automatic update-on-boot is configured on this server.");
+        }
+    }
+
+    private static void EnsureUpdateReady(PalworldUpdateStatus updateStatus)
+    {
+        if (updateStatus.UpdateReady)
+        {
+            return;
+        }
+
+        throw new PalworldUpdateNotConfiguredException(
+            "The configured Palworld container must have UPDATE_ON_BOOT=true before GamesHud can apply updates safely.");
+    }
+
+    private async Task<string> GetVerifiedInstalledManifestAfterUpdateAsync(
+        string containerName,
+        PalworldUpdateStatus updateStatus,
+        CancellationToken cancellationToken)
+    {
+        var installedManifestAfter = await TryGetLocalManifestIdAsync(containerName, cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(updateStatus.AvailableBuild))
+        {
+            throw new PalworldUpdateFailedException(
+                PalworldUpdateSteps.VersionCheck,
+                "Palworld update could not be verified because the expected Steam manifest is unknown.");
+        }
+
+        if (string.Equals(installedManifestAfter, updateStatus.AvailableBuild, StringComparison.Ordinal))
+        {
+            return updateStatus.AvailableBuild;
+        }
+
+        throw new PalworldUpdateFailedException(
+            PalworldUpdateSteps.VersionCheck,
+            "Palworld container started, but the installed Steam manifest does not match the expected update.");
     }
 
     private async Task<int?> TryGetPlayersOnlineAsync(CancellationToken cancellationToken)
@@ -416,7 +560,7 @@ public sealed class PalworldUpdateService : IPalworldUpdateService
         {
             var result = await _containerService.StopContainerAsync(
                 containerName,
-                LifecycleTimeoutSeconds,
+                ResolveUpdateOptions().LifecycleTimeoutSeconds,
                 cancellationToken);
 
             EnsureLifecycleSuccess(result, "stopped", "stop");
@@ -528,6 +672,17 @@ public sealed class PalworldUpdateService : IPalworldUpdateService
         return containerName.Trim();
     }
 
+    private PalworldUpdateOptions ResolveUpdateOptions()
+    {
+        var options = _options.Value.Updates;
+
+        return new PalworldUpdateOptions
+        {
+            CommandTimeoutSeconds = Math.Clamp(options.CommandTimeoutSeconds, 5, 300),
+            LifecycleTimeoutSeconds = Math.Clamp(options.LifecycleTimeoutSeconds, 1, 120)
+        };
+    }
+
     private static void EnsureLifecycleSuccess(
         ContainerLifecycleActionResponse? response,
         string expectedState,
@@ -587,21 +742,19 @@ public sealed class PalworldUpdateService : IPalworldUpdateService
             : preparedUpdateStatus;
     }
 
-    private static string FormatInstalledVersion(
-        string? installedVersion,
-        string? localBuildId)
+    private static string FormatInstalledVersion(string? installedVersion)
     {
         if (!string.IsNullOrWhiteSpace(installedVersion))
         {
             return installedVersion;
         }
 
-        return localBuildId is null ? "Unknown" : FormatSteamBuild(localBuildId);
+        return "Unknown";
     }
 
-    private static string FormatSteamBuild(string buildId)
+    private static string FormatSteamManifest(string manifestId)
     {
-        return $"Steam build {buildId}";
+        return $"Steam manifest {manifestId}";
     }
 
     private static string? ExtractFirstBuildId(string output)
@@ -612,5 +765,60 @@ public sealed class PalworldUpdateService : IPalworldUpdateService
             RegexOptions.CultureInvariant);
 
         return match.Success ? match.Groups["buildId"].Value : null;
+    }
+
+    private static string? ExtractVdfBlock(string output, string key)
+    {
+        var keyIndex = output.IndexOf($"\"{key}\"", StringComparison.Ordinal);
+
+        if (keyIndex < 0)
+        {
+            return null;
+        }
+
+        var blockStart = output.IndexOf('{', keyIndex);
+
+        if (blockStart < 0)
+        {
+            return null;
+        }
+
+        var depth = 0;
+        var inQuote = false;
+
+        for (var index = blockStart; index < output.Length; index++)
+        {
+            var current = output[index];
+
+            if (current == '"' && (index == 0 || output[index - 1] != '\\'))
+            {
+                inQuote = !inQuote;
+            }
+
+            if (inQuote)
+            {
+                continue;
+            }
+
+            if (current == '{')
+            {
+                depth++;
+                continue;
+            }
+
+            if (current != '}')
+            {
+                continue;
+            }
+
+            depth--;
+
+            if (depth == 0)
+            {
+                return output[(blockStart + 1)..index];
+            }
+        }
+
+        return null;
     }
 }

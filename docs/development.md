@@ -139,6 +139,10 @@ Temporary Palworld settings, REST and backups are configured separately:
 - `Palworld__Backups__PreBackupSaveDelaySeconds`
 - `Palworld:Backups:LifecycleTimeoutSeconds`
 - `Palworld__Backups__LifecycleTimeoutSeconds`
+- `Palworld:Updates:CommandTimeoutSeconds`
+- `Palworld__Updates__CommandTimeoutSeconds`
+- `Palworld:Updates:LifecycleTimeoutSeconds`
+- `Palworld__Updates__LifecycleTimeoutSeconds`
 - `Palworld:RestApi:BaseUrl`
 - `Palworld__RestApi__BaseUrl`
 - `Palworld:RestApi:Username`
@@ -251,7 +255,7 @@ The GET response returns supported settings as a typed metadata list. Password v
 
 The overview and players endpoints use the Palworld REST API through the backend only. They must not return REST credentials, player IP addresses or raw external contracts.
 
-When `restart=true`, GamesHud stops and starts only the configured Palworld container. Backup restore and manual update also stop and start only the configured Palworld container after strong confirmation and after creating a required backup. These flows must not call compose down, Docker daemon restart, remove, kill, recreate or lifecycle actions for any other container.
+When `restart=true`, GamesHud stops and starts only the configured Palworld container. Backup restore and manual update also stop and start only the configured Palworld container after strong confirmation and after creating a required backup. Manual update apply is allowed only when Docker inspection proves the configured container already has effective environment `UPDATE_ON_BOOT=true`. The update check endpoint is read-only and must not save, back up, stop, start, restart or update Palworld. These flows must not call compose down, Docker daemon restart, remove, kill, recreate, mutate container environment or lifecycle actions for any other container.
 
 Palworld player administration is limited to supported REST actions: announce, kick, ban and unban. Destructive player actions require exact confirmation text. Palworld mod support is inventory-only until a safe and predictable Linux container mod workflow exists.
 

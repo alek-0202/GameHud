@@ -208,6 +208,8 @@ Temporary Palworld integration:
 - `Palworld__Backups__RetentionDays`
 - `Palworld__Backups__PreBackupSaveDelaySeconds`
 - `Palworld__Backups__LifecycleTimeoutSeconds`
+- `Palworld__Updates__CommandTimeoutSeconds`
+- `Palworld__Updates__LifecycleTimeoutSeconds`
 - `Palworld__RestApi__BaseUrl`
 - `Palworld__RestApi__Username`
 - `Palworld__RestApi__Password`
@@ -215,7 +217,7 @@ Temporary Palworld integration:
 
 The managed path must point to the Palworld data directory. The backup path must be a separate directory and must not be inside the managed path. The container name is the only container targeted by Palworld Save & Restart and backup restore flows. Keep `DISABLE_GENERATE_SETTINGS=true` in the Palworld deployment when GamesHud edits the file directly. REST credentials are used only by the backend. Do not commit real VPS paths, server passwords, REST credentials or private container names.
 
-Manual Palworld update apply requires the configured Palworld container to already use `UPDATE_ON_BOOT=true`. GamesHud checks this before starting the maintenance flow and does not change Palworld container environment variables.
+Manual Palworld update apply requires the configured Palworld container to already have effective container environment `UPDATE_ON_BOOT=true`. GamesHud verifies that value from Docker container inspection before starting the maintenance flow and does not change Palworld container environment variables. Changing `deploy/.env` alone does not change an already-created production container; enabling the variable for production is a separate operational action. Update checks are read-only: they read the installed Palworld version from REST when available, compare the installed Palworld server depot manifest with the latest public Steam manifest through SteamCMD inside the configured container, and never stop, start, restart, save, back up or update the server.
 
 Optional multi-server configuration can be introduced with a `Servers` collection. When no collection is configured, GamesHud creates a legacy `palworld` server from the `Palworld__...` values above.
 

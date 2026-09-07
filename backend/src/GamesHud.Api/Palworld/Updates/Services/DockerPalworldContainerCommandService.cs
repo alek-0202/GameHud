@@ -4,6 +4,7 @@ using Docker.DotNet;
 using Docker.DotNet.Models;
 using GamesHud.Api.Configuration;
 using GamesHud.Api.Docker.Models;
+using GamesHud.Api.Palworld.Configuration;
 using Microsoft.Extensions.Options;
 
 namespace GamesHud.Api.Palworld.Updates.Services;
@@ -13,10 +14,14 @@ public sealed class DockerPalworldContainerCommandService : IPalworldContainerCo
     private const int MaxOutputLength = 16_384;
 
     private readonly IOptions<DockerOptions> _options;
+    private readonly IOptions<PalworldOptions> _palworldOptions;
 
-    public DockerPalworldContainerCommandService(IOptions<DockerOptions> options)
+    public DockerPalworldContainerCommandService(
+        IOptions<DockerOptions> options,
+        IOptions<PalworldOptions> palworldOptions)
     {
         _options = options;
+        _palworldOptions = palworldOptions;
     }
 
     public async Task<PalworldContainerCommandResult> ExecuteAsync(
@@ -29,6 +34,10 @@ public sealed class DockerPalworldContainerCommandService : IPalworldContainerCo
             throw new PalworldUpdateCommandException("Container command cannot be empty.");
         }
 
+        using var timeoutCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCancellationTokenSource.CancelAfter(TimeSpan.FromSeconds(ResolveCommandTimeoutSeconds()));
+        var timeoutToken = timeoutCancellationTokenSource.Token;
+
         try
         {
             using var client = CreateClient();
@@ -40,14 +49,14 @@ public sealed class DockerPalworldContainerCommandService : IPalworldContainerCo
                     AttachStdout = true,
                     Cmd = command.ToList()
                 },
-                cancellationToken);
+                timeoutToken);
 
             using var stream = await client.Exec.StartAndAttachContainerExecAsync(
                 exec.ID,
                 tty: false,
-                cancellationToken);
-            var output = await ReadOutputAsync(stream, cancellationToken);
-            var inspect = await client.Exec.InspectContainerExecAsync(exec.ID, cancellationToken);
+                timeoutToken);
+            var output = await ReadOutputAsync(stream, timeoutToken);
+            var inspect = await client.Exec.InspectContainerExecAsync(exec.ID, timeoutToken);
 
             return new PalworldContainerCommandResult(
                 (int)inspect.ExitCode,
@@ -56,6 +65,49 @@ public sealed class DockerPalworldContainerCommandService : IPalworldContainerCo
         catch (Exception exception) when (IsContainerNotFound(exception))
         {
             throw new PalworldUpdateCommandException("Configured Palworld container was not found.");
+        }
+        catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new PalworldUpdateCommandException("Palworld container command timed out.", exception);
+        }
+        catch (Exception exception) when (IsDockerAccessFailure(exception, cancellationToken))
+        {
+            throw new DockerUnavailableException("Docker Engine is unavailable.", exception);
+        }
+    }
+
+    public async Task<string?> ReadEnvironmentVariableAsync(
+        string containerName,
+        string variableName,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(variableName)
+            || variableName.Contains('=', StringComparison.Ordinal))
+        {
+            throw new PalworldUpdateCommandException("Environment variable name is invalid.");
+        }
+
+        using var timeoutCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCancellationTokenSource.CancelAfter(TimeSpan.FromSeconds(ResolveCommandTimeoutSeconds()));
+        var timeoutToken = timeoutCancellationTokenSource.Token;
+
+        try
+        {
+            using var client = CreateClient();
+            var container = await client.Containers.InspectContainerAsync(containerName, timeoutToken);
+            var prefix = $"{variableName.Trim()}=";
+            var match = container.Config?.Env?
+                .FirstOrDefault(value => value.StartsWith(prefix, StringComparison.Ordinal));
+
+            return match is null ? null : match[prefix.Length..];
+        }
+        catch (Exception exception) when (IsContainerNotFound(exception))
+        {
+            throw new PalworldUpdateCommandException("Configured Palworld container was not found.");
+        }
+        catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new PalworldUpdateCommandException("Palworld container environment inspection timed out.", exception);
         }
         catch (Exception exception) when (IsDockerAccessFailure(exception, cancellationToken))
         {
@@ -109,6 +161,11 @@ public sealed class DockerPalworldContainerCommandService : IPalworldContainerCo
         return output.Length <= MaxOutputLength
             ? output
             : output[^MaxOutputLength..];
+    }
+
+    private int ResolveCommandTimeoutSeconds()
+    {
+        return Math.Clamp(_palworldOptions.Value.Updates.CommandTimeoutSeconds, 5, 300);
     }
 
     private static bool IsContainerNotFound(Exception exception)

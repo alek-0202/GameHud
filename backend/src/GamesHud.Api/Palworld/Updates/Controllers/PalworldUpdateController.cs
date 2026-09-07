@@ -65,14 +65,31 @@ public sealed class PalworldUpdateController : ControllerBase
         {
             return BadRequestProblem(exception.Message);
         }
+        catch (PalworldUpdateNotConfiguredException exception)
+        {
+            return ProblemWithCode(
+                "Palworld update is not configured",
+                exception.Message,
+                StatusCodes.Status409Conflict,
+                "update_not_configured");
+        }
+        catch (PalworldUpdateConflictException exception)
+        {
+            return ProblemWithCode(
+                "Palworld update is already running",
+                exception.Message,
+                StatusCodes.Status409Conflict,
+                "duplicate_update");
+        }
         catch (DockerUnavailableException exception)
         {
             _logger.LogWarning(exception, "Docker Engine is unavailable during Palworld update.");
 
-            return Problem(
-                title: "Docker Engine is unavailable",
-                detail: "The API could not reach Docker Engine to manage the configured Palworld container.",
-                statusCode: StatusCodes.Status503ServiceUnavailable);
+            return ProblemWithCode(
+                "Docker Engine is unavailable",
+                "The API could not reach Docker Engine to manage the configured Palworld container.",
+                StatusCodes.Status503ServiceUnavailable,
+                "docker_unavailable");
         }
         catch (PalworldUpdateConfigurationException exception)
         {
@@ -84,10 +101,11 @@ public sealed class PalworldUpdateController : ControllerBase
         {
             _logger.LogError(exception, "Palworld update failed at {Step}.", exception.FailedStep);
 
-            return Problem(
-                title: "Palworld update failed",
-                detail: exception.Message,
-                statusCode: StatusCodes.Status409Conflict);
+            return ProblemWithCode(
+                "Palworld update failed",
+                exception.Message,
+                StatusCodes.Status409Conflict,
+                MapFailedStepToErrorCode(exception.FailedStep));
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -99,25 +117,60 @@ public sealed class PalworldUpdateController : ControllerBase
 
     private ObjectResult UpdateUnavailableProblem(string detail)
     {
-        return Problem(
-            title: "Palworld update integration is not configured",
-            detail: detail,
-            statusCode: StatusCodes.Status503ServiceUnavailable);
+        return ProblemWithCode(
+            "Palworld update integration is not configured",
+            detail,
+            StatusCodes.Status503ServiceUnavailable,
+            "update_unavailable");
     }
 
     private ObjectResult BadRequestProblem(string detail)
     {
-        return Problem(
-            title: "Invalid Palworld update request",
-            detail: detail,
-            statusCode: StatusCodes.Status400BadRequest);
+        return ProblemWithCode(
+            "Invalid Palworld update request",
+            detail,
+            StatusCodes.Status400BadRequest,
+            "invalid_update_request");
     }
 
     private ObjectResult UnexpectedErrorProblem()
     {
-        return Problem(
-            title: "Unexpected API error",
-            detail: "The API could not complete the Palworld update request.",
-            statusCode: StatusCodes.Status500InternalServerError);
+        return ProblemWithCode(
+            "Unexpected API error",
+            "The API could not complete the Palworld update request.",
+            StatusCodes.Status500InternalServerError,
+            "unexpected_update_error");
+    }
+
+    private ObjectResult ProblemWithCode(
+        string title,
+        string detail,
+        int statusCode,
+        string errorCode)
+    {
+        var problem = new ProblemDetails
+        {
+            Title = title,
+            Detail = detail,
+            Status = statusCode
+        };
+        problem.Extensions["errorCode"] = errorCode;
+
+        return StatusCode(statusCode, problem);
+    }
+
+    private static string MapFailedStepToErrorCode(string failedStep)
+    {
+        return failedStep switch
+        {
+            PalworldUpdateSteps.Save => "save_failed",
+            PalworldUpdateSteps.Backup => "backup_failed",
+            PalworldUpdateSteps.Stop => "stop_failed",
+            PalworldUpdateSteps.Update => "update_failed",
+            PalworldUpdateSteps.Start => "start_failed",
+            PalworldUpdateSteps.Health => "verification_failed",
+            PalworldUpdateSteps.VersionCheck => "version_check_failed",
+            _ => "update_failed"
+        };
     }
 }

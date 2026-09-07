@@ -13,37 +13,162 @@ namespace GamesHud.Api.Tests;
 public sealed class PalworldUpdateTests
 {
     [Fact]
-    public async Task CheckForUpdatesComparesInstalledAndRemoteSteamBuilds()
+    public async Task CheckForUpdatesComparesInstalledAndRemoteSteamManifests()
     {
         var service = CreateService();
 
         var status = await service.CheckForUpdatesAsync(CancellationToken.None);
 
         Assert.Equal("v1.0.3", status.InstalledVersion);
-        Assert.Equal("Steam build 200", status.AvailableVersion);
+        Assert.Equal("100", status.InstalledBuild);
+        Assert.Equal("Steam manifest 200", status.AvailableVersion);
+        Assert.Equal("200", status.AvailableBuild);
         Assert.Equal(PalworldUpdateStatuses.UpdateAvailable, status.UpdateStatus);
+        Assert.True(status.UpdateReady);
+        Assert.Equal(PalworldUpdateReadinessStatuses.Ready, status.UpdateReadinessStatus);
     }
 
     [Fact]
-    public void ExtractSteamBuildIdPrefersPublicBranch()
+    public async Task CheckForUpdatesReportsUpToDateWhenManifestsMatch()
+    {
+        var service = CreateService(commandService: new RecordingCommandService
+        {
+            LocalManifest = "200"
+        });
+
+        var status = await service.CheckForUpdatesAsync(CancellationToken.None);
+
+        Assert.Equal(PalworldUpdateStatuses.UpToDate, status.UpdateStatus);
+        Assert.Equal("Steam manifest 200", status.AvailableVersion);
+    }
+
+    [Fact]
+    public async Task CheckForUpdatesReportsUnavailableWhenRemoteManifestCannotBeRead()
+    {
+        var service = CreateService(commandService: new RecordingCommandService
+        {
+            RemoteAppInfoOutput = "malformed"
+        });
+
+        var status = await service.CheckForUpdatesAsync(CancellationToken.None);
+
+        Assert.Equal(PalworldUpdateStatuses.Unavailable, status.UpdateStatus);
+        Assert.Null(status.AvailableVersion);
+        Assert.Null(status.AvailableBuild);
+    }
+
+    [Fact]
+    public async Task CheckForUpdatesReportsUnavailableWhenInstalledManifestCannotBeRead()
+    {
+        var service = CreateService(commandService: new RecordingCommandService
+        {
+            LocalManifest = string.Empty
+        });
+
+        var status = await service.CheckForUpdatesAsync(CancellationToken.None);
+
+        Assert.Equal(PalworldUpdateStatuses.Unavailable, status.UpdateStatus);
+        Assert.Equal("Steam manifest 200", status.AvailableVersion);
+        Assert.Null(status.InstalledBuild);
+    }
+
+    [Fact]
+    public async Task CheckForUpdatesDoesNotMutateServerOrSendNotification()
+    {
+        var events = new List<string>();
+        var notificationService = new RecordingNotificationService();
+        var containerService = new RecordingContainerService(events);
+        var service = CreateService(
+            restService: new RecordingRestService(events),
+            containerService: containerService,
+            notificationService: notificationService);
+
+        await service.CheckForUpdatesAsync(CancellationToken.None);
+
+        Assert.Empty(events);
+        Assert.Empty(containerService.StartedContainers);
+        Assert.Empty(containerService.StoppedContainers);
+        Assert.Empty(containerService.RestartedContainers);
+        Assert.Equal(0, notificationService.NotificationCount);
+    }
+
+    [Fact]
+    public async Task CheckForUpdatesStillReportsAvailableWhenUpdateOnBootIsFalse()
+    {
+        var service = CreateService(commandService: new RecordingCommandService
+        {
+            UpdateOnBootValue = "false"
+        });
+
+        var status = await service.CheckForUpdatesAsync(CancellationToken.None);
+
+        Assert.Equal(PalworldUpdateStatuses.UpdateAvailable, status.UpdateStatus);
+        Assert.False(status.UpdateReady);
+        Assert.Equal(PalworldUpdateReadinessStatuses.NotConfigured, status.UpdateReadinessStatus);
+    }
+
+    [Fact]
+    public void ExtractLatestPublicDepotManifestIdReadsRealisticSteamAppInfo()
     {
         var output = """
-            "branches"
+            "2394010"
             {
-              "beta"
+              "depots"
               {
-                "buildid" "999"
-              }
-              "public"
-              {
-                "buildid" "123"
+                "2394012"
+                {
+                  "manifests"
+                  {
+                    "public"
+                    {
+                      "gid" "1234567890123456789"
+                    }
+                    "beta"
+                    {
+                      "gid" "999"
+                    }
+                  }
+                }
               }
             }
             """;
 
-        var result = PalworldUpdateService.ExtractSteamBuildId(output);
+        var result = PalworldUpdateService.ExtractLatestPublicDepotManifestId(output);
 
-        Assert.Equal("123", result);
+        Assert.Equal("1234567890123456789", result);
+    }
+
+    [Fact]
+    public void ExtractLatestPublicDepotManifestIdReturnsNullForMalformedOutput()
+    {
+        var result = PalworldUpdateService.ExtractLatestPublicDepotManifestId("not vdf");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void ExtractInstalledDepotManifestIdReadsAppManifestDepot()
+    {
+        var output = """
+            "AppState"
+            {
+              "InstalledDepots"
+              {
+                "1006"
+                {
+                  "manifest" "111"
+                }
+                "2394012"
+                {
+                  "manifest" "222"
+                }
+              }
+            }
+            """;
+
+        var result = PalworldUpdateService.ExtractInstalledDepotManifestId(output);
+
+        Assert.Equal("222", result);
     }
 
     [Fact]
@@ -155,15 +280,170 @@ public sealed class PalworldUpdateTests
     [Fact]
     public async Task ApplyUpdateRequiresUpdateOnBoot()
     {
-        var service = CreateService(commandService: new RecordingCommandService
-        {
-            UpdateOnBootEnabled = false
-        });
+        var events = new List<string>();
+        var service = CreateService(
+            restService: new RecordingRestService(events),
+            backupService: new RecordingBackupService(events),
+            containerService: new RecordingContainerService(events),
+            commandService: new RecordingCommandService
+            {
+                UpdateOnBootValue = "false"
+            },
+            updateRunner: new RecordingUpdateRunner(events));
 
-        await Assert.ThrowsAsync<PalworldUpdateValidationException>(
+        await Assert.ThrowsAsync<PalworldUpdateNotConfiguredException>(
             () => service.ApplyUpdateAsync(
                 PalworldUpdateService.UpdateConfirmation,
                 CancellationToken.None));
+
+        Assert.DoesNotContain("stop", events);
+        Assert.DoesNotContain("update", events);
+        Assert.DoesNotContain("start", events);
+    }
+
+    [Fact]
+    public async Task ApplyUpdateBlocksWhenUpdateOnBootIsAbsentBeforeStop()
+    {
+        var events = new List<string>();
+        var service = CreateService(
+            restService: new RecordingRestService(events),
+            backupService: new RecordingBackupService(events),
+            containerService: new RecordingContainerService(events),
+            commandService: new RecordingCommandService
+            {
+                UpdateOnBootValue = null
+            },
+            updateRunner: new RecordingUpdateRunner(events));
+
+        await Assert.ThrowsAsync<PalworldUpdateNotConfiguredException>(
+            () => service.ApplyUpdateAsync(
+                PalworldUpdateService.UpdateConfirmation,
+                CancellationToken.None));
+
+        Assert.DoesNotContain("stop", events);
+        Assert.DoesNotContain("update", events);
+        Assert.DoesNotContain("start", events);
+    }
+
+    [Fact]
+    public async Task ApplyUpdateBlocksWhenUpdateOnBootCannotBeInspected()
+    {
+        var events = new List<string>();
+        var service = CreateService(
+            restService: new RecordingRestService(events),
+            backupService: new RecordingBackupService(events),
+            containerService: new RecordingContainerService(events),
+            commandService: new RecordingCommandService
+            {
+                FailEnvironmentInspection = true
+            },
+            updateRunner: new RecordingUpdateRunner(events));
+
+        await Assert.ThrowsAsync<PalworldUpdateNotConfiguredException>(
+            () => service.ApplyUpdateAsync(
+                PalworldUpdateService.UpdateConfirmation,
+                CancellationToken.None));
+
+        Assert.DoesNotContain("stop", events);
+        Assert.DoesNotContain("update", events);
+        Assert.DoesNotContain("start", events);
+    }
+
+    [Fact]
+    public async Task ContainerRunningWithOldManifestAfterStartIsNotUpdateSuccess()
+    {
+        var events = new List<string>();
+        var service = CreateService(
+            restService: new RecordingRestService(events),
+            backupService: new RecordingBackupService(events),
+            containerService: new RecordingContainerService(events),
+            commandService: new RecordingCommandService
+            {
+                LocalManifestAfterUpdate = "100"
+            },
+            updateRunner: new RecordingUpdateRunner(events));
+
+        var exception = await Assert.ThrowsAsync<PalworldUpdateFailedException>(
+            () => service.ApplyUpdateAsync(
+                PalworldUpdateService.UpdateConfirmation,
+                CancellationToken.None));
+
+        Assert.Equal(PalworldUpdateSteps.VersionCheck, exception.FailedStep);
+        Assert.Contains("start", events);
+        Assert.Contains("health", events);
+    }
+
+    [Fact]
+    public async Task ExpectedManifestInstalledAfterStartIsUpdateSuccess()
+    {
+        var service = CreateService(commandService: new RecordingCommandService
+        {
+            LocalManifestAfterUpdate = "200"
+        });
+
+        var result = await service.ApplyUpdateAsync(
+            PalworldUpdateService.UpdateConfirmation,
+            CancellationToken.None);
+
+        Assert.True(result.UpdateApplied);
+        Assert.Equal(PalworldUpdateStatuses.Applied, result.UpdateStatus);
+    }
+
+    [Fact]
+    public async Task DuplicateUpdateIsBlocked()
+    {
+        var operationState = new PalworldUpdateOperationState();
+        using var _ = operationState.TryBegin();
+        var service = CreateService(operationState: operationState);
+
+        await Assert.ThrowsAsync<PalworldUpdateConflictException>(
+            () => service.ApplyUpdateAsync(
+                PalworldUpdateService.UpdateConfirmation,
+                CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task StopFailurePreventsUpdate()
+    {
+        var events = new List<string>();
+        var service = CreateService(
+            restService: new RecordingRestService(events),
+            backupService: new RecordingBackupService(events),
+            containerService: new RecordingContainerService(events)
+            {
+                FailStop = true
+            },
+            updateRunner: new RecordingUpdateRunner(events));
+
+        await Assert.ThrowsAsync<PalworldUpdateFailedException>(
+            () => service.ApplyUpdateAsync(
+                PalworldUpdateService.UpdateConfirmation,
+                CancellationToken.None));
+
+        Assert.DoesNotContain("update", events);
+        Assert.DoesNotContain("start", events);
+    }
+
+    [Fact]
+    public async Task StartFailureDoesNotRepeatUpdate()
+    {
+        var events = new List<string>();
+        var runner = new RecordingUpdateRunner(events);
+        var service = CreateService(
+            restService: new RecordingRestService(events),
+            backupService: new RecordingBackupService(events),
+            containerService: new RecordingContainerService(events)
+            {
+                FailStart = true
+            },
+            updateRunner: runner);
+
+        await Assert.ThrowsAsync<PalworldUpdateFailedException>(
+            () => service.ApplyUpdateAsync(
+                PalworldUpdateService.UpdateConfirmation,
+                CancellationToken.None));
+
+        Assert.Equal(1, runner.UpdateCount);
     }
 
     private static PalworldUpdateService CreateService(
@@ -171,7 +451,9 @@ public sealed class PalworldUpdateTests
         IPalworldBackupService? backupService = null,
         IContainerService? containerService = null,
         IPalworldContainerCommandService? commandService = null,
-        IPalworldUpdateRunner? updateRunner = null)
+        IPalworldUpdateRunner? updateRunner = null,
+        INotificationService? notificationService = null,
+        PalworldUpdateOperationState? operationState = null)
     {
         return new PalworldUpdateService(
             Options.Create(new PalworldOptions
@@ -183,12 +465,15 @@ public sealed class PalworldUpdateTests
             containerService ?? new RecordingContainerService(new List<string>()),
             commandService ?? new RecordingCommandService(),
             updateRunner ?? new RecordingUpdateRunner(new List<string>()),
-            new RecordingNotificationService(),
+            notificationService ?? new RecordingNotificationService(),
+            operationState ?? new PalworldUpdateOperationState(),
             NullLogger<PalworldUpdateService>.Instance);
     }
 
     private sealed class RecordingNotificationService : INotificationService
     {
+        public int NotificationCount { get; private set; }
+
         public NotificationSettingsResponse GetSettings()
         {
             return new NotificationSettingsResponse(false, true, true, true, false, 60, null, null);
@@ -203,6 +488,8 @@ public sealed class PalworldUpdateTests
             NotificationEvent notificationEvent,
             CancellationToken cancellationToken)
         {
+            NotificationCount++;
+
             return Task.FromResult(new NotificationSendResult(true, "sent", DateTimeOffset.UtcNow));
         }
     }
@@ -500,7 +787,34 @@ public sealed class PalworldUpdateTests
 
     private sealed class RecordingCommandService : IPalworldContainerCommandService
     {
-        public bool UpdateOnBootEnabled { get; set; } = true;
+        private int _localManifestReads;
+
+        public string? UpdateOnBootValue { get; set; } = "true";
+
+        public bool FailEnvironmentInspection { get; set; }
+
+        public string LocalManifest { get; set; } = "100";
+
+        public string LocalManifestAfterUpdate { get; set; } = "200";
+
+        public string RemoteAppInfoOutput { get; set; } = """
+            "2394010"
+            {
+              "depots"
+              {
+                "2394012"
+                {
+                  "manifests"
+                  {
+                    "public"
+                    {
+                      "gid" "200"
+                    }
+                  }
+                }
+              }
+            }
+            """;
 
         public Task<PalworldContainerCommandResult> ExecuteAsync(
             string containerName,
@@ -509,31 +823,33 @@ public sealed class PalworldUpdateTests
         {
             var joinedCommand = string.Join(" ", command);
 
-            if (joinedCommand.Contains("UPDATE_ON_BOOT", StringComparison.Ordinal))
-            {
-                return Task.FromResult(new PalworldContainerCommandResult(
-                    0,
-                    UpdateOnBootEnabled ? "true" : "false"));
-            }
-
             if (joinedCommand.Contains("app_info_print", StringComparison.Ordinal))
             {
                 return Task.FromResult(new PalworldContainerCommandResult(
                     0,
-                    """
-                    "branches"
-                    {
-                      "public"
-                      {
-                        "buildid" "200"
-                      }
-                    }
-                    """));
+                    RemoteAppInfoOutput));
             }
+
+            _localManifestReads++;
 
             return Task.FromResult(new PalworldContainerCommandResult(
                 0,
-                "\"buildid\" \"100\""));
+                _localManifestReads == 1 ? LocalManifest : LocalManifestAfterUpdate));
+        }
+
+        public Task<string?> ReadEnvironmentVariableAsync(
+            string containerName,
+            string variableName,
+            CancellationToken cancellationToken)
+        {
+            if (FailEnvironmentInspection)
+            {
+                throw new PalworldUpdateCommandException("inspect failed");
+            }
+
+            Assert.Equal("UPDATE_ON_BOOT", variableName);
+
+            return Task.FromResult(UpdateOnBootValue);
         }
     }
 
@@ -548,11 +864,14 @@ public sealed class PalworldUpdateTests
 
         public bool FailUpdate { get; set; }
 
+        public int UpdateCount { get; private set; }
+
         public Task<string> PrepareUpdateAsync(
             string containerName,
             CancellationToken cancellationToken)
         {
             _events.Add("update");
+            UpdateCount++;
 
             if (FailUpdate)
             {

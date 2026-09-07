@@ -6,4 +6,9 @@ public interface IPalworldContainerCommandService
         string containerName,
         IReadOnlyList<string> command,
         CancellationToken cancellationToken);
+
+    Task<string?> ReadEnvironmentVariableAsync(
+        string containerName,
+        string variableName,
+        CancellationToken cancellationToken);
 }

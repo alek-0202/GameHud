@@ -33,7 +33,7 @@ import { toFriendlyState } from '../utils/containerStatus'
 import { formatBytePair, formatPercent, toPercent } from '../utils/metricsDisplay'
 import { PalworldUnavailableState } from './PalworldLayout'
 
-const updateConfirmation = 'UPDATE PALWORLD SERVER'
+export const updateConfirmation = 'UPDATE PALWORLD SERVER'
 
 export function PalworldOverviewPage() {
   const { serverId = 'palworld' } = useParams()
@@ -341,69 +341,25 @@ export function PalworldOverviewPage() {
       </section>
 
       {showUpdateModal && updateState.update !== null && (
-        <div className="modal-backdrop" role="presentation">
-          <form
-            aria-labelledby="palworld-update-modal-title"
-            className="modal-panel palworld-update-modal"
-            onSubmit={(event) => {
-              event.preventDefault()
-              setUpdateError(null)
-              void updateState.updateServer(updateConfirmationText)
-                .then(() => {
-                  setShowUpdateModal(false)
-                  setUpdateConfirmationText('')
-                })
-                .catch(() => {
-                  setUpdateError('Unable to update Palworld server.')
-                })
-            }}
-          >
-            <h3 id="palworld-update-modal-title">Update Palworld server</h3>
-            <p>
-              This will save the world, create a pre-update backup, stop Palworld,
-              let the container update on boot, start it again and run a health check.
-            </p>
-            <dl className="details-grid compact-details-grid">
-              <dt>Players online</dt>
-              <dd>{overview.onlinePlayers}</dd>
-              <dt>Downtime</dt>
-              <dd>Expected during stop, update and startup.</dd>
-              <dt>Installed</dt>
-              <dd>{updateState.update.installedVersion ?? 'Unknown'}</dd>
-              <dt>Available</dt>
-              <dd>{updateState.update.availableVersion ?? 'Unknown'}</dd>
-              <dt>Backup</dt>
-              <dd>Automatic pre-update backup required.</dd>
-            </dl>
-            <label className="form-field">
-              Confirmation
-              <input
-                autoFocus
-                onChange={(event) => setUpdateConfirmationText(event.target.value)}
-                placeholder={updateConfirmation}
-                type="text"
-                value={updateConfirmationText}
-              />
-            </label>
-            <div className="modal-actions">
-              <button
-                className="secondary-button"
-                disabled={updateState.isUpdating}
-                onClick={() => setShowUpdateModal(false)}
-                type="button"
-              >
-                Cancel
-              </button>
-              <button
-                className="danger-button"
-                disabled={updateState.isUpdating || updateConfirmationText !== updateConfirmation}
-                type="submit"
-              >
-                {updateState.isUpdating ? 'Updating...' : 'Update Server'}
-              </button>
-            </div>
-          </form>
-        </div>
+        <PalworldUpdateConfirmationDialog
+          confirmationText={updateConfirmationText}
+          isUpdating={updateState.isUpdating}
+          onCancel={() => setShowUpdateModal(false)}
+          onConfirmationTextChange={setUpdateConfirmationText}
+          onSubmit={() => {
+            setUpdateError(null)
+            void updateState.updateServer(updateConfirmationText)
+              .then(() => {
+                setShowUpdateModal(false)
+                setUpdateConfirmationText('')
+              })
+              .catch(() => {
+                setUpdateError('Unable to update Palworld server.')
+              })
+          }}
+          playersOnline={overview.onlinePlayers}
+          update={updateState.update}
+        />
       )}
     </div>
   )
@@ -506,7 +462,7 @@ interface PalworldUpdatePanelProps {
   onOpenUpdate: () => void
 }
 
-function PalworldUpdatePanel({
+export function PalworldUpdatePanel({
   update,
   message,
   isChecking,
@@ -514,7 +470,8 @@ function PalworldUpdatePanel({
   onCheck,
   onOpenUpdate,
 }: PalworldUpdatePanelProps) {
-  const updateAvailable = update?.updateStatus === 'update-available'
+  const updateAvailable = update?.updateStatus === 'update_available'
+  const updateActionAvailable = updateAvailable && update?.updateReady === true
   const updateStatus = update?.updateStatus ?? 'unknown'
   const statusLabel = formatUpdateStatus(updateStatus)
 
@@ -533,11 +490,15 @@ function PalworldUpdatePanel({
       </div>
       <div className="palworld-version-body">
         <div className="palworld-version-grid">
-          <VersionField label="Installed" value={update?.installedVersion ?? 'Unknown'} />
           <VersionField
-            label="Latest/status"
+            label="Installed"
+            value={update?.installedVersion ?? 'Unknown'}
+            detail={formatBuildDetail(update?.installedBuild)}
+          />
+          <VersionField
+            label="Latest"
             value={update?.availableVersion ?? statusLabel}
-            detail={update?.message ?? 'Not checked yet'}
+            detail={formatAvailableDetail(update)}
           />
           <VersionField label="Last Checked" value={update === null ? 'Never' : formatDate(update.lastCheckedAt)} />
         </div>
@@ -551,7 +512,7 @@ function PalworldUpdatePanel({
             <RefreshCw aria-hidden="true" size={16} />
             {isChecking ? 'Checking...' : 'Check for Updates'}
           </button>
-          {updateAvailable && (
+          {updateActionAvailable && (
             <button
               className="danger-button"
               disabled={isUpdating}
@@ -563,8 +524,92 @@ function PalworldUpdatePanel({
           )}
         </div>
       </div>
+      {updateAvailable && update?.updateReady === false && (
+        <p className="state-message state-message-warning">{update.updateReadinessMessage}</p>
+      )}
       {message !== null && <p className="state-message state-message-success">{message}</p>}
     </section>
+  )
+}
+
+interface PalworldUpdateConfirmationDialogProps {
+  update: PalworldUpdateStatus
+  playersOnline: number
+  confirmationText: string
+  isUpdating: boolean
+  onConfirmationTextChange: (value: string) => void
+  onCancel: () => void
+  onSubmit: () => void
+}
+
+export function PalworldUpdateConfirmationDialog({
+  update,
+  playersOnline,
+  confirmationText,
+  isUpdating,
+  onConfirmationTextChange,
+  onCancel,
+  onSubmit,
+}: PalworldUpdateConfirmationDialogProps) {
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <form
+        aria-labelledby="palworld-update-modal-title"
+        className="modal-panel palworld-update-modal"
+        onSubmit={(event) => {
+          event.preventDefault()
+          onSubmit()
+        }}
+      >
+        <h3 id="palworld-update-modal-title">Update Palworld server</h3>
+        <p>
+          The server must be stopped during the update. Connected players will be
+          disconnected while GamesHud saves the world, creates a pre-update backup,
+          starts the container update-on-boot flow and verifies the server again.
+        </p>
+        <dl className="details-grid compact-details-grid">
+          <dt>Players online</dt>
+          <dd>{playersOnline}</dd>
+          <dt>Downtime</dt>
+          <dd>Expected during stop, update and startup.</dd>
+          <dt>Installed</dt>
+          <dd>{update.installedVersion ?? 'Unknown'}</dd>
+          <dt>Installed manifest</dt>
+          <dd>{update.installedBuild ?? 'Unknown'}</dd>
+          <dt>Available</dt>
+          <dd>{update.availableVersion ?? 'Unknown'}</dd>
+          <dt>Backup</dt>
+          <dd>Automatic pre-update backup required.</dd>
+        </dl>
+        <label className="form-field">
+          Confirmation
+          <input
+            autoFocus
+            onChange={(event) => onConfirmationTextChange(event.target.value)}
+            placeholder={updateConfirmation}
+            type="text"
+            value={confirmationText}
+          />
+        </label>
+        <div className="modal-actions">
+          <button
+            className="secondary-button"
+            disabled={isUpdating}
+            onClick={onCancel}
+            type="button"
+          >
+            Cancel
+          </button>
+          <button
+            className="danger-button"
+            disabled={isUpdating || confirmationText !== updateConfirmation}
+            type="submit"
+          >
+            {isUpdating ? 'Updating...' : 'Update Server'}
+          </button>
+        </div>
+      </form>
+    </div>
   )
 }
 
@@ -585,15 +630,15 @@ function VersionField({ label, value, detail }: VersionFieldProps) {
 }
 
 function formatUpdateStatus(status: string) {
-  if (status === 'update-available') {
+  if (status === 'update_available' || status === 'update-available') {
     return 'Update available'
   }
 
-  if (status === 'up-to-date') {
+  if (status === 'up_to_date' || status === 'up-to-date') {
     return 'Up to date'
   }
 
-  if (status === 'check-unavailable') {
+  if (status === 'unavailable' || status === 'check-unavailable') {
     return 'Check unavailable'
   }
 
@@ -601,15 +646,15 @@ function formatUpdateStatus(status: string) {
 }
 
 function getUpdateTone(status: string) {
-  if (status === 'update-available') {
+  if (status === 'update_available' || status === 'update-available') {
     return 'warning'
   }
 
-  if (status === 'up-to-date') {
+  if (status === 'up_to_date' || status === 'up-to-date') {
     return 'success'
   }
 
-  if (status === 'check-unavailable') {
+  if (status === 'unavailable' || status === 'check-unavailable') {
     return 'warning'
   }
 
@@ -633,6 +678,22 @@ function formatDate(value: string) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value))
+}
+
+function formatBuildDetail(value: string | null | undefined) {
+  return value === null || value === undefined ? undefined : `Manifest ${value}`
+}
+
+function formatAvailableDetail(update: PalworldUpdateStatus | null) {
+  if (update === null) {
+    return 'Not checked yet'
+  }
+
+  const buildDetail = formatBuildDetail(update.availableBuild)
+
+  return buildDetail === undefined
+    ? update.message
+    : `${buildDetail}. ${update.message}`
 }
 
 async function copyConnectionAddress(
