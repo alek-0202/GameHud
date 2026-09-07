@@ -12,7 +12,7 @@ namespace GamesHud.Api.Palworld.Updates.Services;
 
 public sealed class PalworldUpdateService : IPalworldUpdateService
 {
-    public const string UpdateConfirmation = "UPDATE PALWORLD SERVER";
+    public const string UpdateConfirmation = "CONFIRM";
 
     private static readonly IReadOnlyList<string> ReadLocalManifestCommand =
     [

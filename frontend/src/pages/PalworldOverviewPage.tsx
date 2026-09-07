@@ -33,7 +33,7 @@ import { toFriendlyState } from '../utils/containerStatus'
 import { formatBytePair, formatPercent, toPercent } from '../utils/metricsDisplay'
 import { PalworldUnavailableState } from './PalworldLayout'
 
-export const updateConfirmation = 'UPDATE PALWORLD SERVER'
+export const updateConfirmation = 'CONFIRM'
 
 export function PalworldOverviewPage() {
   const { serverId = 'palworld' } = useParams()

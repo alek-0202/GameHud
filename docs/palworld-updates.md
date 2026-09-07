@@ -44,7 +44,7 @@ POST /api/palworld/update
 `POST /api/palworld/update` requires exact confirmation:
 
 ```text
-UPDATE PALWORLD SERVER
+CONFIRM
 ```
 
 ## Status
