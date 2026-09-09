@@ -3,6 +3,7 @@ using GamesHud.Api.GameServers.Domain;
 using GamesHud.Api.GameServers.Ports;
 using GamesHud.Api.GameServers.Requirements;
 using GamesHud.Api.GameServers.Storage;
+using GamesHud.Api.GameServers.Configuration;
 using GamesHud.Api.HostCapabilities.Services;
 
 namespace GamesHud.Api.GameServers.Provisioning;
@@ -21,19 +22,22 @@ public sealed class ProvisioningPlanBuilder : IProvisioningPlanBuilder
     private readonly IGameRequirementEvaluator _requirements;
     private readonly IPortPlanner _portPlanner;
     private readonly IGameStoragePlanner _storagePlanner;
+    private readonly IReadOnlyCollection<IGameProvisioningConfigurationCodec> _configurationCodecs;
 
     public ProvisioningPlanBuilder(
         IGameDefinitionRegistry definitions,
         IHostCapabilityService hostCapabilities,
         IGameRequirementEvaluator requirements,
         IPortPlanner portPlanner,
-        IGameStoragePlanner storagePlanner)
+        IGameStoragePlanner storagePlanner,
+        IEnumerable<IGameProvisioningConfigurationCodec>? configurationCodecs = null)
     {
         _definitions = definitions;
         _hostCapabilities = hostCapabilities;
         _requirements = requirements;
         _portPlanner = portPlanner;
         _storagePlanner = storagePlanner;
+        _configurationCodecs = (configurationCodecs ?? []).ToArray();
     }
 
     public async Task<ProvisioningPlanBuildResult> BuildAsync(
@@ -112,6 +116,8 @@ public sealed class ProvisioningPlanBuilder : IProvisioningPlanBuilder
                 item.RelativePath.Replace('\\', '/')))
             .ToArray();
 
+        var configuration = _configurationCodecs.SingleOrDefault(codec => codec.GameId == gameId)
+            ?.CreateInitial(request.DisplayName.Trim());
         return new ProvisioningPlanBuildResult(
             new ValidatedProvisioningPlan(
                 gameServerId,
@@ -123,7 +129,8 @@ public sealed class ProvisioningPlanBuilder : IProvisioningPlanBuilder
                 ports,
                 storage,
                 [],
-                ProvisioningStepIds.All),
+                ProvisioningStepIds.All,
+                configuration),
             definition,
             null);
     }

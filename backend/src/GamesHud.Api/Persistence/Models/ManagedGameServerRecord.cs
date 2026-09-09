@@ -34,4 +34,6 @@ public sealed class ManagedGameServerRecord
     public ICollection<StorageReservationRecord> StorageReservations { get; } = [];
 
     public ICollection<ProvisioningOperationRecord> ProvisioningOperations { get; } = [];
+
+    public ICollection<ManagedGameConfigurationRecord> Configurations { get; } = [];
 }

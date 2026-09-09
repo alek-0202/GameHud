@@ -73,6 +73,7 @@ public sealed class GameServerProvisioningService : IGameServerProvisioningServi
                 port.DefinitionId, port.Protocol, port.Port, port.Exposure)).ToArray(),
             plan.Storage.Select(storage => new StorageReservationPlan(
                 storage.DefinitionId, storage.RelativePath)).ToArray(),
+            plan.GameConfiguration,
             ProvisioningPipeline.Version,
             ProvisioningPipeline.Steps.Select(step => new ProvisioningStepPlan(
                 step.Id,

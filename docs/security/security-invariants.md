@@ -66,3 +66,7 @@ These invariants are permanent GamesHud security rules. Future implementation ta
 - A validated runtime specification contains an immutable approved environment set, and the Docker adapter accepts only that validated set.
 - Existing runtime environment drift prevents automatic adoption and reconciliation success.
 - LegacyExternal environment is never mutated.
+- Durable game configuration contains validated intent and opaque semantic secret references only, never `SecretValue` or plaintext credentials.
+- Configuration kind and schema are backend-controlled; malformed, cross-game, cross-server, and unsupported-version state fails closed.
+- Durable configuration intent is created transactionally with initial Managed provisioning and is the recovery source of truth.
+- Configuration payloads and secret identifiers are never logged; LegacyExternal receives no Managed configuration record.

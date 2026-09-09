@@ -1,4 +1,5 @@
 using GamesHud.Api.GameServers.Definitions;
+using GamesHud.Api.GameServers.Configuration;
 using GamesHud.Api.GameServers.Domain;
 using GamesHud.Api.GameServers.Requirements;
 using GamesHud.Api.Persistence.ManagedServers;
@@ -143,7 +144,8 @@ public sealed record ValidatedProvisioningPlan(
     IReadOnlyCollection<ValidatedProvisioningPort> Ports,
     IReadOnlyCollection<ValidatedProvisioningStorage> Storage,
     IReadOnlyCollection<SecretReference> SecretReferences,
-    IReadOnlyCollection<string> RequiredSteps);
+    IReadOnlyCollection<string> RequiredSteps,
+    ValidatedGameProvisioningConfiguration? GameConfiguration = null);
 
 public sealed record ProvisioningFailure(string Code, string SafeMessage);
 

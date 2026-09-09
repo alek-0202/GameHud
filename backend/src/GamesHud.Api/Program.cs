@@ -1,6 +1,7 @@
 using GamesHud.Api.Configuration;
 using GamesHud.Api.Docker.Services;
 using GamesHud.Api.GameServers.Definitions;
+using GamesHud.Api.GameServers.Configuration;
 using GamesHud.Api.GameServers.Ports;
 using GamesHud.Api.GameServers.Provisioning;
 using GamesHud.Api.GameServers.Requirements;
@@ -66,6 +67,8 @@ builder.Services.AddSingleton<IProvisioningStateMachine, ProvisioningStateMachin
 builder.Services.AddScoped<IProvisioningOperationStore, ProvisioningOperationStore>();
 builder.Services.AddScoped<IProvisioningRecoveryService, ProvisioningRecoveryService>();
 builder.Services.AddScoped<IProvisioningPlanBuilder, ProvisioningPlanBuilder>();
+builder.Services.AddSingleton<IGameProvisioningConfigurationCodec, PalworldProvisioningConfigurationCodec>();
+builder.Services.AddScoped<IGameProvisioningConfigurationStore, GameProvisioningConfigurationStore>();
 builder.Services.AddScoped<IProvisioningEngine, ProvisioningEngine>();
 builder.Services.AddScoped<IGameServerProvisioningService, GameServerProvisioningService>();
 builder.Services.AddSingleton<IRuntimeMutationPolicy, RuntimeMutationPolicy>();

@@ -31,6 +31,10 @@ The managed server remains `pending_provisioning` after this foundation succeeds
 
 `ValidatedProvisioningPlan` contains only backend-approved decisions: normalized identities, selected runtime from the game definition, host compatibility status and warnings, selected ports, managed relative storage paths, opaque `SecretReference` values and required step ids. It contains no `SecretValue` and no client-supplied host mutation data.
 
+GH-14A also carries a trusted `ValidatedGameProvisioningConfiguration`. The persistence transaction records this
+versioned intent with the server and operation. Recovery loads it through the matching game codec; it never trusts
+the generated game file or silently defaults corrupted persisted state.
+
 `ProvisioningContext` is typed and carries the operation id, game definition, validated plan, durable reservation result and typed step executions. It does not use `dynamic` or an untyped state dictionary.
 
 ## Versioned Pipeline

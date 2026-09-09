@@ -562,6 +562,11 @@ compares the complete environment without logging it; absence, modification, or 
 Palworld currently declares exactly `DISABLE_GENERATE_SETTINGS=true` so its trusted image preserves the
 managed configuration file under the existing `/palworld` mount. Secrets are not runtime environment configuration.
 
+GH-14A adds one generic durable configuration record per Managed GameServer and configuration kind. Trusted
+game codecs own typed validation and versioned serialization; the core persists the resulting intent with opaque,
+semantic `SecretReference` roles in the same transaction as initial provisioning reservations. Palworld uses
+`palworld.initial` schema v1. Persisted intent, not a game file, is the recovery source of truth.
+
 ---
 
 ## Development Principles

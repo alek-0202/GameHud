@@ -110,6 +110,10 @@ Future provisioning may accept secret material during a create-server workflow, 
 
 Database transactions, secret-store writes and Docker/filesystem provisioning are separate consistency domains. GH-08 must record explicit step state and handle partial failure without pretending one transaction covers everything.
 
+GH-14A persists only opaque secret identifiers inside typed, role-specific Palworld configuration fields. Server and
+admin password roles cannot be inferred from collection order. Codecs never resolve `SecretValue`, payloads are not
+logged, and the database never stores plaintext secret material.
+
 ## Backup And Deletion
 
 Game backups are not secret-store backups. Secret files must not be included in game backup archives by default.

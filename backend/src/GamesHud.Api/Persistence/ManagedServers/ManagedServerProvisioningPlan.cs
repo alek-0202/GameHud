@@ -1,3 +1,5 @@
+using GamesHud.Api.GameServers.Configuration;
+
 namespace GamesHud.Api.Persistence.ManagedServers;
 
 public sealed record ManagedServerProvisioningPlan(
@@ -7,6 +9,7 @@ public sealed record ManagedServerProvisioningPlan(
     string RuntimeType,
     IReadOnlyCollection<PortReservationPlan> Ports,
     IReadOnlyCollection<StorageReservationPlan> Storage,
+    ValidatedGameProvisioningConfiguration? Configuration = null,
     string? PipelineVersion = null,
     IReadOnlyCollection<ProvisioningStepPlan>? Steps = null);
 

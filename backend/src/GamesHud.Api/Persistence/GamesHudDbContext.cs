@@ -22,6 +22,8 @@ public sealed class GamesHudDbContext : DbContext
 
     public DbSet<ProvisioningStepRecord> ProvisioningSteps => Set<ProvisioningStepRecord>();
 
+    public DbSet<ManagedGameConfigurationRecord> ManagedGameConfigurations => Set<ManagedGameConfigurationRecord>();
+
     public override int SaveChanges()
     {
         ApplyUtcTimestamps();
@@ -145,6 +147,27 @@ public sealed class GamesHudDbContext : DbContext
             entity.HasOne(operation => operation.GameServer)
                 .WithMany(server => server.ProvisioningOperations)
                 .HasForeignKey(operation => operation.GameServerId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ManagedGameConfigurationRecord>(entity =>
+        {
+            entity.ToTable("managed_game_configurations", table =>
+                table.HasCheckConstraint("CK_managed_game_configurations_schema_version", "\"SchemaVersion\" > 0"));
+            entity.HasKey(configuration => configuration.Id);
+            entity.Property(configuration => configuration.Id).HasMaxLength(32).IsRequired();
+            entity.Property(configuration => configuration.GameServerId).HasMaxLength(80).IsRequired();
+            entity.Property(configuration => configuration.GameId).HasMaxLength(120).IsRequired();
+            entity.Property(configuration => configuration.ConfigurationKind).HasMaxLength(120).IsRequired();
+            entity.Property(configuration => configuration.SchemaVersion).IsRequired();
+            entity.Property(configuration => configuration.Payload).HasMaxLength(8000).IsRequired();
+            entity.Property(configuration => configuration.Version).IsConcurrencyToken().IsRequired();
+            entity.Property(configuration => configuration.CreatedAtUtc).IsRequired();
+            entity.Property(configuration => configuration.UpdatedAtUtc).IsRequired();
+            entity.HasIndex(configuration => new { configuration.GameServerId, configuration.ConfigurationKind }).IsUnique();
+            entity.HasOne(configuration => configuration.GameServer)
+                .WithMany(server => server.Configurations)
+                .HasForeignKey(configuration => configuration.GameServerId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -338,6 +361,13 @@ public sealed class GamesHudDbContext : DbContext
                 entry.Entity.UpdatedAtUtc = now;
                 entry.Entity.CompletedAtUtc = entry.Entity.CompletedAtUtc?.ToUniversalTime();
             }
+        }
+
+        foreach (var entry in ChangeTracker.Entries<ManagedGameConfigurationRecord>())
+        {
+            ApplyCreatedUpdatedTimestamps(entry.State, () => entry.Entity.CreatedAtUtc,
+                value => entry.Entity.CreatedAtUtc = value, () => entry.Entity.UpdatedAtUtc,
+                value => entry.Entity.UpdatedAtUtc = value, now);
         }
 
         foreach (var entry in ChangeTracker.Entries<ProvisioningStepRecord>())

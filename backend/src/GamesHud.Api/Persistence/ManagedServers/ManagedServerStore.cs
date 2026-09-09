@@ -100,12 +100,23 @@ public sealed class ManagedServerStore : IManagedServerStore
                         ProvisioningOperationId = operationId,
                     })
                     .ToArray();
+                var configuration = normalizedPlan.Configuration is null ? null : new ManagedGameConfigurationRecord
+                {
+                    Id = CreateId(),
+                    GameServerId = normalizedPlan.GameServerId,
+                    GameId = normalizedPlan.Configuration.GameId.Value,
+                    ConfigurationKind = normalizedPlan.Configuration.ConfigurationKind,
+                    SchemaVersion = normalizedPlan.Configuration.SchemaVersion,
+                    Payload = normalizedPlan.Configuration.Payload,
+                    Version = 1
+                };
 
                 dbContext.ManagedGameServers.Add(gameServer);
                 dbContext.ProvisioningOperations.Add(operation);
                 dbContext.ProvisioningSteps.AddRange(steps);
                 dbContext.PortReservations.AddRange(portReservations);
                 dbContext.StorageReservations.AddRange(storageReservations);
+                if (configuration is not null) dbContext.ManagedGameConfigurations.Add(configuration);
 
                 await Task.CompletedTask;
 
@@ -128,6 +139,7 @@ public sealed class ManagedServerStore : IManagedServerStore
             .Include(server => server.PortReservations)
             .Include(server => server.StorageReservations)
             .Include(server => server.ProvisioningOperations)
+            .Include(server => server.Configurations)
             .SingleOrDefaultAsync(server => server.Id == normalizedGameServerId, cancellationToken);
     }
 
@@ -202,6 +214,12 @@ public sealed class ManagedServerStore : IManagedServerStore
             step.Sequence <= 3)).ToArray();
         var steps = NormalizeSteps(sourceSteps);
 
+        if (plan.Configuration is not null
+            && (plan.Configuration.GameId.Value != gameId || plan.Configuration.Payload.Length > 8000))
+        {
+            throw new ArgumentException("Game configuration does not match the managed game.", nameof(plan));
+        }
+
         if (pipelineVersion.Length > 40)
         {
             throw new ArgumentException("Pipeline version is too long.", nameof(plan));
@@ -214,6 +232,7 @@ public sealed class ManagedServerStore : IManagedServerStore
             runtimeType,
             ports,
             storage,
+            plan.Configuration,
             pipelineVersion,
             steps);
     }

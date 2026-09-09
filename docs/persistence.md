@@ -149,6 +149,11 @@ Secrets are not stored as normal SQLite data. SEC-02 introduces a dedicated secr
 
 Durable resource records must store only opaque `SecretReference` values when future provisioning needs secrets. They must not store plaintext passwords, webhook URLs, tokens, REST credentials, provider paths, plaintext hashes or encryption keys.
 
+GH-14A adds `managed_game_configurations`, owned by a Managed GameServer and unique by server plus backend-controlled
+configuration kind. It stores game id, schema version, trusted JSON payload, concurrency version, and UTC timestamps.
+The Palworld v1 payload contains only validated non-secret values and opaque server/admin password IDs with explicit
+roles. It is inserted transactionally with the initial server, reservations, and provisioning operation.
+
 The current Palworld server passwords, Palworld REST credentials and Discord webhook URL remain legacy external configuration. GamesHud does not auto-import or migrate them into the secret store.
 
 Database transactions do not cover secret-store writes. Future provisioning must treat database writes, secret writes and Docker/filesystem mutations as separate consistency domains with explicit recovery state.

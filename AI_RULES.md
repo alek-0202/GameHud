@@ -433,3 +433,7 @@ If unrelated changes, failing validations, missing credentials, or remote push e
 - Client requests cannot add or override runtime environment. Passwords, tokens, keys, `SecretReference`, and
   `SecretValue` must never use the runtime environment mechanism.
 - LegacyExternal environment must never be changed or adopted by Managed provisioning.
+- Managed game configuration persistence stores only trusted, validated, versioned intent. It must never store
+  `SecretValue`, plaintext credentials, raw client JSON, generated game configuration, or host/runtime paths.
+- Configuration kinds and codecs are backend-controlled; corrupted, cross-game, wrong-version, or conflicting
+  payloads fail closed. LegacyExternal servers never receive durable Managed configuration.
