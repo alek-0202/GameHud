@@ -27,6 +27,7 @@ public sealed record RuntimeMutationSpecification(
     IReadOnlyCollection<RuntimePortBinding> Ports,
     IReadOnlyCollection<RuntimeStorageMount> Mounts,
     IReadOnlyCollection<SecretReference> SecretReferences,
+    IReadOnlyCollection<TrustedRuntimeEnvironmentVariable> Environment,
     RuntimeResourceLimits Resources,
     string RestartPolicy,
     string NetworkPolicy);
@@ -54,4 +55,6 @@ public static class RuntimePolicyErrorCodes
     public const string PortReservationMismatch = "port_reservation_mismatch";
     public const string UnsafeRuntimeConfiguration = "unsafe_runtime_configuration";
     public const string ResourceLimitInvalid = "resource_limit_invalid";
+    public const string RuntimeEnvironmentInvalid = "runtime_environment_invalid";
+    public const string RuntimeEnvironmentMismatch = "runtime_environment_mismatch";
 }

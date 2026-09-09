@@ -300,6 +300,7 @@ Remaining:
 - Migration of all temporary Palworld features onto server-scoped contracts
 - GH-12 Managed Docker runtime creation (Completed: create-only, stopped, reconciliable)
 - GH-13 Managed runtime start and generic readiness (Completed: typed start, reconciliation, bounded read-only health)
+- ARCH-02 Trusted runtime environment contract (Completed: definition-owned non-secret environment, SEC-03 validation, Docker mapping and drift reconciliation)
 
 ---
 

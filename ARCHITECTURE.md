@@ -554,6 +554,14 @@ The adapter uses the existing configured/default Docker endpoint, verifies the t
 
 GH-13 adds start as a second typed mutation without changing create semantics. Start proves the same Managed identity and critical configuration before `StartContainerAsync`, then proves `Running` afterward. Generic runtime readiness is a separate read-only step with bounded polling; container running state is not game-specific health. No LegacyExternal or foreign runtime participates in managed start/readiness.
 
+ARCH-02 adds trusted runtime environment metadata to `GameDefinition`. It is immutable, non-secret,
+backend-owned configuration required by a trusted image, never an HTTP or client input surface. The runtime
+builder copies only the entries for the selected runtime, SEC-03 validates exact equality with the definition,
+and only the Docker adapter serializes approved entries to `KEY=value`. Critical configuration reconciliation
+compares the complete environment without logging it; absence, modification, or extra entries are drift.
+Palworld currently declares exactly `DISABLE_GENERATE_SETTINGS=true` so its trusted image preserves the
+managed configuration file under the existing `/palworld` mount. Secrets are not runtime environment configuration.
+
 ---
 
 ## Development Principles

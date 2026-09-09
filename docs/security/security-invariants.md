@@ -60,3 +60,9 @@ These invariants are permanent GamesHud security rules. Future implementation ta
 - A running container is not automatically game-healthy.
 - Runtime health verification is read-only, bounded, and never triggers implicit lifecycle mutation.
 - Foreign and LegacyExternal containers are never started or adopted by Managed provisioning.
+- Runtime environment is backend-controlled and derived only from trusted `GameDefinition` metadata.
+- Client requests cannot add or override runtime environment.
+- Runtime environment carries non-secret configuration only; GamesHud secrets never use this mechanism.
+- A validated runtime specification contains an immutable approved environment set, and the Docker adapter accepts only that validated set.
+- Existing runtime environment drift prevents automatic adoption and reconciliation success.
+- LegacyExternal environment is never mutated.

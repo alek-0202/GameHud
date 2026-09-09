@@ -11,6 +11,10 @@ public interface IRuntimeMutationPolicy
 
 public sealed class RuntimeMutationPolicy : IRuntimeMutationPolicy
 {
+    private const int MaximumEnvironmentEntries = 32;
+    private const int MaximumEnvironmentNameLength = 128;
+    private const int MaximumEnvironmentValueLength = 1024;
+
     public RuntimeMutationPolicyResult Validate(RuntimeMutationSpecification specification, GameDefinition definition, string managedDataRoot)
     {
         ArgumentNullException.ThrowIfNull(specification);
@@ -26,6 +30,7 @@ public sealed class RuntimeMutationPolicy : IRuntimeMutationPolicy
 
         ValidateMounts(specification, definition, managedDataRoot, violations);
         ValidatePorts(specification, definition, violations);
+        ValidateEnvironment(specification, definition, violations);
 
         if (specification.Resources.CpuCount <= 0 || specification.Resources.MemoryBytes == 0)
             Add(violations, RuntimePolicyErrorCodes.ResourceLimitInvalid, "Runtime resource limits are invalid.");
@@ -35,9 +40,50 @@ public sealed class RuntimeMutationPolicy : IRuntimeMutationPolicy
             Add(violations, RuntimePolicyErrorCodes.UnsafeRuntimeConfiguration, "Runtime configuration is not approved.");
 
         return violations.Count == 0
-            ? new(true, new ValidatedRuntimeMutationSpecification(specification), [])
+            ? new(true, new ValidatedRuntimeMutationSpecification(CreateImmutableSnapshot(specification)), [])
             : new(false, null, violations);
     }
+
+    private static void ValidateEnvironment(RuntimeMutationSpecification specification, GameDefinition definition,
+        List<RuntimePolicyViolation> violations)
+    {
+        var actual = specification.Environment;
+        var expected = definition.RuntimeEnvironment
+            .Where(item => item.RuntimeType == specification.RuntimeType).ToArray();
+
+        if (actual is null || actual.Count > MaximumEnvironmentEntries
+            || actual.Any(item => item is null || !IsValidEnvironmentEntry(item))
+            || actual.Where(item => item is not null).GroupBy(item => item.Name, StringComparer.Ordinal).Any(group => group.Count() > 1))
+            Add(violations, RuntimePolicyErrorCodes.RuntimeEnvironmentInvalid,
+                "Runtime environment configuration is invalid.");
+
+        if (actual is null || actual.Count != expected.Length
+            || !actual.OrderBy(item => item?.Name, StringComparer.Ordinal).SequenceEqual(
+                expected.OrderBy(item => item.Name, StringComparer.Ordinal)))
+            Add(violations, RuntimePolicyErrorCodes.RuntimeEnvironmentMismatch,
+                "Runtime environment does not match the trusted game definition.");
+    }
+
+    private static bool IsValidEnvironmentEntry(TrustedRuntimeEnvironmentVariable entry)
+    {
+        if (string.IsNullOrEmpty(entry.RuntimeType) || string.IsNullOrEmpty(entry.Name) || entry.Value is null
+            || entry.Name.Length > MaximumEnvironmentNameLength || entry.Value.Length > MaximumEnvironmentValueLength
+            || entry.Name[0] is >= '0' and <= '9'
+            || entry.Name.Any(character => !(char.IsAsciiLetterOrDigit(character) || character == '_')))
+            return false;
+
+        return !entry.Value.Any(character => character == '\0' || character == '\r' || character == '\n'
+            || char.IsControl(character));
+    }
+
+    private static RuntimeMutationSpecification CreateImmutableSnapshot(RuntimeMutationSpecification specification) =>
+        specification with
+        {
+            Ports = Array.AsReadOnly(specification.Ports.ToArray()),
+            Mounts = Array.AsReadOnly(specification.Mounts.ToArray()),
+            SecretReferences = Array.AsReadOnly(specification.SecretReferences.ToArray()),
+            Environment = Array.AsReadOnly(specification.Environment.ToArray())
+        };
 
     private static void ValidateMounts(RuntimeMutationSpecification specification, GameDefinition definition, string dataRoot, List<RuntimePolicyViolation> violations)
     {

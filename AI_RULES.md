@@ -428,3 +428,8 @@ If unrelated changes, failing validations, missing credentials, or remote push e
 - Unknown start outcomes require reconciliation before retry.
 - Health verification must be read-only, bounded, cancellable, and must never trigger implicit stop, restart, remove, recreate, or adoption.
 - Managed provisioning must never start or inspect LegacyExternal Palworld as its managed runtime.
+- Runtime environment must come only from trusted backend `GameDefinition` metadata, contain non-secret
+  configuration, pass exact SEC-03 validation, and reach Docker only through a validated specification.
+- Client requests cannot add or override runtime environment. Passwords, tokens, keys, `SecretReference`, and
+  `SecretValue` must never use the runtime environment mechanism.
+- LegacyExternal environment must never be changed or adopted by Managed provisioning.

@@ -60,6 +60,10 @@ public sealed class GameDefinitionTests
             definition.Capabilities);
         Assert.DoesNotContain("provisioning", definition.Capabilities);
         Assert.DoesNotContain("one-click-install", definition.Capabilities);
+        var environment = Assert.Single(definition.RuntimeEnvironment);
+        Assert.Equal(GameServerRuntime.DockerType, environment.RuntimeType);
+        Assert.Equal("DISABLE_GENERATE_SETTINGS", environment.Name);
+        Assert.Equal("true", environment.Value);
     }
 
     [Fact]

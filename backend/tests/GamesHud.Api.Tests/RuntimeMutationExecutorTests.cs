@@ -163,7 +163,8 @@ public sealed class RuntimeMutationExecutorTests
         return new RuntimeMutationSpecification(new GameServerId(serverId), new GameId("palworld"),
             "operation-one", "docker", definition.RuntimeImages.Single(), [],
             [new("storage", "data", Path.Combine(root, "servers", serverId, "data"), "/palworld", false)],
-            [], new(1, 1024), RuntimeRestartPolicies.UnlessStopped, RuntimeNetworkPolicies.GamesHudManaged);
+            [], definition.RuntimeEnvironment, new(1, 1024), RuntimeRestartPolicies.UnlessStopped,
+            RuntimeNetworkPolicies.GamesHudManaged);
     }
 
     private static ProvisioningContext CreateProvisioningContext()

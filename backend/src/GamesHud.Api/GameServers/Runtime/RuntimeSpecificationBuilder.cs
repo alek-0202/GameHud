@@ -61,8 +61,10 @@ public sealed class RuntimeSpecificationBuilder : IRuntimeSpecificationBuilder, 
             || mounts.Length != context.ReservedResources.StorageReservationIds.Count) return null;
 
         var requirements = context.GameDefinition.Requirements;
+        var environment = context.GameDefinition.RuntimeEnvironment
+            .Where(item => item.RuntimeType == context.ValidatedPlan.RuntimeType).ToArray();
         return new RuntimeMutationSpecification(context.GameServerId, context.ValidatedPlan.GameId, context.OperationId,
-            context.ValidatedPlan.RuntimeType, image, ports, mounts, context.ValidatedPlan.SecretReferences,
+            context.ValidatedPlan.RuntimeType, image, ports, mounts, context.ValidatedPlan.SecretReferences, environment,
             new RuntimeResourceLimits(requirements?.MinimumLogicalProcessors ?? 1, requirements?.Memory?.MinimumBytes ?? 1),
             RuntimeRestartPolicies.UnlessStopped, RuntimeNetworkPolicies.GamesHudManaged);
     }
@@ -91,8 +93,9 @@ public sealed class RuntimeSpecificationBuilder : IRuntimeSpecificationBuilder, 
             }).Where(item => item is not null).Cast<RuntimeStorageMount>().ToArray();
         if (ports.Length == 0 || mounts.Length == 0) return (null, definition);
         var requirements = definition.Requirements;
+        var environment = definition.RuntimeEnvironment.Where(item => item.RuntimeType == server.RuntimeType).ToArray();
         return (new RuntimeMutationSpecification(gameServerId, definition.GameId, operationId, server.RuntimeType, image,
-            ports, mounts, [], new(requirements?.MinimumLogicalProcessors ?? 1, requirements?.Memory?.MinimumBytes ?? 1),
+            ports, mounts, [], environment, new(requirements?.MinimumLogicalProcessors ?? 1, requirements?.Memory?.MinimumBytes ?? 1),
             RuntimeRestartPolicies.UnlessStopped, RuntimeNetworkPolicies.GamesHudManaged), definition);
     }
 }

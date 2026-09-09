@@ -24,7 +24,14 @@ GH-10 adds a central mutation executor after policy approval. The adapter now re
 
 Resource checks use game minimum requirements when available and map only CPU count and memory. Before create, managed mount directories must exist and their ancestry must contain no reparse point. Docker socket sources and targets are rejected. Image acquisition, digest pinning/signing, registry authentication, and stronger provider-specific quota controls remain future work.
 
-The provider request contains only the trusted image reference, deterministic name, four fixed ownership labels, definition-derived exposed ports, public reservation-derived bindings, Managed bind mounts, non-privileged default networking, approved resource limits, and `unless-stopped`. It contains no command, entrypoint, environment, device, capability, security option, host namespace, arbitrary label, or generic Docker option. `unless-stopped` does not start a newly created container; GH-12 makes no start call.
+The provider request contains only the trusted image reference, deterministic name, four fixed ownership labels, definition-derived exposed ports, public reservation-derived bindings, Managed bind mounts, definition-derived trusted non-secret environment, non-privileged default networking, approved resource limits, and `unless-stopped`. It contains no command, entrypoint, arbitrary/client environment, device, capability, security option, host namespace, arbitrary label, or generic Docker option. `unless-stopped` does not start a newly created container; GH-12 makes no start call.
+
+ARCH-02 requires runtime environment to equal the selected runtime entries in the trusted `GameDefinition`.
+Names use a bounded safe identifier format; values are bounded and reject NUL, newline, and control characters;
+duplicates and oversized sets are denied. Validation creates read-only collection snapshots. The environment model
+has no secret-type field, and requests expose no environment input. Palworld's sole approved entry is
+`DISABLE_GENERATE_SETTINGS=true`. Missing, changed, or extra environment in an existing container is critical
+configuration drift and produces an ambiguous reconciliation outcome without exposing the inspected values.
 
 GH-11 storage preparation remains upstream of runtime creation: only directories represented by durable Managed storage reservations are created. Runtime mounts still consume those same approved reservations; filesystem preparation does not permit client paths or create mounts.
 

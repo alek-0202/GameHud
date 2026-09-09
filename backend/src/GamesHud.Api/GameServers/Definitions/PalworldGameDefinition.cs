@@ -38,7 +38,8 @@ public sealed class PalworldGameDefinition :
             CreateRequirements(),
             CreatePorts(),
             CreateStorages(),
-            [new TrustedRuntimeImage(GameServerRuntime.DockerType, "thijsvanloef/palworld-server-docker", "latest", "game_definition")])
+            [new TrustedRuntimeImage(GameServerRuntime.DockerType, "thijsvanloef/palworld-server-docker", "latest", "game_definition")],
+            [new TrustedRuntimeEnvironmentVariable(GameServerRuntime.DockerType, "DISABLE_GENERATE_SETTINGS", "true")])
     {
     }
 

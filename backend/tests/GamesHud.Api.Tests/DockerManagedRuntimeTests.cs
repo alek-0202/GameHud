@@ -22,7 +22,7 @@ public sealed class DockerManagedRuntimeTests
         Assert.Equal("server-1", request.Labels[DockerManagedRuntimeLabels.Identity]);
         Assert.Null(request.Cmd);
         Assert.Null(request.Entrypoint);
-        Assert.Null(request.Env);
+        Assert.Equal(["DISABLE_GENERATE_SETTINGS=true"], request.Env);
         Assert.False(request.HostConfig.Privileged);
         Assert.Equal("default", request.HostConfig.NetworkMode);
         Assert.Equal(2_000_000_000, request.HostConfig.NanoCPUs);
@@ -94,6 +94,24 @@ public sealed class DockerManagedRuntimeTests
         Assert.Equal(ProvisioningReconciliationOutcomes.Ambiguous, result.Outcome);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("DISABLE_GENERATE_SETTINGS=false")]
+    [InlineData("DISABLE_GENERATE_SETTINGS=true", "EXTRA=true")]
+    public async Task ReconciliationRejectsEnvironmentDrift(params string?[] environment)
+    {
+        environment ??= [];
+        var context = Context();
+        var expected = DockerCreateContainerMapper.Map(context);
+        var inspection = Inspection(expected);
+        inspection.Config.Env = environment.Where(value => value is not null).Cast<string>().ToList();
+        var client = new FakeDockerClient { Containers = [Summary(expected)], Inspection = inspection };
+
+        var result = await Adapter(client).ReconcileAsync(context, CancellationToken.None);
+
+        Assert.Equal(ProvisioningReconciliationOutcomes.Ambiguous, result.Outcome);
+    }
+
     [Fact]
     public void MultipleIdentityMatchesAreAmbiguous()
     {
@@ -114,6 +132,7 @@ public sealed class DockerManagedRuntimeTests
             [new("port-public", "game", PortProtocols.Udp, 7000, PortExposures.Public),
              new("port-internal", "admin", PortProtocols.Tcp, 7001, PortExposures.Internal)],
             [new("storage-1", "data", "C:\\managed\\server-1", "/game", false)], [],
+            [new TrustedRuntimeEnvironmentVariable("docker", "DISABLE_GENERATE_SETTINGS", "true")],
             new(2, 1024), RuntimeRestartPolicies.UnlessStopped, RuntimeNetworkPolicies.GamesHudManaged);
         return new(new ValidatedRuntimeMutationSpecification(specification), RuntimeMutationKind.CreateRuntime,
             ProvisioningStepIds.CreateRuntime, 1);
@@ -131,7 +150,7 @@ public sealed class DockerManagedRuntimeTests
     private static ContainerInspectResponse Inspection(CreateContainerParameters expected) => new()
     {
         ID = "container-1",
-        Config = new Config { Image = expected.Image },
+        Config = new Config { Image = expected.Image, Env = expected.Env },
         State = new ContainerState { Running = false },
         HostConfig = expected.HostConfig
     };

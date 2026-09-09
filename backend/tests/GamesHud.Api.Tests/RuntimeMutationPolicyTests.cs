@@ -89,7 +89,7 @@ public sealed class RuntimeMutationPolicyTests
             typeof(RuntimeMutationExecutionContext).GetProperty(nameof(RuntimeMutationExecutionContext.Specification))!.PropertyType);
         Assert.Empty(typeof(ValidatedRuntimeMutationSpecification).GetConstructors());
         Assert.DoesNotContain(typeof(RuntimeMutationSpecification).GetProperties(), property =>
-            property.Name is "Command" or "Entrypoint" or "Environment" or "Privileged" or "Devices" or "SecurityOptions");
+            property.Name is "Command" or "Entrypoint" or "Privileged" or "Devices" or "SecurityOptions");
     }
 
     [Fact]
@@ -100,6 +100,73 @@ public sealed class RuntimeMutationPolicyTests
         var specification = CreateSpecification(root) with { SecretReferences = [reference] };
         Assert.Equal(reference, Assert.Single(specification.SecretReferences));
         Assert.DoesNotContain(typeof(RuntimeMutationSpecification).GetProperties(), property => property.PropertyType == typeof(SecretValue));
+        Assert.DoesNotContain(typeof(TrustedRuntimeEnvironmentVariable).GetProperties(), property =>
+            property.PropertyType == typeof(SecretReference) || property.PropertyType == typeof(SecretValue));
+    }
+
+    [Theory]
+    [InlineData("9INVALID", "true")]
+    [InlineData("INVALID=NAME", "true")]
+    [InlineData("INVALID\nNAME", "true")]
+    [InlineData("VALID_NAME", "unsafe\0value")]
+    [InlineData("VALID_NAME", "unsafe\nvalue")]
+    public void InvalidEnvironmentEntryIsDenied(string name, string value)
+    {
+        var root = CreateRoot();
+        var specification = CreateSpecification(root) with
+        {
+            Environment = [new TrustedRuntimeEnvironmentVariable("docker", name, value)]
+        };
+
+        var result = _policy.Validate(specification, _definition, root);
+
+        Assert.False(result.Allowed);
+        Assert.Contains(result.Violations, item => item.Code == RuntimePolicyErrorCodes.RuntimeEnvironmentInvalid);
+    }
+
+    [Fact]
+    public void DuplicateEnvironmentNamesAreDenied()
+    {
+        var root = CreateRoot();
+        var expected = Assert.Single(_definition.RuntimeEnvironment);
+        var specification = CreateSpecification(root) with { Environment = [expected, expected] };
+
+        Assert.Contains(_policy.Validate(specification, _definition, root).Violations,
+            item => item.Code == RuntimePolicyErrorCodes.RuntimeEnvironmentInvalid);
+    }
+
+    [Fact]
+    public void MissingExtraOrChangedEnvironmentIsDenied()
+    {
+        var root = CreateRoot();
+        var missing = CreateSpecification(root) with { Environment = [] };
+        var changed = CreateSpecification(root) with
+        {
+            Environment = [new TrustedRuntimeEnvironmentVariable("docker", "DISABLE_GENERATE_SETTINGS", "false")]
+        };
+        var extra = CreateSpecification(root) with
+        {
+            Environment = [.. _definition.RuntimeEnvironment,
+                new TrustedRuntimeEnvironmentVariable("docker", "EXTRA", "true")]
+        };
+
+        Assert.All([missing, changed, extra], specification =>
+            Assert.Contains(_policy.Validate(specification, _definition, root).Violations,
+                item => item.Code == RuntimePolicyErrorCodes.RuntimeEnvironmentMismatch));
+    }
+
+    [Fact]
+    public void ValidatedEnvironmentIsAnImmutableSnapshot()
+    {
+        var root = CreateRoot();
+        var mutable = _definition.RuntimeEnvironment.ToList();
+        var result = _policy.Validate(CreateSpecification(root) with { Environment = mutable }, _definition, root);
+        mutable.Clear();
+
+        var approved = Assert.Single(result.Specification!.Value.Environment);
+        Assert.Equal("DISABLE_GENERATE_SETTINGS", approved.Name);
+        Assert.IsAssignableFrom<System.Collections.ObjectModel.ReadOnlyCollection<TrustedRuntimeEnvironmentVariable>>(
+            result.Specification.Value.Environment);
     }
 
     private RuntimeMutationSpecification CreateSpecification(string root) => new(
@@ -107,7 +174,8 @@ public sealed class RuntimeMutationPolicyTests
         _definition.RuntimeImages.Single(),
         [new("port", "game", "udp", 8211, "public")],
         [new("storage", "data", Path.Combine(root, "servers", "test-server", "data"), "/palworld", false)],
-        [], new RuntimeResourceLimits(1, 1024), RuntimeRestartPolicies.UnlessStopped, RuntimeNetworkPolicies.GamesHudManaged);
+        [], _definition.RuntimeEnvironment, new RuntimeResourceLimits(1, 1024), RuntimeRestartPolicies.UnlessStopped,
+        RuntimeNetworkPolicies.GamesHudManaged);
 
     private static string CreateRoot() => Path.Combine(Path.GetTempPath(), "gameshud-sec03", Guid.NewGuid().ToString("N"));
 }

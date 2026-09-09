@@ -203,7 +203,7 @@ public sealed class RuntimeStartHealthTests
         new GameServerId("server-1"), new GameId("palworld"), "operation-1", "docker",
         new TrustedRuntimeImage("docker", "trusted/game", "1", "test"),
         [new("port-1", "game", PortProtocols.Udp, 7000, PortExposures.Public)],
-        [new("storage-1", "data", "C:\\managed\\server-1", "/palworld", false)], [],
+        [new("storage-1", "data", "C:\\managed\\server-1", "/palworld", false)], [], [],
         new(2, 1024), RuntimeRestartPolicies.UnlessStopped, RuntimeNetworkPolicies.GamesHudManaged);
 
     private static ProvisioningContext ProvisioningContext()

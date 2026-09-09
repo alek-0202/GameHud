@@ -153,6 +153,7 @@ internal static class DockerCreateContainerMapper
         {
             Name = context.ProviderResourceIdentity.ResourceName,
             Image = specification.Image.Reference,
+            Env = specification.Environment.Select(item => $"{item.Name}={item.Value}").ToList(),
             Labels = new Dictionary<string, string>
             {
                 [DockerManagedRuntimeLabels.Managed] = "true",
@@ -357,6 +358,9 @@ internal sealed class DockerGameRuntimeAdapter : IGameRuntimeAdapter, IManagedRu
     internal static bool CriticalConfigurationMatches(ContainerInspectResponse actual, CreateContainerParameters expected)
     {
         if (actual.Config?.Image != expected.Image || actual.HostConfig is null) return false;
+        var actualEnvironment = (actual.Config.Env ?? []).OrderBy(value => value, StringComparer.Ordinal).ToArray();
+        var expectedEnvironment = (expected.Env ?? []).OrderBy(value => value, StringComparer.Ordinal).ToArray();
+        if (!actualEnvironment.SequenceEqual(expectedEnvironment, StringComparer.Ordinal)) return false;
         if (actual.HostConfig.Privileged || actual.HostConfig.NetworkMode != expected.HostConfig.NetworkMode
             || actual.HostConfig.NanoCPUs != expected.HostConfig.NanoCPUs || actual.HostConfig.Memory != expected.HostConfig.Memory
             || actual.HostConfig.RestartPolicy?.Name != expected.HostConfig.RestartPolicy.Name) return false;
