@@ -140,3 +140,10 @@ GH-11 implements the existing `prepare_storage` mutation step. After its `Runnin
 GH-12 implements `create_runtime` with Docker.DotNet. It creates one backend-named and backend-labelled Managed container from the locally available trusted image, durable port reservations, and prepared Managed storage. Internal ports are exposed only inside the container and are not published. Docker default networking is used without network creation; privileged mode and host namespaces are unavailable; image command/entrypoint are preserved; no environment or plaintext secrets are injected. The container is never started by this step. Compensation is deliberately non-destructive, leaving a created/stopped Managed container for reconciliation and inspection.
 
 GH-13 replaces the existing `start_runtime` and `verify_health` no-ops without changing their ids, order, retry metadata, or pipeline `gh09-v1`. Start is the only new mutation and succeeds only after the owned runtime is inspected as running. Verify health is read-only and may fail after start succeeded; it never rewrites the start checkpoint or invokes stop/restart/remove. Compensation remains non-mutating, so a runtime may remain running after readiness failure for explicit inspection.
+
+GH-14 replaces only the `configure_game` no-op for Managed Palworld. It reloads `palworld.initial` version 1 from
+durable persistence, resolves optional semantic secret references at the final boundary, and atomically materializes
+the fixed `PalWorldSettings.ini` below the owned `data` reservation. Existing equal content is idempotent; drift,
+invalid content, relevant temp artifacts, and unsafe paths fail closed and reconcile as ambiguous. The step performs
+no Docker mutation and depends on the trusted `DISABLE_GENERATE_SETTINGS=true` runtime environment. See
+[Palworld Managed Configuration](palworld-managed-configuration.md).

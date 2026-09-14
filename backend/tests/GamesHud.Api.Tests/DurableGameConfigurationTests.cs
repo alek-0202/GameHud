@@ -89,6 +89,19 @@ public sealed class DurableGameConfigurationTests
         Assert.DoesNotContain(payload, exception.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("{\"serverName\":\"Server\",\"maxPlayers\":32,\"difficulty\":\"None\"}")]
+    [InlineData("{\"serverName\":\"Server\",\"serverDescription\":null,\"maxPlayers\":32,\"difficulty\":\"None\"}")]
+    [InlineData("{\"serverName\":\"Server\",\"serverDescription\":\"\",\"maxPlayers\":32,\"difficulty\":null}")]
+    public void CodecFailsClosedWhenRequiredReferenceTypePropertiesAreMissingOrNull(string payload)
+    {
+        var exception = Assert.Throws<GameConfigurationException>(() =>
+            new PalworldProvisioningConfigurationCodec().Deserialize(
+                "palworld", PalworldProvisioningConfigurationCodec.InitialConfigurationKind, 1, payload));
+        Assert.Equal(GameConfigurationErrorCodes.Invalid, exception.Code);
+        Assert.Equal("Persisted game configuration is invalid.", exception.Message);
+    }
+
     [Fact]
     public void PersistedModelsCannotContainSecretValue()
     {

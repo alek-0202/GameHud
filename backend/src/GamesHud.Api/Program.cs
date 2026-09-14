@@ -15,6 +15,7 @@ using GamesHud.Api.Operations.Notifications;
 using GamesHud.Api.Operations.Scheduling;
 using GamesHud.Api.Palworld.Backups.Services;
 using GamesHud.Api.Palworld.Configuration;
+using GamesHud.Api.Palworld.ManagedConfiguration;
 using GamesHud.Api.Palworld.Services;
 using GamesHud.Api.Palworld.Updates.Services;
 using GamesHud.Api.Persistence;
@@ -67,7 +68,9 @@ builder.Services.AddSingleton<IProvisioningStateMachine, ProvisioningStateMachin
 builder.Services.AddScoped<IProvisioningOperationStore, ProvisioningOperationStore>();
 builder.Services.AddScoped<IProvisioningRecoveryService, ProvisioningRecoveryService>();
 builder.Services.AddScoped<IProvisioningPlanBuilder, ProvisioningPlanBuilder>();
-builder.Services.AddSingleton<IGameProvisioningConfigurationCodec, PalworldProvisioningConfigurationCodec>();
+builder.Services.AddSingleton<PalworldProvisioningConfigurationCodec>();
+builder.Services.AddSingleton<IGameProvisioningConfigurationCodec>(services =>
+    services.GetRequiredService<PalworldProvisioningConfigurationCodec>());
 builder.Services.AddScoped<IGameProvisioningConfigurationStore, GameProvisioningConfigurationStore>();
 builder.Services.AddScoped<IProvisioningEngine, ProvisioningEngine>();
 builder.Services.AddScoped<IGameServerProvisioningService, GameServerProvisioningService>();
@@ -89,9 +92,17 @@ builder.Services.AddSingleton<IRuntimeHealthDelay, RuntimeHealthDelay>();
 builder.Services.AddScoped<IProvisioningStep, VerifyRuntimeHealthProvisioningStep>();
 builder.Services.AddScoped<IProvisioningStep, PrepareStorageProvisioningStep>();
 builder.Services.AddScoped<IProvisioningStepReconciler, PrepareStorageReconciler>();
+builder.Services.AddScoped<IPalworldManagedConfigurationTargetBuilder, PalworldManagedConfigurationTargetBuilder>();
+builder.Services.AddSingleton<IPalworldManagedConfigurationSerializer, PalworldManagedConfigurationSerializer>();
+builder.Services.AddSingleton<IPalworldManagedConfigurationFileSystem, SystemPalworldManagedConfigurationFileSystem>();
+builder.Services.AddSingleton<IPalworldManagedConfigurationFileStore, PalworldManagedConfigurationFileStore>();
+builder.Services.AddScoped<IPalworldManagedConfigurationIntentReader, PalworldManagedConfigurationIntentReader>();
+builder.Services.AddScoped<IProvisioningStep, ConfigurePalworldGameProvisioningStep>();
+builder.Services.AddScoped<IProvisioningStepReconciler, ConfigurePalworldGameReconciler>();
 foreach (var stepId in ProvisioningStepIds.ExecutableFoundation.Where(id =>
     id != ProvisioningStepIds.CreateRuntime && id != ProvisioningStepIds.PrepareStorage
-    && id != ProvisioningStepIds.StartRuntime && id != ProvisioningStepIds.VerifyHealth))
+    && id != ProvisioningStepIds.ConfigureGame && id != ProvisioningStepIds.StartRuntime
+    && id != ProvisioningStepIds.VerifyHealth))
 {
     builder.Services.AddScoped<IProvisioningStep>(_ => new NoHostMutationProvisioningStep(stepId));
 }

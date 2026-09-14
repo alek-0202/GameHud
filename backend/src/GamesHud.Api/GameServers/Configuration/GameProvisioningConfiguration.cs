@@ -86,7 +86,7 @@ public sealed class PalworldProvisioningConfigurationCodec : IGameProvisioningCo
                 ParseReference(dto.ServerPasswordSecretId), ParseReference(dto.AdminPasswordSecretId));
             return ValidateAndWrap(value);
         }
-        catch (Exception exception) when (exception is JsonException or ArgumentException)
+        catch (Exception exception) when (exception is JsonException or ArgumentException or GameConfigurationException)
         {
             throw new GameConfigurationException(GameConfigurationErrorCodes.Invalid, "Persisted game configuration is invalid.");
         }
@@ -96,7 +96,8 @@ public sealed class PalworldProvisioningConfigurationCodec : IGameProvisioningCo
     {
         if (string.IsNullOrWhiteSpace(value.ServerName) || value.ServerName.Length > 200
             || value.ServerName.Any(char.IsControl) || value.ServerName.Contains('\n') || value.ServerName.Contains('\r')
-            || value.ServerDescription.Length > 500 || value.ServerDescription.Any(char.IsControl)
+            || value.ServerDescription is null || value.ServerDescription.Length > 500 || value.ServerDescription.Any(char.IsControl)
+            || value.Difficulty is null
             || value.MaxPlayers is < 1 or > 32 || value.Difficulty is not "None" and not "Normal" and not "Hard")
             throw new GameConfigurationException(GameConfigurationErrorCodes.Invalid, "Game configuration is invalid.");
         var normalized = value with { ServerName = value.ServerName.Trim(), ServerDescription = value.ServerDescription.Trim() };

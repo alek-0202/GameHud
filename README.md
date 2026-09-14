@@ -205,6 +205,8 @@ GamesHud stores its SQLite database at `<DataRoot>/system/gameshud.db`, where `D
 
 Managed server persistence records durable GamesHud claims for future provisioning. Reservations do not create directories, bind ports, publish Docker ports, create containers or prove an external resource exists.
 
+Managed Palworld provisioning materializes its durable initial intent as `PalWorldSettings.ini` during the typed `configure_game` step without invoking Docker or adopting existing drift.
+
 Operations:
 
 - `Notifications__Discord__WebhookUrl`
@@ -541,6 +543,7 @@ The VPS may already host production containers such as Palworld and Portainer. G
 - [Palworld Backups Guide](docs/palworld-backups.md)
 - [Palworld Updates Guide](docs/palworld-updates.md)
 - [Palworld Settings Guide](docs/palworld-settings.md)
+- [Palworld Managed Configuration](docs/palworld-managed-configuration.md)
 - [Palworld REST API Guide](docs/palworld-rest-api.md)
 - [Operations Guide](docs/operations.md)
 - [Persistence Guide](docs/persistence.md)
