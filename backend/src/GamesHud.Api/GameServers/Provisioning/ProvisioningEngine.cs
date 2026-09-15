@@ -41,13 +41,18 @@ public sealed class ProvisioningEngine : IProvisioningEngine
     {
         var state = await _operations.GetAsync(context.OperationId, CancellationToken.None)
             ?? throw new InvalidOperationException("The persisted provisioning operation was not found.");
-        if (state.PipelineVersion != ProvisioningPipeline.Version)
+        var pipeline = ProvisioningPipelines.Find(state.PipelineVersion);
+        if (pipeline is null)
         {
             throw new InvalidOperationException("The persisted provisioning pipeline version is not supported.");
         }
+        if (state.Status == ProvisioningOperationStatuses.Cancelled)
+            throw new ProvisioningTransitionException("A user-cancelled operation cannot resume execution.");
+        if (state.PipelineVersion == ProvisioningPipelines.ImageAcquisitionVersion && !pipeline.Matches(state))
+            throw new ProvisioningTransitionException("Persisted V2 pipeline metadata is invalid.");
 
         foreach (var persistedStep in state.Steps
-            .Where(step => ProvisioningStepIds.ExecutableFoundation.Contains(step.StepId, StringComparer.Ordinal))
+            .Where(step => pipeline.Steps.Any(expected => expected.Id == step.StepId && expected.Sequence > 3))
             .OrderBy(step => step.Sequence))
         {
             var stepId = persistedStep.StepId;
@@ -71,7 +76,8 @@ public sealed class ProvisioningEngine : IProvisioningEngine
                     ProvisioningOperationStatuses.Running,
                     stepId,
                     stepId,
-                    ProvisioningStepStatuses.Running), cancellationToken);
+                    ProvisioningStepStatuses.Running,
+                    ExplicitRetry: persistedStep.ReconciledRetryAttempt == persistedStep.Attempt + 1), cancellationToken);
 
                 var step = _steps[stepId];
                 var result = await step.ExecuteAsync(context, cancellationToken);
@@ -110,7 +116,10 @@ public sealed class ProvisioningEngine : IProvisioningEngine
             }
             catch (OperationCanceledException)
             {
-                return await CancelAsync(state, context, stepId);
+                return persistedStep.SideEffectClassification != ProvisioningSideEffectClassifications.ReadOnly
+                    && !context.UserRequestedCancellation
+                    ? await InterruptAsync(state, context, stepId)
+                    : await CancelAsync(state, context, stepId);
             }
             catch (ProvisioningConcurrencyException)
             {
@@ -149,6 +158,14 @@ public sealed class ProvisioningEngine : IProvisioningEngine
         string code,
         string message)
     {
+        if (state.Steps.Any(step => step.StepId == failedStepId && step.FailureType == ProvisioningFailureTypes.Unknown
+            && step.SideEffectClassification != ProvisioningSideEffectClassifications.ReadOnly))
+        {
+            await _operations.ApplyCheckpointAsync(new ProvisioningCheckpoint(context.OperationId, state.Version,
+                ProvisioningOperationStatuses.Failed, failedStepId, ErrorCode: code, SafeErrorMessage: message,
+                KeepActiveSlot: true), CancellationToken.None);
+            return FailureResult(context, ProvisioningOperationStatuses.Failed, code, message);
+        }
         var compensations = state.Steps
             .Where(step => step.Status == ProvisioningStepStatuses.Succeeded
                 && _steps.TryGetValue(step.StepId, out var runtimeStep)

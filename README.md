@@ -40,6 +40,7 @@ Implemented:
 - EF Core + SQLite persistence foundation under the GamesHud data root
 - Durable managed server schema for server records, port reservations, storage reservations and provisioning operation records
 - Internal provisioning engine foundation with validated plans, durable progress and no host mutation
+- Durable pinned runtime-image intent, verified local image identity and reconciliation application foundation; image acquisition remains disabled
 - `GET /api/system/persistence` health and migration status without path or connection string exposure
 - Temporary personal Palworld settings editor isolated outside Docker Core
 - Temporary Palworld REST overview and players view isolated outside Docker Core

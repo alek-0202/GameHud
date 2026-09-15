@@ -182,6 +182,10 @@ GH-11 makes `prepare_storage` the first real provisioning mutation. It reloads d
 
 The database enforces unique managed server ids, unique `protocol + port`, unique managed storage relative paths and a single active operation slot per server and operation type. Delete behavior is restricted so deleting a database row cannot be confused with deleting an external resource.
 
+ARCH-03 introduces a version registry while preserving `gh09-v1` as the production default. The registered `gh15-v2` pipeline inserts a fail-closed `acquire_image` step before runtime creation. Its reservation transaction persists an immutable approved `registry/repository@sha256` identity and platform alongside the server, operation, steps, reservations and game configuration. A separate optimistic checkpoint records the verified local image id; V2 create and start consume that local id. No image acquisition or deletion is implemented by this foundation.
+
+ARCH-03 also makes reconciliation outcomes durable. A trusted reconciler observation and its append-only audit record are applied in one transaction: an existing effect advances the step, an absent effect may authorize one bounded retry, and ambiguity remains `Failed/unknown`. Any unresolved mutation keeps the unique active slot even when the operation is failed. Persisted pipeline versions are reconstructed from their own metadata, so historical V1 behavior does not change. See [Durable Runtime Image Identity](docs/runtime-image-identity.md).
+
 Persisted timestamps are UTC. Secret material is not persisted as normal application data and must not be stored in plaintext database fields. No user, role, organization or tenant model exists yet. The current Palworld compatibility sources remain `LegacyExternal`; GamesHud must not import or adopt legacy paths, containers, ports or settings simply because they exist.
 
 ---

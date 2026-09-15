@@ -117,6 +117,8 @@ public sealed class ManagedServerStore : IManagedServerStore
                 dbContext.PortReservations.AddRange(portReservations);
                 dbContext.StorageReservations.AddRange(storageReservations);
                 if (configuration is not null) dbContext.ManagedGameConfigurations.Add(configuration);
+                if (normalizedPlan.RuntimeImage is not null)
+                    dbContext.RuntimeImageIntents.Add(RuntimeImageIntentStore.Create(operationId, normalizedPlan));
 
                 await Task.CompletedTask;
 
@@ -203,9 +205,15 @@ public sealed class ManagedServerStore : IManagedServerStore
             .Select(item => NormalizeStorage(item, gameServerId))
             .ToArray();
         var pipelineVersion = string.IsNullOrWhiteSpace(plan.PipelineVersion)
-            ? ProvisioningPipeline.Version
+            ? ProvisioningPipelines.DefaultVersion
             : plan.PipelineVersion.Trim();
-        var sourceSteps = plan.Steps ?? ProvisioningPipeline.Steps.Select(step => new ProvisioningStepPlan(
+        var pipeline = ProvisioningPipelines.Find(pipelineVersion)
+            ?? throw new ArgumentException("Unsupported provisioning pipeline.", nameof(plan));
+        if (pipelineVersion == ProvisioningPipelines.ImageAcquisitionVersion
+            ? plan.RuntimeImage is null || !plan.RuntimeImage.IsPinned || plan.RuntimeImage.RuntimeType != runtimeType
+            : plan.RuntimeImage is not null)
+            throw new ArgumentException("Runtime image intent does not match the pipeline.", nameof(plan));
+        var sourceSteps = plan.Steps ?? pipeline.Steps.Select(step => new ProvisioningStepPlan(
             step.Id,
             step.Sequence,
             step.RetryClassification,
@@ -213,6 +221,13 @@ public sealed class ManagedServerStore : IManagedServerStore
             step.MaxAttempts,
             step.Sequence <= 3)).ToArray();
         var steps = NormalizeSteps(sourceSteps);
+        if (pipelineVersion == ProvisioningPipelines.ImageAcquisitionVersion
+            && (steps.Count != pipeline.Steps.Count || pipeline.Steps.Any(expected => !steps.Any(actual =>
+                actual.StepId == expected.Id && actual.Sequence == expected.Sequence
+                && actual.RetryClassification == expected.RetryClassification && actual.MaxAttempts == expected.MaxAttempts
+                && actual.SideEffectClassification == expected.SideEffectClassification
+                && actual.CompletedBeforeReservation == (expected.Sequence <= 3)))))
+            throw new ArgumentException("V2 pipeline metadata is invalid.", nameof(plan));
 
         if (plan.Configuration is not null
             && (plan.Configuration.GameId.Value != gameId || plan.Configuration.Payload.Length > 8000))
@@ -234,7 +249,8 @@ public sealed class ManagedServerStore : IManagedServerStore
             storage,
             plan.Configuration,
             pipelineVersion,
-            steps);
+            steps,
+            plan.RuntimeImage);
     }
 
     private static IReadOnlyCollection<ProvisioningStepPlan> NormalizeSteps(

@@ -51,6 +51,12 @@ These invariants are permanent GamesHud security rules. Future implementation ta
 - Destructive storage compensation requires stronger proof than existence; generic recursive deletion is forbidden.
 - Filesystem reconciliation must precede retry after an uncertain mutation outcome.
 - Managed container creation must use a locally available trusted image and must never fall back to or automatically pull another image.
+- V2 approved image intent must be a fully pinned registry digest plus platform, persisted transactionally with its exact Managed owner.
+- Approved image intent is immutable; its verified local image id may be recorded only by the bounded acquisition checkpoint with optimistic concurrency.
+- V2 create, start and reconciliation must use and verify the persisted local image id for the same operation, server, game and runtime owner.
+- An absent external effect permits only the specifically authorized next attempt within persisted `MaxAttempts`; ambiguity never permits retry.
+- Unknown mutation state retains the active operation slot, including when the operation status is `Failed` or explicitly cancelled.
+- Image cleanup must require explicit Managed ownership proof; generic unused-image deletion is forbidden.
 - Managed container identity must be a deterministic backend name plus backend ownership labels; name similarity alone never permits adoption.
 - Container creation must leave the resource stopped, and an uncertain create must be reconciled before another create attempt.
 - Internal or administrative game ports must never be automatically published on the host.

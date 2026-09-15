@@ -20,6 +20,7 @@ public sealed class ProvisioningStepRecord
     public int Sequence { get; set; }
     public string Status { get; set; } = string.Empty;
     public int Attempt { get; set; }
+    public int? ReconciledRetryAttempt { get; set; }
     public string RetryClassification { get; set; } = string.Empty;
     public string SideEffectClassification { get; set; } = string.Empty;
     public int MaxAttempts { get; set; }

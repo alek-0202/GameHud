@@ -37,9 +37,11 @@ the generated game file or silently defaults corrupted persisted state.
 
 `ProvisioningContext` is typed and carries the operation id, game definition, validated plan, durable reservation result and typed step executions. It does not use `dynamic` or an untyped state dictionary.
 
-## Versioned Pipeline
+## Versioned Pipelines
 
-The stable step ids for pipeline `gh09-v1` are `validate_host`, `plan_resources`, `reserve_resources`, `prepare_storage`, `configure_game`, `create_runtime`, `start_runtime`, `verify_health` and `complete`. Class names, display names and list indexes are not persisted identities.
+The stable step ids for pipeline `gh09-v1` are `validate_host`, `plan_resources`, `reserve_resources`, `prepare_storage`, `configure_game`, `create_runtime`, `start_runtime`, `verify_health` and `complete`. Class names, display names and list indexes are not persisted identities. `gh09-v1` remains the production default.
+
+ARCH-03 registers `gh15-v2`, which inserts `acquire_image` between `configure_game` and `create_runtime` and gives mutation steps bounded reconciliation-authorized retry capacity. V2 is present for compatibility and testing but cannot be selected by the production planning path yet: its acquisition step fails closed until GH-15 provides a real adapter and an approved pinned image.
 
 Reservation stores every expected step, its sequence and its retry/side-effect metadata. Validation, planning and reservation have already completed at that point, so their rows start as `Succeeded` with attempt 1; executable foundation steps start as `Pending` with attempt 0. Recovery reads this persisted pipeline instead of reconstructing history from the current code list. A pipeline version mismatch requires manual intervention.
 
@@ -111,11 +113,13 @@ The database transaction cannot include a future external side effect. A process
 
 At startup, `ProvisioningRecoveryStartupObserver` only classifies incomplete operations and logs operation id, decision, step id and reason code. It does not execute steps, mutate the host or automatically resume any operation.
 
-`IProvisioningStepReconciler` is the game/runtime adapter boundary. A reconciler may report effect present, absent or ambiguous. GH-12 implements real Docker inspection for `create_runtime`; reconciliation produces a decision and does not silently advance persisted state.
+`IProvisioningStepReconciler` is the game/runtime adapter boundary. A reconciler may report effect present, absent or ambiguous. GH-12 implements real Docker inspection for `create_runtime`.
+
+ARCH-03 adds the internal reconciliation application service. It invokes the registered reconciler itself, then atomically stores an append-only audit record and the resulting checkpoint. An existing effect advances the step to `Succeeded`; a proven absent effect authorizes exactly the next bounded attempt; an ambiguous effect remains `Failed/unknown` and keeps the active slot. A caller cannot inject an outcome or bypass ownership, pipeline, step-order and optimistic-version checks.
 
 ## Cancellation And Compensation
 
-Cancellation before execution persists `Cancelled`. Cancellation while a step is running persists that step as `Failed/unknown`; a non-read-only step retains the active slot because cancellation cannot prove an external effect stopped.
+An explicit user cancellation before execution persists `Cancelled`. Explicit cancellation after a mutation starts remains terminal while retaining unknown-effect protection. Request, host-shutdown or worker interruption after provider invocation is persisted as `Failed/unknown` for reconciliation; it does not claim that the provider cancelled the external effect. A non-read-only unknown step retains the active slot in either case.
 
 On a typed failure, completed compensating steps run in reverse sequence. Each step is checkpointed `Compensating` before cleanup and `Compensated` after success. A cleanup exception persists both step and operation as `CompensationFailed`, retains the active slot and requires manual intervention. Restart during compensation is classified but not resumed automatically. Full rollback remains GH-15 work.
 
@@ -147,3 +151,5 @@ the fixed `PalWorldSettings.ini` below the owned `data` reservation. Existing eq
 invalid content, relevant temp artifacts, and unsafe paths fail closed and reconcile as ambiguous. The step performs
 no Docker mutation and depends on the trusted `DISABLE_GENERATE_SETTINGS=true` runtime environment. See
 [Palworld Managed Configuration](palworld-managed-configuration.md).
+
+ARCH-03 adds the durable pinned-image identity and reconciliation foundation used by `gh15-v2`. The approved registry digest/platform intent is persisted transactionally and remains immutable; a distinct verified local image id is recorded through an optimistic acquisition checkpoint. V2 create and start reconstruction use that local id and fail closed when it is absent or mismatched. `gh09-v1` behavior is unchanged, no image is acquired, and V2 is not the production default. See [Durable Runtime Image Identity](runtime-image-identity.md).

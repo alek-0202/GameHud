@@ -75,7 +75,6 @@ public sealed class ProvisioningOperationStore : IProvisioningOperationStore
                     step = operation.Steps.Single(item => item.StepId == checkpoint.StepId);
                     var snapshot = Map(step);
                     if (checkpoint.StepStatus == ProvisioningStepStatuses.Running
-                        && step.Status == ProvisioningStepStatuses.Pending
                         && operation.Steps.Any(item =>
                             item.Sequence < step.Sequence
                             && item.Status is not ProvisioningStepStatuses.Succeeded
@@ -86,6 +85,16 @@ public sealed class ProvisioningOperationStore : IProvisioningOperationStore
                             $"Provisioning step '{step.StepId}' cannot start before earlier pipeline steps complete.");
                     }
                     _stateMachine.EnsureStepTransition(snapshot, checkpoint.StepStatus, checkpoint.ExplicitRetry);
+                    if (operation.PipelineVersion == ProvisioningPipelines.ImageAcquisitionVersion
+                        && ((step.StepId == ProvisioningStepIds.AcquireImage && checkpoint.StepStatus == ProvisioningStepStatuses.Succeeded)
+                            || (step.StepId is ProvisioningStepIds.CreateRuntime or ProvisioningStepIds.StartRuntime
+                                && checkpoint.StepStatus == ProvisioningStepStatuses.Running)))
+                    {
+                        var image = await database.RuntimeImageIntents.AsNoTracking()
+                            .SingleOrDefaultAsync(item => item.OperationId == operation.Id, token);
+                        if (image is null || ManagedServers.RuntimeImageIntentStore.Map(image).VerifiedLocalImageId is null)
+                            throw new ProvisioningTransitionException("V2 runtime requires durable verified image identity.");
+                    }
                     ApplyStepCheckpoint(step, checkpoint, now);
                 }
 
@@ -103,6 +112,9 @@ public sealed class ProvisioningOperationStore : IProvisioningOperationStore
                     operation.CompletedAtUtc = now;
                     operation.ActiveSlot = checkpoint.KeepActiveSlot
                         || checkpoint.OperationStatus == ProvisioningOperationStatuses.CompensationFailed
+                        || operation.Steps.Any(item => item.SideEffectClassification != ProvisioningSideEffectClassifications.ReadOnly
+                            && (item.Status == ProvisioningStepStatuses.Running
+                                || item.Status == ProvisioningStepStatuses.Failed && item.FailureType == ProvisioningFailureTypes.Unknown))
                         ? ProvisioningOperationActiveSlots.Active
                         : null;
                 }
@@ -137,6 +149,7 @@ public sealed class ProvisioningOperationStore : IProvisioningOperationStore
         if (checkpoint.StepStatus == ProvisioningStepStatuses.Running)
         {
             step.Attempt++;
+            step.ReconciledRetryAttempt = null;
             step.StartedAtUtc = now;
             step.CompletedAtUtc = null;
         }
@@ -188,7 +201,8 @@ public sealed class ProvisioningOperationStore : IProvisioningOperationStore
             step.ErrorCode,
             step.SafeErrorMessage,
             step.CompensationStartedAtUtc,
-            step.CompensationCompletedAtUtc);
+            step.CompensationCompletedAtUtc,
+            step.ReconciledRetryAttempt);
 
     private static string? NormalizeOptional(string? value, int maximumLength)
     {

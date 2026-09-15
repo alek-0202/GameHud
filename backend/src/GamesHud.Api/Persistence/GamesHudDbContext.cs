@@ -23,6 +23,8 @@ public sealed class GamesHudDbContext : DbContext
     public DbSet<ProvisioningStepRecord> ProvisioningSteps => Set<ProvisioningStepRecord>();
 
     public DbSet<ManagedGameConfigurationRecord> ManagedGameConfigurations => Set<ManagedGameConfigurationRecord>();
+    public DbSet<RuntimeImageIntentRecord> RuntimeImageIntents => Set<RuntimeImageIntentRecord>();
+    public DbSet<ProvisioningReconciliationRecord> ProvisioningReconciliations => Set<ProvisioningReconciliationRecord>();
 
     public override int SaveChanges()
     {
@@ -56,6 +58,7 @@ public sealed class GamesHudDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        RuntimeImagePersistence.Configure(modelBuilder);
         modelBuilder.Entity<PersistenceMetadataRecord>(entity =>
         {
             entity.ToTable("persistence_metadata");
@@ -299,6 +302,7 @@ public sealed class GamesHudDbContext : DbContext
     private void ApplyUtcTimestamps()
     {
         var now = DateTimeOffset.UtcNow;
+        RuntimeImagePersistence.ValidateChanges(this, now);
 
         foreach (var entry in ChangeTracker.Entries<PersistenceMetadataRecord>())
         {

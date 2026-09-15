@@ -67,11 +67,13 @@ builder.Services.AddScoped<IManagedServerStore, ManagedServerStore>();
 builder.Services.AddSingleton<IProvisioningStateMachine, ProvisioningStateMachine>();
 builder.Services.AddScoped<IProvisioningOperationStore, ProvisioningOperationStore>();
 builder.Services.AddScoped<IProvisioningRecoveryService, ProvisioningRecoveryService>();
+builder.Services.AddScoped<IProvisioningReconciliationService, ProvisioningReconciliationService>();
 builder.Services.AddScoped<IProvisioningPlanBuilder, ProvisioningPlanBuilder>();
 builder.Services.AddSingleton<PalworldProvisioningConfigurationCodec>();
 builder.Services.AddSingleton<IGameProvisioningConfigurationCodec>(services =>
     services.GetRequiredService<PalworldProvisioningConfigurationCodec>());
 builder.Services.AddScoped<IGameProvisioningConfigurationStore, GameProvisioningConfigurationStore>();
+builder.Services.AddScoped<IRuntimeImageIntentStore, RuntimeImageIntentStore>();
 builder.Services.AddScoped<IProvisioningEngine, ProvisioningEngine>();
 builder.Services.AddScoped<IGameServerProvisioningService, GameServerProvisioningService>();
 builder.Services.AddSingleton<IRuntimeMutationPolicy, RuntimeMutationPolicy>();
@@ -85,6 +87,7 @@ builder.Services.AddSingleton<IGameRuntimeAdapter>(services => services.GetRequi
 builder.Services.AddSingleton<IManagedRuntimeInspector>(services => services.GetRequiredService<DockerGameRuntimeAdapter>());
 builder.Services.AddScoped<IRuntimeMutationExecutor, RuntimeMutationExecutor>();
 builder.Services.AddScoped<IProvisioningStep, CreateRuntimeProvisioningStep>();
+builder.Services.AddScoped<IProvisioningStep, AcquireImageProvisioningStep>();
 builder.Services.AddScoped<IProvisioningStepReconciler, CreateRuntimeReconciler>();
 builder.Services.AddScoped<IProvisioningStep, StartRuntimeProvisioningStep>();
 builder.Services.AddScoped<IProvisioningStepReconciler, StartRuntimeReconciler>();

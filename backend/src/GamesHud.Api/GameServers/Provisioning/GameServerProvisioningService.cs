@@ -74,8 +74,8 @@ public sealed class GameServerProvisioningService : IGameServerProvisioningServi
             plan.Storage.Select(storage => new StorageReservationPlan(
                 storage.DefinitionId, storage.RelativePath)).ToArray(),
             plan.GameConfiguration,
-            ProvisioningPipeline.Version,
-            ProvisioningPipeline.Steps.Select(step => new ProvisioningStepPlan(
+            ProvisioningPipelines.DefaultVersion,
+            ProvisioningPipelines.Find(ProvisioningPipelines.DefaultVersion)!.Steps.Select(step => new ProvisioningStepPlan(
                 step.Id,
                 step.Sequence,
                 step.RetryClassification,
@@ -104,7 +104,8 @@ public sealed class GameServerProvisioningService : IGameServerProvisioningServi
             reservation.ProvisioningOperationId,
             planResult.Definition!,
             plan,
-            reservation);
+            reservation,
+            userRequestedCancellation: false);
 
         return await _engine.ExecuteAsync(context, cancellationToken);
     }

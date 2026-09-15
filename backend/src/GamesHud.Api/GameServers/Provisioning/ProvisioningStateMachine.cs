@@ -48,7 +48,9 @@ public sealed class ProvisioningStateMachine : IProvisioningStateMachine
             (ProvisioningStepStatuses.Running, ProvisioningStepStatuses.Skipped) => true,
             (ProvisioningStepStatuses.Failed, ProvisioningStepStatuses.Running) =>
                 explicitRetry
-                && step.RetryClassification == ProvisioningRetryClassifications.SafeToRetry
+                && (step.RetryClassification == ProvisioningRetryClassifications.SafeToRetry
+                    || step.RetryClassification == ProvisioningRetryClassifications.RequiresInspection
+                        && step.ReconciledRetryAttempt == step.Attempt + 1)
                 && step.Attempt < step.MaxAttempts,
             (ProvisioningStepStatuses.Succeeded, ProvisioningStepStatuses.Compensating) => true,
             (ProvisioningStepStatuses.Compensating, ProvisioningStepStatuses.Compensated) => true,

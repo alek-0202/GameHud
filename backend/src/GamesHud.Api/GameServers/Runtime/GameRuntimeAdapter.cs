@@ -152,7 +152,7 @@ internal static class DockerCreateContainerMapper
         return new CreateContainerParameters
         {
             Name = context.ProviderResourceIdentity.ResourceName,
-            Image = specification.Image.Reference,
+            Image = specification.VerifiedImage?.LocalImageId.Value ?? specification.Image.Reference,
             Env = specification.Environment.Select(item => $"{item.Name}={item.Value}").ToList(),
             Labels = new Dictionary<string, string>
             {
@@ -357,7 +357,8 @@ internal sealed class DockerGameRuntimeAdapter : IGameRuntimeAdapter, IManagedRu
 
     internal static bool CriticalConfigurationMatches(ContainerInspectResponse actual, CreateContainerParameters expected)
     {
-        if (actual.Config?.Image != expected.Image || actual.HostConfig is null) return false;
+        if (actual.Config?.Image != expected.Image || actual.HostConfig is null
+            || expected.Image.StartsWith("sha256:", StringComparison.Ordinal) && actual.Image != expected.Image) return false;
         var actualEnvironment = (actual.Config.Env ?? []).OrderBy(value => value, StringComparer.Ordinal).ToArray();
         var expectedEnvironment = (expected.Env ?? []).OrderBy(value => value, StringComparer.Ordinal).ToArray();
         if (!actualEnvironment.SequenceEqual(expectedEnvironment, StringComparer.Ordinal)) return false;

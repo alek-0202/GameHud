@@ -1,6 +1,7 @@
 using GamesHud.Api.GameServers.Definitions;
 using GamesHud.Api.GameServers.Domain;
 using GamesHud.Api.Secrets.Models;
+using GamesHud.Api.Persistence.ManagedServers;
 
 namespace GamesHud.Api.GameServers.Runtime;
 
@@ -30,7 +31,8 @@ public sealed record RuntimeMutationSpecification(
     IReadOnlyCollection<TrustedRuntimeEnvironmentVariable> Environment,
     RuntimeResourceLimits Resources,
     string RestartPolicy,
-    string NetworkPolicy);
+    string NetworkPolicy,
+    VerifiedRuntimeImage? VerifiedImage = null);
 
 public sealed class ValidatedRuntimeMutationSpecification
 {

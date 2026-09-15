@@ -14,6 +14,7 @@ public static class ProvisioningStepIds
     public const string ReserveResources = "reserve_resources";
     public const string PrepareStorage = "prepare_storage";
     public const string ConfigureGame = "configure_game";
+    public const string AcquireImage = "acquire_image";
     public const string CreateRuntime = "create_runtime";
     public const string StartRuntime = "start_runtime";
     public const string VerifyHealth = "verify_health";
@@ -196,7 +197,8 @@ public sealed record ProvisioningStepSnapshot(
     string? ErrorCode,
     string? SafeErrorMessage,
     DateTimeOffset? CompensationStartedAtUtc,
-    DateTimeOffset? CompensationCompletedAtUtc);
+    DateTimeOffset? CompensationCompletedAtUtc,
+    int? ReconciledRetryAttempt = null);
 
 public sealed record ProvisioningRecoveryDecision(
     string OperationId,
@@ -233,16 +235,19 @@ public sealed class ProvisioningContext
         string operationId,
         GameDefinition gameDefinition,
         ValidatedProvisioningPlan validatedPlan,
-        ManagedServerReservationResult reservedResources)
+        ManagedServerReservationResult reservedResources,
+        bool userRequestedCancellation = true)
     {
         OperationId = operationId;
         GameServerId = validatedPlan.GameServerId;
         GameDefinition = gameDefinition;
         ValidatedPlan = validatedPlan;
         ReservedResources = reservedResources;
+        UserRequestedCancellation = userRequestedCancellation;
     }
 
     public string OperationId { get; }
+    public bool UserRequestedCancellation { get; }
     public GameServerId GameServerId { get; }
     public GameDefinition GameDefinition { get; }
     public ValidatedProvisioningPlan ValidatedPlan { get; }

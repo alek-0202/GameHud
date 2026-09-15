@@ -303,6 +303,8 @@ Remaining:
 - ARCH-02 Trusted runtime environment contract (Completed: definition-owned non-secret environment, SEC-03 validation, Docker mapping and drift reconciliation)
 - GH-14A Durable game provisioning configuration (Completed: typed/versioned intent, semantic secret references, transactional persistence and fail-closed reconstruction)
 - GH-14 Palworld Managed configuration (Completed: durable intent materialization, late secret resolution, hardened atomic file write and tri-state reconciliation)
+- ARCH-03 Durable runtime image identity foundation (Completed: immutable digest/platform intent, distinct verified local image id, versioned V2 pipeline and durable reconciliation application)
+- GH-15 Runtime image acquisition (Pending: public pinned-image acquisition adapter and production activation of `gh15-v2`)
 
 ---
 

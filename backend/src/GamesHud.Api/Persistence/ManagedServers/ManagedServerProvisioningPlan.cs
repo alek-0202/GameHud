@@ -11,7 +11,8 @@ public sealed record ManagedServerProvisioningPlan(
     IReadOnlyCollection<StorageReservationPlan> Storage,
     ValidatedGameProvisioningConfiguration? Configuration = null,
     string? PipelineVersion = null,
-    IReadOnlyCollection<ProvisioningStepPlan>? Steps = null);
+    IReadOnlyCollection<ProvisioningStepPlan>? Steps = null,
+    GamesHud.Api.GameServers.Definitions.TrustedRuntimeImage? RuntimeImage = null);
 
 public sealed record PortReservationPlan(
     string PortDefinitionId,

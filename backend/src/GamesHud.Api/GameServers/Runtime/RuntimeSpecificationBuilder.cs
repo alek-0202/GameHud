@@ -4,6 +4,7 @@ using GamesHud.Api.Persistence.ManagedServers;
 using GamesHud.Api.Persistence.Models;
 using GamesHud.Api.GameServers.Definitions;
 using GamesHud.Api.GameServers.Domain;
+using GamesHud.Api.Persistence.Provisioning;
 
 namespace GamesHud.Api.GameServers.Runtime;
 
@@ -23,18 +24,39 @@ public sealed class RuntimeSpecificationBuilder : IRuntimeSpecificationBuilder, 
     private readonly IManagedServerStore _store;
     private readonly IManagedStoragePathBuilder _paths;
     private readonly IGameDefinitionRegistry _definitions;
+    private readonly IProvisioningOperationStore? _operations;
+    private readonly IRuntimeImageIntentStore? _images;
 
-    public RuntimeSpecificationBuilder(IManagedServerStore store, IManagedStoragePathBuilder paths, IGameDefinitionRegistry definitions)
+    public RuntimeSpecificationBuilder(IManagedServerStore store, IManagedStoragePathBuilder paths,
+        IGameDefinitionRegistry definitions) : this(store, paths, definitions, null, null) { }
+
+    public RuntimeSpecificationBuilder(IManagedServerStore store, IManagedStoragePathBuilder paths, IGameDefinitionRegistry definitions,
+        IProvisioningOperationStore? operations, IRuntimeImageIntentStore? images)
     {
         _store = store;
         _paths = paths;
         _definitions = definitions;
+        _operations = operations;
+        _images = images;
     }
 
     public async Task<RuntimeMutationSpecification?> BuildAsync(ProvisioningContext context, CancellationToken cancellationToken)
     {
         var server = await _store.GetManagedServerAsync(context.GameServerId.ToString(), cancellationToken);
+        var operation = _operations is null ? null : await _operations.GetAsync(context.OperationId, cancellationToken);
+        VerifiedRuntimeImage? verifiedImage = null;
         var image = context.GameDefinition.RuntimeImages.SingleOrDefault(item => item.RuntimeType == context.ValidatedPlan.RuntimeType);
+        if (operation?.PipelineVersion == ProvisioningPipelines.ImageAcquisitionVersion)
+        {
+            if (_images is null) return null;
+            try
+            {
+                verifiedImage = await _images.LoadVerifiedAsync(new(context.OperationId, context.GameServerId.ToString(),
+                    context.ValidatedPlan.GameId.ToString(), context.ValidatedPlan.RuntimeType), cancellationToken);
+                image = verifiedImage.ApprovedImage;
+            }
+            catch (InvalidOperationException) { return null; }
+        }
         if (server is null || server.InstallationType != ManagedInstallationTypes.Managed || image is null) return null;
 
         var portIds = context.ReservedResources.PortReservationIds.ToHashSet(StringComparer.Ordinal);
@@ -66,7 +88,7 @@ public sealed class RuntimeSpecificationBuilder : IRuntimeSpecificationBuilder, 
         return new RuntimeMutationSpecification(context.GameServerId, context.ValidatedPlan.GameId, context.OperationId,
             context.ValidatedPlan.RuntimeType, image, ports, mounts, context.ValidatedPlan.SecretReferences, environment,
             new RuntimeResourceLimits(requirements?.MinimumLogicalProcessors ?? 1, requirements?.Memory?.MinimumBytes ?? 1),
-            RuntimeRestartPolicies.UnlessStopped, RuntimeNetworkPolicies.GamesHudManaged);
+            RuntimeRestartPolicies.UnlessStopped, RuntimeNetworkPolicies.GamesHudManaged, verifiedImage);
     }
 
     public async Task<(RuntimeMutationSpecification? Specification, GameDefinition? Definition)> BuildForReconciliationAsync(
@@ -75,7 +97,19 @@ public sealed class RuntimeSpecificationBuilder : IRuntimeSpecificationBuilder, 
         var server = await _store.GetManagedServerAsync(gameServerId.ToString(), cancellationToken);
         if (server is null || server.InstallationType != ManagedInstallationTypes.Managed
             || !_definitions.TryGet(new GameId(server.GameId), out var definition)) return (null, null);
+        var operation = _operations is null ? null : await _operations.GetAsync(operationId, cancellationToken);
+        VerifiedRuntimeImage? verifiedImage = null;
         var image = definition!.RuntimeImages.SingleOrDefault(item => item.RuntimeType == server.RuntimeType);
+        if (operation?.PipelineVersion == ProvisioningPipelines.ImageAcquisitionVersion)
+        {
+            if (_images is null) return (null, definition);
+            try
+            {
+                verifiedImage = await _images.LoadVerifiedAsync(new(operationId, server.Id, server.GameId, server.RuntimeType), cancellationToken);
+                image = verifiedImage.ApprovedImage;
+            }
+            catch (InvalidOperationException) { return (null, definition); }
+        }
         if (image is null) return (null, definition);
         var ports = server.PortReservations.Where(item => item.ProvisioningOperationId == operationId
                 && item.GameServerId == server.Id && item.Status == ReservationStatuses.Reserved)
@@ -96,6 +130,6 @@ public sealed class RuntimeSpecificationBuilder : IRuntimeSpecificationBuilder, 
         var environment = definition.RuntimeEnvironment.Where(item => item.RuntimeType == server.RuntimeType).ToArray();
         return (new RuntimeMutationSpecification(gameServerId, definition.GameId, operationId, server.RuntimeType, image,
             ports, mounts, [], environment, new(requirements?.MinimumLogicalProcessors ?? 1, requirements?.Memory?.MinimumBytes ?? 1),
-            RuntimeRestartPolicies.UnlessStopped, RuntimeNetworkPolicies.GamesHudManaged), definition);
+            RuntimeRestartPolicies.UnlessStopped, RuntimeNetworkPolicies.GamesHudManaged, verifiedImage), definition);
     }
 }

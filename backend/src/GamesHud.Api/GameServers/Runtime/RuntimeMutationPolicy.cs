@@ -25,7 +25,15 @@ public sealed class RuntimeMutationPolicy : IRuntimeMutationPolicy
             Add(violations, RuntimePolicyErrorCodes.UnknownRuntime, "The selected runtime is not supported.");
 
         var trustedImage = definition.RuntimeImages.SingleOrDefault(image => image.RuntimeType == specification.RuntimeType);
-        if (trustedImage is null || trustedImage != specification.Image)
+        var verified = specification.VerifiedImage;
+        var imageAllowed = verified is null
+            ? trustedImage is not null && trustedImage == specification.Image
+            : verified.Owner.OperationId == specification.OperationId
+                && verified.Owner.GameServerId == specification.GameServerId.ToString()
+                && verified.Owner.GameId == specification.GameId.ToString()
+                && verified.Owner.RuntimeType == specification.RuntimeType
+                && verified.ApprovedImage == specification.Image;
+        if (!imageAllowed)
             Add(violations, RuntimePolicyErrorCodes.UntrustedRuntimeImage, "The runtime image is not approved.");
 
         ValidateMounts(specification, definition, managedDataRoot, violations);

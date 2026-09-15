@@ -85,11 +85,15 @@ public sealed class ProvisioningRecoveryService : IProvisioningRecoveryService
 
     private static ProvisioningRecoveryDecision Classify(ProvisioningOperationSnapshot operation)
     {
-        if (operation.PipelineVersion != ProvisioningPipeline.Version)
+        var pipeline = ProvisioningPipelines.Find(operation.PipelineVersion);
+        if (pipeline is null)
         {
             return Decision(operation, ProvisioningRecoveryDecisions.ManualIntervention,
                 "pipeline_version_mismatch", "The persisted pipeline version differs from the current pipeline.");
         }
+        if (operation.PipelineVersion == ProvisioningPipelines.ImageAcquisitionVersion && !pipeline.Matches(operation))
+            return Decision(operation, ProvisioningRecoveryDecisions.ManualIntervention,
+                "pipeline_definition_mismatch", "The persisted pipeline metadata differs from its registered version.");
 
         if (operation.Status is ProvisioningOperationStatuses.Compensating
             or ProvisioningOperationStatuses.CompensationFailed)
@@ -116,6 +120,10 @@ public sealed class ProvisioningRecoveryService : IProvisioningRecoveryService
             return Decision(operation, ProvisioningRecoveryDecisions.Reconcile,
                 "external_effect_unknown", "The step may have produced an external effect and requires reconciliation.", uncertain.StepId);
         }
+        if (operation.Status != ProvisioningOperationStatuses.Cancelled
+            && operation.Steps.FirstOrDefault(step => step.ReconciledRetryAttempt == step.Attempt + 1) is { } authorized)
+            return Decision(operation, ProvisioningRecoveryDecisions.Resume,
+                "reconciled_retry_authorized", "Inspection authorized one bounded retry.", authorized.StepId);
 
         if (operation.Status is ProvisioningOperationStatuses.Succeeded
             or ProvisioningOperationStatuses.Failed
