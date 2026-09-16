@@ -45,7 +45,7 @@ public sealed class RuntimeSpecificationBuilder : IRuntimeSpecificationBuilder, 
         var server = await _store.GetManagedServerAsync(context.GameServerId.ToString(), cancellationToken);
         var operation = _operations is null ? null : await _operations.GetAsync(context.OperationId, cancellationToken);
         VerifiedRuntimeImage? verifiedImage = null;
-        var image = context.GameDefinition.RuntimeImages.SingleOrDefault(item => item.RuntimeType == context.ValidatedPlan.RuntimeType);
+        var image = context.GameDefinition.LegacyRuntimeImages.SingleOrDefault(item => item.RuntimeType == context.ValidatedPlan.RuntimeType);
         if (operation?.PipelineVersion == ProvisioningPipelines.ImageAcquisitionVersion)
         {
             if (_images is null) return null;
@@ -99,7 +99,7 @@ public sealed class RuntimeSpecificationBuilder : IRuntimeSpecificationBuilder, 
             || !_definitions.TryGet(new GameId(server.GameId), out var definition)) return (null, null);
         var operation = _operations is null ? null : await _operations.GetAsync(operationId, cancellationToken);
         VerifiedRuntimeImage? verifiedImage = null;
-        var image = definition!.RuntimeImages.SingleOrDefault(item => item.RuntimeType == server.RuntimeType);
+        var image = definition!.LegacyRuntimeImages.SingleOrDefault(item => item.RuntimeType == server.RuntimeType);
         if (operation?.PipelineVersion == ProvisioningPipelines.ImageAcquisitionVersion)
         {
             if (_images is null) return (null, definition);

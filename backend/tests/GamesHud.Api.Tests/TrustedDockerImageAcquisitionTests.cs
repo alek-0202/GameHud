@@ -411,15 +411,15 @@ public sealed class TrustedDockerImageAcquisitionTests
     }
 
     [Fact]
-    public void ProductionPalworldAndDefaultPipelineRemainGated()
+    public void ProductionPalworldIsPinnedWhileGlobalDefaultRemainsV1()
     {
         var palworld = new PalworldGameDefinition();
 
         Assert.Equal("gh09-v1", ProvisioningPipelines.DefaultVersion);
         Assert.Equal(9, ProvisioningPipelines.Legacy.Steps.Count);
         Assert.Equal(10, ProvisioningPipelines.ImageAcquisition.Steps.Count);
-        Assert.False(palworld.RuntimeImages.Single().IsPinned);
-        Assert.Equal("latest", palworld.RuntimeImages.Single().Tag);
+        Assert.True(palworld.RuntimeImages.Single().IsPinned);
+        Assert.Equal("latest", palworld.LegacyRuntimeImages.Single().Tag);
     }
 
     private static DockerRuntimeImageAcquisitionAdapter Adapter(FakeDockerImageClient client,

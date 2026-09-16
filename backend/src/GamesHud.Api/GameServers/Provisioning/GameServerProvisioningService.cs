@@ -64,6 +64,7 @@ public sealed class GameServerProvisioningService : IGameServerProvisioningServi
                 "The game server is already managed."));
         }
 
+        var selection = ProvisioningPipelines.SelectForManaged(planResult.Definition!, plan.RuntimeType);
         var persistencePlan = new ManagedServerProvisioningPlan(
             plan.GameServerId.ToString(),
             plan.GameId.ToString(),
@@ -74,14 +75,15 @@ public sealed class GameServerProvisioningService : IGameServerProvisioningServi
             plan.Storage.Select(storage => new StorageReservationPlan(
                 storage.DefinitionId, storage.RelativePath)).ToArray(),
             plan.GameConfiguration,
-            ProvisioningPipelines.DefaultVersion,
-            ProvisioningPipelines.Find(ProvisioningPipelines.DefaultVersion)!.Steps.Select(step => new ProvisioningStepPlan(
+            selection.Pipeline.Version,
+            selection.Pipeline.Steps.Select(step => new ProvisioningStepPlan(
                 step.Id,
                 step.Sequence,
                 step.RetryClassification,
                 step.SideEffectClassification,
                 step.MaxAttempts,
-                step.Sequence <= 3)).ToArray());
+                step.Sequence <= 3)).ToArray(),
+            selection.RuntimeImage);
         var conflict = await _store.FindReservationConflictAsync(persistencePlan, cancellationToken);
         if (conflict is not null)
         {

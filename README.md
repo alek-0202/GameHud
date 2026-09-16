@@ -40,7 +40,7 @@ Implemented:
 - EF Core + SQLite persistence foundation under the GamesHud data root
 - Durable managed server schema for server records, port reservations, storage reservations and provisioning operation records
 - Internal provisioning engine foundation with validated plans, durable progress and no host mutation
-- Durable pinned runtime-image intent and public digest-only Docker acquisition with final local identity verification; production V2 remains gated on an approved Palworld digest
+- Durable pinned runtime-image intent and public digest-only Docker acquisition with final local identity verification; new Managed Palworld operations select V2 from the approved catalog artifact
 - `GET /api/system/persistence` health and migration status without path or connection string exposure
 - Temporary personal Palworld settings editor isolated outside Docker Core
 - Temporary Palworld REST overview and players view isolated outside Docker Core
@@ -200,6 +200,8 @@ Trusted runtime image acquisition:
 
 - `RuntimeImageAcquisition__TimeoutSeconds` (default `900`, maximum `3600`)
 - `RuntimeImageAcquisition__InspectTimeoutSeconds` (default `30`, maximum `120`)
+
+Managed Palworld V2 is pinned to release `v2.7.3` for `linux/amd64`. Runtime authority is the approved platform manifest `docker.io/thijsvanloef/palworld-server-docker@sha256:aee17c5ea7b52c0fdbc2f86c446c02bfdab8788eed3867ea7c34261874ab2ec9`. The OCI index digest `sha256:be3ad49e373045a7b60478fd8b7f7411c1e293713dfa4733e563e798f276d688` is audit evidence only. Tag or `latest` changes do not change this selection; a future update requires an explicit catalog approval change.
 
 When this value is empty or unset, GamesHud uses a safe app-local fallback under the backend application base directory. Storage planning uses this root to compute deterministic managed server paths, but it does not create directories, copy files, move existing data or reserve durable state.
 

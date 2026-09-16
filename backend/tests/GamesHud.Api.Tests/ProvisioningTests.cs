@@ -782,7 +782,16 @@ public sealed class ProvisioningTests
         : IProvisioningPlanBuilder
     {
         public Task<ProvisioningPlanBuildResult> BuildAsync(CreateGameServerProvisioningRequest request, CancellationToken cancellationToken) =>
-            Task.FromResult(new ProvisioningPlanBuildResult(factory(request), new PalworldGameDefinition(), null));
+            Task.FromResult(new ProvisioningPlanBuildResult(factory(request), LegacyDefinition(), null));
+
+        private static GameDefinition LegacyDefinition() => new(
+            new GameId("palworld"),
+            "Palworld",
+            "Legacy provisioning test definition.",
+            new GameDefinitionBranding("palworld"),
+            ["docker"],
+            ["test"],
+            runtimeImages: [new TrustedRuntimeImage("docker", "trusted/palworld", "latest", "test")]);
     }
 
     private sealed class StubHostCapabilityService(HostCapabilitySnapshot snapshot) : IHostCapabilityService

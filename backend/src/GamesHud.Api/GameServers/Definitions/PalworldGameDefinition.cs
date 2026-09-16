@@ -17,6 +17,8 @@ public sealed class PalworldGameDefinition :
     private const string ServerConfigurationSource = "https://docs.palworldgame.com/settings-and-operation/configuration/";
     private const string RestApiSource = "https://docs.palworldgame.com/api/rest-api/info/";
     private const string ContainerStorageSource = "https://github.com/thijsvanloef/palworld-server-docker";
+    private const string ApprovedDigestValue = "sha256:aee17c5ea7b52c0fdbc2f86c446c02bfdab8788eed3867ea7c34261874ab2ec9";
+    private const string ApprovedImageSource = "gameshud-catalog/palworld/v2.7.3";
 
     public PalworldGameDefinition()
         : base(
@@ -38,8 +40,16 @@ public sealed class PalworldGameDefinition :
             CreateRequirements(),
             CreatePorts(),
             CreateStorages(),
-            [new TrustedRuntimeImage(GameServerRuntime.DockerType, "thijsvanloef/palworld-server-docker", "latest", "game_definition")],
-            [new TrustedRuntimeEnvironmentVariable(GameServerRuntime.DockerType, "DISABLE_GENERATE_SETTINGS", "true")])
+            [new TrustedRuntimeImage(
+                GameServerRuntime.DockerType,
+                "docker.io",
+                "thijsvanloef/palworld-server-docker",
+                new ApprovedImageDigest(ApprovedDigestValue),
+                new RuntimeImagePlatform("linux", "amd64"),
+                ApprovedImageSource)],
+            [new TrustedRuntimeEnvironmentVariable(GameServerRuntime.DockerType, "DISABLE_GENERATE_SETTINGS", "true")],
+            legacyRuntimeImages:
+            [new TrustedRuntimeImage(GameServerRuntime.DockerType, "thijsvanloef/palworld-server-docker", "latest", "game_definition")])
     {
     }
 

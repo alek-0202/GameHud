@@ -19,9 +19,9 @@ Intent fields are immutable. The acquisition or trusted reconciliation boundary 
 
 ## Versioned Pipelines
 
-`gh09-v1` remains the production default with its original nine steps and metadata. Existing operations continue to use the definition selected by their persisted version.
+`gh09-v1` remains the fallback and keeps its original nine steps and metadata. Existing operations continue to use their persisted version and the separate legacy catalog selector; they do not require a V2 image intent.
 
-`gh15-v2` is registered with `acquire_image` between `configure_game` and `create_runtime`. Mutation steps have bounded retry metadata so an effect proven absent may receive one controlled next-attempt authorization while capacity remains. GH-15 implements `acquire_image`, but no production path selects V2 until an approved Palworld digest is recorded in the catalog.
+`gh15-v2` is registered with `acquire_image` between `configure_game` and `create_runtime`. Mutation steps have bounded retry metadata so an effect proven absent may receive one controlled next-attempt authorization while capacity remains. A new Managed operation selects V2 only when its definition has exactly one supported pinned Docker image for the requested runtime. Definitions without that prerequisite remain on V1.
 
 ```text
 gh09-v1: configure_game -> create_runtime -> start_runtime
@@ -31,6 +31,17 @@ gh15-v2: configure_game -> acquire_image -> create_runtime -> start_runtime
 ```
 
 V2 runtime reconstruction loads the approved image and verified local id from persistence. It does not replace historical image intent with a later catalog definition. Other runtime inputs, such as environment and resource requirements, still come from the current trusted game definition and remain a future versioning consideration.
+
+## Approved Palworld Artifact
+
+The Managed Palworld catalog entry records the human-approved release `v2.7.3` for `linux/amd64`:
+
+- Registry: `docker.io`
+- Repository: `thijsvanloef/palworld-server-docker`
+- Approved platform manifest digest: `sha256:aee17c5ea7b52c0fdbc2f86c446c02bfdab8788eed3867ea7c34261874ab2ec9`
+- OCI index digest, retained only as audit evidence: `sha256:be3ad49e373045a7b60478fd8b7f7411c1e293713dfa4733e563e798f276d688`
+
+The release label is audit information in the backend-controlled approval source. The platform manifest digest is the runtime authority. Tags, including `latest`, are not consulted by V2 and cannot update the approved artifact. A future release requires a separate human approval and explicit catalog change; automatic update behavior is outside this flow.
 
 ## Trusted Acquisition
 

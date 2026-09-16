@@ -1,3 +1,5 @@
+using GamesHud.Api.GameServers.Definitions;
+
 namespace GamesHud.Api.GameServers.Provisioning;
 
 public sealed record ProvisioningPipelineDefinition(string Version, IReadOnlyCollection<ProvisioningStepDefinition> Steps)
@@ -11,7 +13,6 @@ public sealed record ProvisioningPipelineDefinition(string Version, IReadOnlyCol
 public static class ProvisioningPipelines
 {
     public const string ImageAcquisitionVersion = "gh15-v2";
-    // Activation requires GH-15 and a genuinely approved production catalog digest.
     public static string DefaultVersion => ProvisioningPipeline.Version;
     public static ProvisioningPipelineDefinition Legacy { get; } = new(ProvisioningPipeline.Version, ProvisioningPipeline.Steps);
     public static ProvisioningPipelineDefinition ImageAcquisition { get; } = new(ImageAcquisitionVersion,
@@ -26,4 +27,28 @@ public static class ProvisioningPipelines
         ImageAcquisitionVersion => ImageAcquisition,
         _ => null
     };
+
+    public static (ProvisioningPipelineDefinition Pipeline, TrustedRuntimeImage? RuntimeImage) SelectForManaged(
+        GameDefinition definition,
+        string runtimeType)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        ArgumentException.ThrowIfNullOrWhiteSpace(runtimeType);
+
+        var candidates = definition.RuntimeImages
+            .Where(image => image.RuntimeType == runtimeType && image.IsPinned)
+            .ToArray();
+        if (candidates.Length != 1 || !IsSupportedV2Image(candidates[0]))
+        {
+            return (Legacy, null);
+        }
+
+        return (ImageAcquisition, candidates[0]);
+    }
+
+    private static bool IsSupportedV2Image(TrustedRuntimeImage image) =>
+        image.RuntimeType == "docker"
+        && image.Platform!.OperatingSystem == "linux"
+        && image.Platform.Architecture == "amd64"
+        && image.Platform.Variant is null;
 }
