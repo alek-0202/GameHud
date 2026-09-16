@@ -48,6 +48,9 @@ public sealed class ProvisioningOperationStore : IProvisioningOperationStore
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(checkpoint);
+        if (checkpoint.OperationStatus == ProvisioningOperationStatuses.Succeeded)
+            throw new ProvisioningTransitionException(
+                "Successful provisioning must use atomic operation and server finalization.");
 
         try
         {
@@ -124,6 +127,17 @@ public sealed class ProvisioningOperationStore : IProvisioningOperationStore
                     operation.ActiveSlot = ProvisioningOperationActiveSlots.Active;
                 }
 
+                if (checkpoint.OperationStatus is ProvisioningOperationStatuses.Failed
+                    or ProvisioningOperationStatuses.Cancelled
+                    or ProvisioningOperationStatuses.CompensationFailed)
+                {
+                    var server = await database.ManagedGameServers.SingleAsync(
+                        item => item.Id == operation.GameServerId, token);
+                    server.LifecycleState = operation.ActiveSlot == ProvisioningOperationActiveSlots.Active
+                        ? ManagedGameServerLifecycleStates.ProvisioningBlocked
+                        : ManagedGameServerLifecycleStates.ProvisioningFailed;
+                }
+
                 await Task.CompletedTask;
                 return Map(operation);
             }, cancellationToken);
@@ -133,6 +147,48 @@ public sealed class ProvisioningOperationStore : IProvisioningOperationStore
             throw new ProvisioningConcurrencyException(
                 "Provisioning operation was advanced by another worker.",
                 exception);
+        }
+    }
+
+    public async Task<ProvisioningOperationSnapshot> FinalizeAsync(
+        string operationId,
+        int expectedVersion,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await _transactions.ExecuteAsync(async (database, token) =>
+            {
+                var operation = await database.ProvisioningOperations
+                    .Include(item => item.Steps)
+                    .SingleAsync(item => item.Id == operationId, token);
+                if (operation.Version != expectedVersion)
+                    throw new ProvisioningConcurrencyException("Provisioning finalization version conflict.");
+                if (operation.Status is not ProvisioningOperationStatuses.Pending
+                    and not ProvisioningOperationStatuses.Running)
+                    throw new ProvisioningTransitionException("Only an active provisioning operation can be finalized.");
+                if (operation.Steps.Any(step => step.Status is not ProvisioningStepStatuses.Succeeded
+                    and not ProvisioningStepStatuses.Skipped
+                    and not ProvisioningStepStatuses.Compensated))
+                    throw new ProvisioningTransitionException("Provisioning cannot finalize before every step completes.");
+
+                var now = DateTimeOffset.UtcNow;
+                operation.Status = ProvisioningOperationStatuses.Succeeded;
+                operation.CurrentStep = ProvisioningStepIds.Complete;
+                operation.CompletedAtUtc = now;
+                operation.ActiveSlot = null;
+                operation.ErrorCode = null;
+                operation.ErrorMessageSafe = null;
+                operation.Version++;
+                var server = await database.ManagedGameServers.SingleAsync(
+                    item => item.Id == operation.GameServerId, token);
+                server.LifecycleState = ManagedGameServerLifecycleStates.Running;
+                return Map(operation);
+            }, cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            throw new ProvisioningConcurrencyException("Provisioning finalization changed concurrently.", exception);
         }
     }
 

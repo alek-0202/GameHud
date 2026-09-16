@@ -10,6 +10,10 @@ services:
       Docker__Endpoint: ${GAMESHUD_DOCKER_ENDPOINT:-unix:///var/run/docker.sock}
       RuntimeImageAcquisition__TimeoutSeconds: ${GAMESHUD_IMAGE_ACQUISITION_TIMEOUT_SECONDS:-900}
       RuntimeImageAcquisition__InspectTimeoutSeconds: ${GAMESHUD_IMAGE_INSPECT_TIMEOUT_SECONDS:-30}
+      Storage__DataRoot: /managed/gameshud
+      Storage__ManagedApiRoot: /managed/gameshud
+      Storage__ManagedHostRoot: ${GAMESHUD_MANAGED_HOST_ROOT:-/srv/gameshud}
+      ProvisioningExecutor__PollIntervalSeconds: ${GAMESHUD_PROVISIONING_POLL_INTERVAL_SECONDS:-15}
       Metrics__SnapshotIntervalSeconds: ${GAMESHUD_METRICS_SNAPSHOT_INTERVAL_SECONDS:-60}
       Metrics__RetentionHours: ${GAMESHUD_METRICS_RETENTION_HOURS:-24}
       Metrics__HostDiskPath: ${GAMESHUD_METRICS_HOST_DISK_PATH:-/}
@@ -40,6 +44,7 @@ services:
       Palworld__RestApi__TimeoutSeconds: ${GAMESHUD_PALWORLD_REST_TIMEOUT_SECONDS:-5}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ${GAMESHUD_MANAGED_HOST_ROOT:-/srv/gameshud}:/managed/gameshud
       - ${GAMESHUD_PALWORLD_PATH:-./palworld-data}:/managed/palworld
       - ${GAMESHUD_PALWORLD_BACKUP_PATH:-./palworld-backups}:/managed/palworld-backups
     expose:

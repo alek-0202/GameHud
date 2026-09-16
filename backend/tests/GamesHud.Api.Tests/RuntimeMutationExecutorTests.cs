@@ -161,7 +161,7 @@ public sealed class RuntimeMutationExecutorTests
         var definition = new PalworldGameDefinition();
         var root = Path.Combine(Path.GetTempPath(), "gameshud-gh10");
         return new RuntimeMutationSpecification(new GameServerId(serverId), new GameId("palworld"),
-            "operation-one", "docker", definition.RuntimeImages.Single(), [],
+            "operation-one", "docker", definition.LegacyRuntimeImages.Single(), [],
             [new("storage", "data", Path.Combine(root, "servers", serverId, "data"), "/palworld", false)],
             [], definition.RuntimeEnvironment, new(1, 1024), RuntimeRestartPolicies.UnlessStopped,
             RuntimeNetworkPolicies.GamesHudManaged);

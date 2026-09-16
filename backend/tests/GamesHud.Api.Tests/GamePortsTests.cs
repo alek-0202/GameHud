@@ -244,6 +244,24 @@ public sealed class GamePortsTests
     }
 
     [Fact]
+    public async Task PlannerDoesNotRequireHostAvailabilityForInternalPort()
+    {
+        var planner = CreatePlanner(availablePorts: []);
+        var definition = CreateDefinition(
+        [
+            new GamePortDefinition("rest", "REST", 8212, PortProtocols.Tcp, true, false,
+                PortExposures.Internal, "Private management")
+        ]);
+
+        var plan = await planner.CreatePlanAsync(definition, CancellationToken.None);
+
+        var item = Assert.Single(plan.Ports);
+        Assert.Equal(PortPlanStatuses.Ready, plan.Status);
+        Assert.Equal(8212, item.Allocation.AllocatedPort!.Number);
+        Assert.False(item.Allocation.UsedAlternative);
+    }
+
+    [Fact]
     public async Task PlannerReturnsUnknownWhenDefinitionHasNoPorts()
     {
         var planner = CreatePlanner(availablePorts: []);

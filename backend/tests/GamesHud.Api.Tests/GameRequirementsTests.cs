@@ -114,6 +114,20 @@ public sealed class GameRequirementsTests
     }
 
     [Fact]
+    public void PinnedImageMustMatchDockerDaemonPlatform()
+    {
+        var runtime = new HostRuntimeInfo(
+            "docker", "Docker", HostCapabilityStatuses.Available, true, true,
+            "26.1.0", "linux", [], "arm64");
+
+        var assessment = Evaluate(new PalworldGameDefinition(), CreateHost(runtimes: [runtime]));
+
+        Assert.Equal(GameCompatibilityStatuses.Incompatible, assessment.Status);
+        Assert.Equal(RequirementCheckStatuses.Failed, FindCheck(assessment, "runtime_platform").Status);
+        Assert.Contains(assessment.BlockingIssues, issue => issue.Code == "runtime_platform_failed");
+    }
+
+    [Fact]
     public void UnsupportedOperatingSystemIsBlocking()
     {
         var assessment = Evaluate(
@@ -315,7 +329,8 @@ public sealed class GameRequirementsTests
                     true,
                     "26.1.0",
                     "linux",
-                    [])
+                    [],
+                    "amd64")
             ],
             new HostReadinessInfo(HostReadinessStatuses.Ready, "Ready."),
             []);

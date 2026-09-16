@@ -45,7 +45,8 @@ public sealed record HostRuntimeResponse(
     bool Reachable,
     string? Version,
     string? OperatingSystem,
-    IReadOnlyCollection<HostCapabilityIssueResponse> Issues);
+    IReadOnlyCollection<HostCapabilityIssueResponse> Issues,
+    string? Architecture = null);
 
 public sealed record HostReadinessResponse(
     string Status,

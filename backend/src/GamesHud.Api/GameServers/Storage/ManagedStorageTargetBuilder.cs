@@ -60,23 +60,28 @@ public sealed class ManagedStorageTargetBuilder : IManagedStorageTargetBuilder
             || item.Status != ReservationStatuses.Reserved || item.Ownership != StorageOwnerships.Managed))
             return Failed(ManagedStorageErrorCodes.OwnershipInvalid, "Managed storage ownership could not be proven.");
 
-        var layout = _paths.CreateLayout(gameServerId);
         var entries = new List<ManagedStorageTargetEntry>();
+        string? apiRoot = null;
         foreach (var reservation in reservations)
         {
             var storageDefinition = definition.Storages.SingleOrDefault(item => item.Id == reservation.StorageDefinitionId);
             var planned = plannedStorage?.SingleOrDefault(item => item.DefinitionId == reservation.StorageDefinitionId);
             var expectedRelative = $"servers/{gameServerId}/{reservation.StorageDefinitionId}";
             var actualRelative = reservation.RelativePath.Replace('\\', '/');
-            if (storageDefinition is null || plannedStorage is not null && (planned is null || planned.RelativePath != actualRelative)
+            if (storageDefinition is null || plannedStorage is not null && (planned is null || planned.RelativePath != actualRelative
+                    || planned.ApiPath is not null && !PathEquals(planned.ApiPath, reservation.ApiPath)
+                    || planned.HostPath is not null && !PathEquals(planned.HostPath, reservation.HostPath))
                 || actualRelative != expectedRelative)
                 return Failed(ManagedStorageErrorCodes.TargetInvalid, "Managed storage target is invalid.");
 
             try
             {
-                var absolute = ManagedStoragePathBuilder.EnsureContained(layout.DataRoot,
-                    Path.Combine(layout.DataRoot, reservation.RelativePath), "Managed storage target escaped the data root.");
-                if (absolute.Equals(layout.DataRoot, StringComparison.OrdinalIgnoreCase))
+                var absolute = ResolvePersistedPath(reservation.ApiPath, actualRelative,
+                    _paths.CreateLayout(gameServerId).DataRoot);
+                var root = GetPersistedRoot(absolute, actualRelative);
+                apiRoot ??= root;
+                if (!PathEquals(apiRoot, root)
+                    || absolute.Equals(root, StringComparison.OrdinalIgnoreCase))
                     return Failed(ManagedStorageErrorCodes.TargetInvalid, "Managed storage target is invalid.");
                 entries.Add(new(reservation.Id, reservation.StorageDefinitionId, actualRelative, absolute));
             }
@@ -88,8 +93,35 @@ public sealed class ManagedStorageTargetBuilder : IManagedStorageTargetBuilder
 
         return entries.Count == 0
             ? Failed(ManagedStorageErrorCodes.TargetInvalid, "Managed storage target is invalid.")
-            : new(new(gameServerId, operationId, layout.DataRoot, entries), null, null);
+            : new(new(gameServerId, operationId, apiRoot!, entries), null, null);
     }
+
+    internal static string ResolvePersistedPath(string persistedPath, string relativePath, string historicalRoot)
+    {
+        var candidate = string.IsNullOrWhiteSpace(persistedPath)
+            ? Path.Combine(historicalRoot, relativePath)
+            : persistedPath;
+        var full = Path.GetFullPath(candidate);
+        _ = GetPersistedRoot(full, relativePath);
+        return full;
+    }
+
+    internal static string GetPersistedRoot(string absolutePath, string relativePath)
+    {
+        var full = Path.GetFullPath(absolutePath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var suffix = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+        var marker = $"{Path.DirectorySeparatorChar}{suffix}";
+        if (!full.EndsWith(marker, StringComparison.OrdinalIgnoreCase))
+            throw new StoragePlanningException(StorageIssueCodes.InvalidGameServerId,
+                "Persisted storage path does not match its managed relative path.");
+        var root = full[..^marker.Length];
+        _ = ManagedStoragePathBuilder.EnsureContained(root, full,
+            "Persisted storage path escaped its durable root.");
+        return Path.GetFullPath(root);
+    }
+
+    private static bool PathEquals(string left, string right) =>
+        Path.GetFullPath(left).Equals(Path.GetFullPath(right), StringComparison.OrdinalIgnoreCase);
 
     private static ManagedStorageTargetBuildResult Failed(string code, string message) => new(null, code, message);
 }

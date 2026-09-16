@@ -109,6 +109,9 @@ public sealed class ProvisioningRecoveryService : IProvisioningRecoveryService
             || step.Status == ProvisioningStepStatuses.Failed && step.FailureType == ProvisioningFailureTypes.Unknown);
         if (uncertain is not null)
         {
+            if (uncertain.ErrorCode == "reconciled_effect_ambiguous")
+                return Decision(operation, ProvisioningRecoveryDecisions.ManualIntervention,
+                    "effect_ambiguous", "Trusted inspection could not prove the external effect state.", uncertain.StepId);
             if (uncertain.SideEffectClassification == ProvisioningSideEffectClassifications.ReadOnly
                 && uncertain.RetryClassification == ProvisioningRetryClassifications.SafeToRetry
                 && uncertain.Attempt < uncertain.MaxAttempts)
@@ -120,6 +123,13 @@ public sealed class ProvisioningRecoveryService : IProvisioningRecoveryService
             return Decision(operation, ProvisioningRecoveryDecisions.Reconcile,
                 "external_effect_unknown", "The step may have produced an external effect and requires reconciliation.", uncertain.StepId);
         }
+
+        if (operation.Status is ProvisioningOperationStatuses.Pending or ProvisioningOperationStatuses.Running
+            && operation.Steps.All(step => step.Status is ProvisioningStepStatuses.Succeeded
+            or ProvisioningStepStatuses.Skipped or ProvisioningStepStatuses.Compensated))
+            return Decision(operation, ProvisioningRecoveryDecisions.Resume,
+                "finalization_pending", "All provisioning steps completed and atomic finalization is pending.",
+                ProvisioningStepIds.Complete);
         if (operation.Status != ProvisioningOperationStatuses.Cancelled
             && operation.Steps.FirstOrDefault(step => step.ReconciledRetryAttempt == step.Attempt + 1) is { } authorized)
             return Decision(operation, ProvisioningRecoveryDecisions.Resume,

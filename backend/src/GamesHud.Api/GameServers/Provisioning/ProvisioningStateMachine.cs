@@ -46,6 +46,11 @@ public sealed class ProvisioningStateMachine : IProvisioningStateMachine
             (ProvisioningStepStatuses.Running, ProvisioningStepStatuses.Succeeded) => true,
             (ProvisioningStepStatuses.Running, ProvisioningStepStatuses.Failed) => true,
             (ProvisioningStepStatuses.Running, ProvisioningStepStatuses.Skipped) => true,
+            (ProvisioningStepStatuses.Running, ProvisioningStepStatuses.Running) =>
+                explicitRetry
+                && step.SideEffectClassification == ProvisioningSideEffectClassifications.ReadOnly
+                && step.RetryClassification == ProvisioningRetryClassifications.SafeToRetry
+                && step.Attempt < step.MaxAttempts,
             (ProvisioningStepStatuses.Failed, ProvisioningStepStatuses.Running) =>
                 explicitRetry
                 && (step.RetryClassification == ProvisioningRetryClassifications.SafeToRetry

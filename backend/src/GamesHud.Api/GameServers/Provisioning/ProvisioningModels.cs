@@ -128,12 +128,23 @@ public sealed record CreateGameServerProvisioningRequest(
 public sealed record ValidatedProvisioningPort(
     string DefinitionId,
     string Protocol,
-    int Port,
-    string Exposure);
+    int ContainerPort,
+    int? HostPort,
+    bool Published,
+    string Exposure)
+{
+    public ValidatedProvisioningPort(string definitionId, string protocol, int port, string exposure)
+        : this(definitionId, protocol, port,
+            exposure == Ports.PortExposures.Public ? port : null,
+            exposure == Ports.PortExposures.Public,
+            exposure) { }
+}
 
 public sealed record ValidatedProvisioningStorage(
     string DefinitionId,
-    string RelativePath);
+    string RelativePath,
+    string? ApiPath = null,
+    string? HostPath = null);
 
 public sealed record ValidatedProvisioningPlan(
     GameServerId GameServerId,

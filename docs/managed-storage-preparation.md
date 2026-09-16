@@ -1,5 +1,11 @@
 # Managed Storage Preparation
 
+## API and Docker host paths
+
+`Storage__ManagedApiRoot` is visible to GamesHud for directory and configuration writes. `Storage__ManagedHostRoot` is visible to the Docker daemon and is used as the bind source. Each new reservation persists its resolved API path and host path with the relative managed identity. Runtime specifications use the host path; filesystem and configuration steps use the API path.
+
+The roots may differ textually. Compose mounts the daemon host root into the API at the configured API root. Records created before ARCH-04 have empty path snapshots and use the configured roots as a compatibility fallback; new reservations are independent of later root changes.
+
 GH-11 introduces the first controlled provisioning side effect: creating directories for durable `Managed` storage reservations below the configured GamesHud `DataRoot`.
 
 ```text

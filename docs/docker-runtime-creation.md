@@ -1,5 +1,9 @@
 # Managed Docker Runtime Creation
 
+Runtime port bindings carry separate `ContainerPort`, nullable `HostPort`, protocol and publication state. Docker `ExposedPorts` always uses the fixed game container port. Published endpoints bind their allocated host port to that key. Internal endpoints have no host port reservation and no `HostConfig.PortBindings` entry.
+
+Runtime mount validation checks the prepared API-visible path while Docker receives the persisted daemon-visible host path. Neither path is accepted from client input.
+
 GH-12 creates a stopped Managed Docker container from a validated runtime specification. It never pulls an image,
 starts a container, or accepts raw Docker options. Identity, image, ports, mounts, resources, restart/network policy,
 labels, and trusted non-secret environment are backend-controlled and validated before mapping to Docker SDK types.

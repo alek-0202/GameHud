@@ -11,7 +11,13 @@ public interface IManagedStoragePathBuilder
 public sealed record ManagedStorageLayout(
     string DataRoot,
     string ServerRoot,
-    string ServerRelativePath);
+    string ServerRelativePath,
+    string HostRoot,
+    string HostServerRoot)
+{
+    public ManagedStorageLayout(string dataRoot, string serverRoot, string serverRelativePath)
+        : this(dataRoot, serverRoot, serverRelativePath, dataRoot, serverRoot) { }
+}
 
 public sealed class ManagedStoragePathBuilder : IManagedStoragePathBuilder
 {
@@ -24,7 +30,8 @@ public sealed class ManagedStoragePathBuilder : IManagedStoragePathBuilder
 
     public ManagedStorageLayout CreateLayout(GameServerId gameServerId)
     {
-        var dataRoot = ResolveDataRoot(_options.Value.DataRoot);
+        var dataRoot = ResolveManagedApiRoot(_options.Value);
+        var hostRoot = ResolveManagedHostRoot(_options.Value, dataRoot);
         var serverSegment = CreateSafeServerSegment(gameServerId);
         var serverRelativePath = Path.Combine("servers", serverSegment);
         var serverRoot = EnsureContained(
@@ -32,7 +39,12 @@ public sealed class ManagedStoragePathBuilder : IManagedStoragePathBuilder
             Path.Combine(dataRoot, serverRelativePath),
             "Planned server path escaped the managed data root.");
 
-        return new ManagedStorageLayout(dataRoot, serverRoot, serverRelativePath);
+        var hostServerRoot = EnsureContained(
+            hostRoot,
+            Path.Combine(hostRoot, serverRelativePath),
+            "Planned Docker host path escaped the managed host root.");
+
+        return new ManagedStorageLayout(dataRoot, serverRoot, serverRelativePath, hostRoot, hostServerRoot);
     }
 
     public static string CreateSafeServerSegment(GameServerId gameServerId)
@@ -81,6 +93,22 @@ public sealed class ManagedStoragePathBuilder : IManagedStoragePathBuilder
             : configuredRoot.Trim();
 
         return Path.GetFullPath(root);
+    }
+
+    public static string ResolveManagedApiRoot(StorageOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        return ResolveDataRoot(string.IsNullOrWhiteSpace(options.ManagedApiRoot)
+            ? options.DataRoot
+            : options.ManagedApiRoot);
+    }
+
+    public static string ResolveManagedHostRoot(StorageOptions options, string apiRoot)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        return Path.GetFullPath(string.IsNullOrWhiteSpace(options.ManagedHostRoot)
+            ? apiRoot
+            : options.ManagedHostRoot.Trim());
     }
 
     private static string NormalizeDirectoryPath(string path)

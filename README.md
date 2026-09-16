@@ -190,6 +190,16 @@ Metrics:
 Storage:
 
 - `Storage__DataRoot`
+- `Storage__ManagedApiRoot`
+- `Storage__ManagedHostRoot`
+
+`ManagedApiRoot` is where the API writes managed server data. `ManagedHostRoot` is the corresponding source path in the Docker daemon filesystem. New reservations persist both resolved paths, so later configuration changes do not reinterpret in-progress operations.
+
+Managed provisioning executor:
+
+- `ProvisioningExecutor__PollIntervalSeconds` (default `15`, bounded from `5` to `300`)
+
+Provisioning commands commit durable state and return before filesystem or Docker work starts. A single-instance hosted executor uses an in-memory wake-up signal plus periodic database discovery. The database remains authoritative after a lost signal or API restart.
 
 Managed runtime readiness:
 
@@ -360,6 +370,7 @@ GET /api/system/capabilities
 ```
 
 Host capability detection inspects the machine running GamesHud without installing software, opening ports, changing firewall rules, creating directories or creating containers. It reports host facts and runtime readiness only.
+Docker runtime capability data includes the daemon operating system and architecture separately from the API process platform. Pinned `linux/amd64` provisioning is rejected unless the executing daemon reports that platform.
 
 Persistence:
 

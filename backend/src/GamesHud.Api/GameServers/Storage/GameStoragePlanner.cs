@@ -81,16 +81,21 @@ public sealed class GameStoragePlanner : IGameStoragePlanner
         GameStorageDefinition storage)
     {
         var entryRelativePath = Path.Combine(layout.ServerRelativePath, storage.Id);
-        var hostPath = ManagedStoragePathBuilder.EnsureContained(
+        var apiPath = ManagedStoragePathBuilder.EnsureContained(
             layout.DataRoot,
             Path.Combine(layout.ServerRoot, storage.Id),
-            "Planned storage entry escaped the managed data root.");
+            "Planned API storage entry escaped the managed API root.");
+        var hostPath = ManagedStoragePathBuilder.EnsureContained(
+            layout.HostRoot,
+            Path.Combine(layout.HostServerRoot, storage.Id),
+            "Planned Docker storage entry escaped the managed host root.");
 
         return new GameStoragePlanEntry(
             storage.Id,
             storage.Label,
             storage.Purpose,
             StorageOwnerships.Managed,
+            apiPath,
             hostPath,
             entryRelativePath,
             storage.RuntimeTarget,

@@ -15,8 +15,32 @@ public static class RuntimeNetworkPolicies
     public const string GamesHudManaged = "gameshud_managed";
 }
 
-public sealed record RuntimePortBinding(string ReservationId, string DefinitionId, string Protocol, int Port, string Exposure);
-public sealed record RuntimeStorageMount(string ReservationId, string DefinitionId, string SourcePath, string RuntimeTarget, bool ReadOnly);
+public sealed record RuntimePortBinding(
+    string ReservationId,
+    string DefinitionId,
+    string Protocol,
+    int ContainerPort,
+    int? HostPort,
+    bool Published,
+    string Exposure)
+{
+    public RuntimePortBinding(string reservationId, string definitionId, string protocol, int port, string exposure)
+        : this(reservationId, definitionId, protocol, port,
+            exposure == GameServers.Ports.PortExposures.Public ? port : null,
+            exposure == GameServers.Ports.PortExposures.Public,
+            exposure) { }
+
+    public int Port => HostPort ?? ContainerPort;
+}
+
+public sealed record RuntimeStorageMount(
+    string ReservationId,
+    string DefinitionId,
+    string SourcePath,
+    string RuntimeTarget,
+    bool ReadOnly,
+    string? ApiPath = null,
+    string? HostRoot = null);
 public sealed record RuntimeResourceLimits(int CpuCount, ulong MemoryBytes);
 
 public sealed record RuntimeMutationSpecification(

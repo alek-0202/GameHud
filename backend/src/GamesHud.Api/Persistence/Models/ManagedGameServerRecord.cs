@@ -9,6 +9,9 @@ public static class ManagedInstallationTypes
 public static class ManagedGameServerLifecycleStates
 {
     public const string PendingProvisioning = "pending_provisioning";
+    public const string Running = "running";
+    public const string ProvisioningFailed = "provisioning_failed";
+    public const string ProvisioningBlocked = "provisioning_blocked";
 }
 
 public sealed class ManagedGameServerRecord

@@ -47,7 +47,8 @@ public sealed class HostRuntimeInspector : IHostRuntimeInspector
                     true,
                     inspection.Version,
                     inspection.OperatingSystem,
-                    []);
+                    [],
+                    inspection.Architecture);
             }
 
             return CreateUnavailableDockerRuntime(inspection.EndpointConfigured);
@@ -109,11 +110,12 @@ public sealed class DockerRuntimeClient : IDockerRuntimeClient
                 endpointConfigured,
                 true,
                 version.Version,
-                version.Os);
+                version.Os,
+                version.Arch);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            return new DockerRuntimeInspection(endpointConfigured, false, null, null);
+            return new DockerRuntimeInspection(endpointConfigured, false, null, null, null);
         }
     }
 

@@ -17,12 +17,23 @@ public sealed record ManagedServerProvisioningPlan(
 public sealed record PortReservationPlan(
     string PortDefinitionId,
     string Protocol,
-    int Port,
-    string Exposure);
+    int ContainerPort,
+    int? HostPort,
+    bool Published,
+    string Exposure)
+{
+    public PortReservationPlan(string portDefinitionId, string protocol, int port, string exposure)
+        : this(portDefinitionId, protocol, port,
+            exposure == GameServers.Ports.PortExposures.Public ? port : null,
+            exposure == GameServers.Ports.PortExposures.Public,
+            exposure) { }
+}
 
 public sealed record StorageReservationPlan(
     string StorageDefinitionId,
-    string? RelativePath = null);
+    string? RelativePath = null,
+    string? ApiPath = null,
+    string? HostPath = null);
 
 public sealed record ProvisioningStepPlan(
     string StepId,

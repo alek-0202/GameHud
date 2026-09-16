@@ -65,7 +65,10 @@ public sealed class ProvisioningEngine : IProvisioningEngine
 
             if (cancellationToken.IsCancellationRequested)
             {
-                return await CancelAsync(state, context, null);
+                return context.UserRequestedCancellation
+                    ? await CancelAsync(state, context, null)
+                    : FailureResult(context, state.Status, "execution_interrupted",
+                        "Provisioning execution was interrupted and will be recovered.");
             }
 
             try
@@ -77,7 +80,12 @@ public sealed class ProvisioningEngine : IProvisioningEngine
                     stepId,
                     stepId,
                     ProvisioningStepStatuses.Running,
-                    ExplicitRetry: persistedStep.ReconciledRetryAttempt == persistedStep.Attempt + 1), cancellationToken);
+                    ExplicitRetry: persistedStep.ReconciledRetryAttempt == persistedStep.Attempt + 1
+                        || persistedStep.Status == ProvisioningStepStatuses.Failed
+                            && persistedStep.RetryClassification == ProvisioningRetryClassifications.SafeToRetry
+                        || persistedStep.Status == ProvisioningStepStatuses.Running
+                            && persistedStep.SideEffectClassification == ProvisioningSideEffectClassifications.ReadOnly
+                            && persistedStep.RetryClassification == ProvisioningRetryClassifications.SafeToRetry), cancellationToken);
 
                 var step = _steps[stepId];
                 var result = await step.ExecuteAsync(context, cancellationToken);
@@ -120,8 +128,7 @@ public sealed class ProvisioningEngine : IProvisioningEngine
             }
             catch (OperationCanceledException)
             {
-                return persistedStep.SideEffectClassification != ProvisioningSideEffectClassifications.ReadOnly
-                    && !context.UserRequestedCancellation
+                return !context.UserRequestedCancellation
                     ? await InterruptAsync(state, context, stepId)
                     : await CancelAsync(state, context, stepId);
             }
@@ -142,11 +149,7 @@ public sealed class ProvisioningEngine : IProvisioningEngine
             }
         }
 
-        state = await _operations.ApplyCheckpointAsync(new ProvisioningCheckpoint(
-            context.OperationId,
-            state.Version,
-            ProvisioningOperationStatuses.Succeeded,
-            ProvisioningStepIds.Complete), CancellationToken.None);
+        state = await _operations.FinalizeAsync(context.OperationId, state.Version, CancellationToken.None);
 
         return new ProvisioningExecutionResult(
             true,
@@ -259,7 +262,8 @@ public sealed class ProvisioningEngine : IProvisioningEngine
             ProvisioningFailureTypes.Unknown,
             ProvisioningErrorCodes.StepFailed,
             "An unexpected provisioning error occurred.",
-            KeepActiveSlot: step.SideEffectClassification != ProvisioningSideEffectClassifications.ReadOnly), CancellationToken.None);
+            KeepActiveSlot: !context.UserRequestedCancellation
+                || step.SideEffectClassification != ProvisioningSideEffectClassifications.ReadOnly), CancellationToken.None);
 
         return FailureResult(context, ProvisioningOperationStatuses.Failed,
             ProvisioningErrorCodes.StepFailed, "An unexpected provisioning error occurred.");

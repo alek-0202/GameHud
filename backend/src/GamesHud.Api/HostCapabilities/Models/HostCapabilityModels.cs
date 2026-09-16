@@ -68,7 +68,8 @@ public sealed record HostRuntimeInfo(
     bool Reachable,
     string? Version,
     string? OperatingSystem,
-    IReadOnlyCollection<HostCapabilityIssue> Issues);
+    IReadOnlyCollection<HostCapabilityIssue> Issues,
+    string? Architecture = null);
 
 public sealed record HostReadinessInfo(
     string Status,
@@ -88,4 +89,5 @@ public sealed record DockerRuntimeInspection(
     bool EndpointConfigured,
     bool Reachable,
     string? Version,
-    string? OperatingSystem);
+    string? OperatingSystem,
+    string? Architecture = null);

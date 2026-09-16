@@ -216,6 +216,11 @@ public sealed class GamesHudDbContext : DbContext
                 .IsRequired();
             entity.Property(reservation => reservation.Port)
                 .IsRequired();
+            entity.Property(reservation => reservation.ContainerPort)
+                .IsRequired();
+            entity.Property(reservation => reservation.HostPort);
+            entity.Property(reservation => reservation.Published)
+                .IsRequired();
             entity.Property(reservation => reservation.Exposure)
                 .HasMaxLength(40)
                 .IsRequired();
@@ -232,7 +237,7 @@ public sealed class GamesHudDbContext : DbContext
             entity.HasIndex(reservation => new
             {
                 reservation.Protocol,
-                reservation.Port
+                reservation.HostPort
             })
                 .IsUnique();
             entity.HasIndex(reservation => new
@@ -266,6 +271,12 @@ public sealed class GamesHudDbContext : DbContext
                 .IsRequired();
             entity.Property(reservation => reservation.RelativePath)
                 .HasMaxLength(500)
+                .IsRequired();
+            entity.Property(reservation => reservation.ApiPath)
+                .HasMaxLength(1000)
+                .IsRequired();
+            entity.Property(reservation => reservation.HostPath)
+                .HasMaxLength(1000)
                 .IsRequired();
             entity.Property(reservation => reservation.Ownership)
                 .HasMaxLength(40)

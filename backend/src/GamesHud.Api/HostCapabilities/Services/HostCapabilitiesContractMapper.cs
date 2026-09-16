@@ -47,7 +47,8 @@ public static class HostCapabilitiesContractMapper
             runtime.Reachable,
             runtime.Version,
             runtime.OperatingSystem,
-            runtime.Issues.Select(Map).ToArray());
+            runtime.Issues.Select(Map).ToArray(),
+            runtime.Architecture);
     }
 
     private static HostCapabilityIssueResponse Map(HostCapabilityIssue issue)

@@ -91,7 +91,7 @@ public sealed class PalworldPinnedImageActivationTests
             Assert.Equal("gameshud-catalog/palworld/v2.7.3", intent.ApprovalSource);
             Assert.Null(intent.VerifiedLocalImageId);
             Assert.Equal("pending", intent.VerificationState);
-            Assert.Equal(operationId, engine.Context!.OperationId);
+            Assert.Null(engine.Context);
         }
 
         await using var reloaded = CreateContext(root.Path);

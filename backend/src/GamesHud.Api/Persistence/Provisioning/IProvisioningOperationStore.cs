@@ -20,6 +20,10 @@ public interface IProvisioningOperationStore
     Task<ProvisioningOperationSnapshot?> GetAsync(string operationId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<ProvisioningOperationSnapshot>> GetIncompleteAsync(CancellationToken cancellationToken = default);
     Task<ProvisioningOperationSnapshot> ApplyCheckpointAsync(ProvisioningCheckpoint checkpoint, CancellationToken cancellationToken = default);
+    Task<ProvisioningOperationSnapshot> FinalizeAsync(
+        string operationId,
+        int expectedVersion,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class ProvisioningConcurrencyException : InvalidOperationException

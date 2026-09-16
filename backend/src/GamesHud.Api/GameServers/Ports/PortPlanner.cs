@@ -36,6 +36,23 @@ public sealed class PortPlanner : IPortPlanner
 
         foreach (var portDefinition in definition.Ports)
         {
+            if (portDefinition.Exposure == PortExposures.Internal)
+            {
+                var internalPort = portDefinition.DefaultPort;
+                items.Add(new GamePortPlanItem(
+                    portDefinition.Id,
+                    portDefinition.Label,
+                    portDefinition.Purpose,
+                    portDefinition.Exposure,
+                    portDefinition.Required,
+                    portDefinition.AllowAlternative,
+                    new PortAvailability(internalPort, PortAvailabilityStatuses.Available, true, [],
+                        "Internal container ports are not allocated on the host."),
+                    new PortAllocationResult(internalPort, internalPort, false, PortAllocationStatuses.Allocated,
+                        null, "Internal container port does not require a host reservation.", [internalPort])));
+                continue;
+            }
+
             var availability = await _availabilityService.CheckAvailabilityAsync(
                 portDefinition.DefaultPort,
                 cancellationToken);

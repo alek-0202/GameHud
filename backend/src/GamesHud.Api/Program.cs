@@ -38,6 +38,7 @@ builder.Services.Configure<PersistenceOptions>(builder.Configuration.GetSection(
 builder.Services.Configure<SecretStorageOptions>(builder.Configuration.GetSection(SecretStorageOptions.SectionName));
 builder.Services.Configure<RuntimeHealthOptions>(builder.Configuration.GetSection(RuntimeHealthOptions.SectionName));
 builder.Services.Configure<RuntimeImageAcquisitionOptions>(builder.Configuration.GetSection(RuntimeImageAcquisitionOptions.SectionName));
+builder.Services.Configure<ProvisioningExecutorOptions>(builder.Configuration.GetSection(ProvisioningExecutorOptions.SectionName));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<PalworldGameDefinition>();
 builder.Services.AddSingleton<GameDefinition>(serviceProvider =>
@@ -69,6 +70,9 @@ builder.Services.AddSingleton<IProvisioningStateMachine, ProvisioningStateMachin
 builder.Services.AddScoped<IProvisioningOperationStore, ProvisioningOperationStore>();
 builder.Services.AddScoped<IProvisioningRecoveryService, ProvisioningRecoveryService>();
 builder.Services.AddScoped<IProvisioningReconciliationService, ProvisioningReconciliationService>();
+builder.Services.AddScoped<IProvisioningContextLoader, ProvisioningContextLoader>();
+builder.Services.AddScoped<IProvisioningOperationExecutor, ProvisioningOperationExecutor>();
+builder.Services.AddSingleton<IProvisioningExecutionSignal, ProvisioningExecutionSignal>();
 builder.Services.AddScoped<IProvisioningPlanBuilder, ProvisioningPlanBuilder>();
 builder.Services.AddSingleton<PalworldProvisioningConfigurationCodec>();
 builder.Services.AddSingleton<IGameProvisioningConfigurationCodec>(services =>
@@ -113,7 +117,7 @@ foreach (var stepId in ProvisioningStepIds.ExecutableFoundation.Where(id =>
 {
     builder.Services.AddScoped<IProvisioningStep>(_ => new NoHostMutationProvisioningStep(stepId));
 }
-builder.Services.AddHostedService<ProvisioningRecoveryStartupObserver>();
+builder.Services.AddHostedService<ProvisioningExecutor>();
 builder.Services.AddSingleton<ISecretStoreLayoutResolver, SecretStoreLayoutResolver>();
 builder.Services.AddSingleton<ISecretKeyProvider, ConfigurationSecretKeyProvider>();
 builder.Services.AddSingleton<ISecretProtector, AesGcmSecretProtector>();

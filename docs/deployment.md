@@ -1,5 +1,11 @@
 # Deployment
 
+## Managed provisioning storage and worker
+
+Set `GAMESHUD_MANAGED_HOST_ROOT` to an absolute directory on the Docker host. Compose mounts it into the API at `/managed/gameshud`, configures that as the API-visible managed root and preserves the original host path as the Docker bind root. The same mount persists the GamesHud SQLite system directory. Do not point it at legacy Palworld data, backups, the Docker socket or an unrelated application directory.
+
+The provisioning worker is single-instance. Run only one GamesHud API executor against a database until a distributed lease is implemented. Polling defaults to 15 seconds and can be changed with `GAMESHUD_PROVISIONING_POLL_INTERVAL_SECONDS`; channel wake-ups normally start newly committed work immediately.
+
 GamesHud deployment is currently private and intended for controlled homologation on a Linux VPS.
 
 The target VPS runs Ubuntu 24.04 LTS and may already host production Docker containers. Treat the VPS as an execution environment, not as a code editing environment.

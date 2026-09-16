@@ -1,5 +1,17 @@
 # Provisioning State Machine
 
+## Durable execution ownership
+
+The create command validates and reserves the complete provisioning intent transactionally, signals the local executor, and returns the operation identity. The caller cancellation token no longer owns execution after commit. A `BackgroundService` discovers active operations at startup and on a bounded polling interval; its in-memory channel is only a wake-up optimization.
+
+The first executor version supports one GamesHud API instance. Multiple executor instances require a future durable lease and must not be enabled against the same database.
+
+Recovery always uses the operation's persisted `gh09-v1` or `gh15-v2` pipeline version. It reconstructs context from durable server state, applies trusted reconciliation for uncertain mutations, and resumes only proven or policy-authorized work. `ambiguous` remains blocked with its active slot retained.
+
+When every step is complete, one transaction marks the operation `succeeded`, changes the server to `running`, records completion, and releases the active slot. A known terminal failure changes the server to `provisioning_failed`; an unknown external effect changes it to `provisioning_blocked`. Shutdown cancellation leaves interrupted work recoverable on the next startup.
+
+Current trusted game metadata still supplies resource, environment, port and storage definitions during reconstruction. Historical runtime image authority does not: V1 uses its legacy identity and V2 reloads its durable approved and verified identity.
+
 GH-08 introduced the internal provisioning engine. GH-09 keeps that engine and makes its operation and step state explicit, durable and recoverable. It still exposes no create-server API and creates no container, directory, volume, network, firewall rule, game installation or configuration file.
 
 ## Flow

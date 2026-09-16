@@ -8,6 +8,7 @@ namespace GamesHud.Api.GameServers.Provisioning;
 public interface IGameServerProvisioningService
 {
     Task<ProvisioningPreviewResult> PreviewAsync(CreateGameServerProvisioningRequest request, CancellationToken cancellationToken);
+    Task<ProvisioningExecutionResult> ScheduleProvisioningAsync(CreateGameServerProvisioningRequest request, CancellationToken cancellationToken);
     Task<ProvisioningExecutionResult> StartProvisioningAsync(CreateGameServerProvisioningRequest request, CancellationToken cancellationToken);
     Task<IReadOnlyCollection<ProvisioningOperationSnapshot>> GetIncompleteOperationsAsync(CancellationToken cancellationToken);
 }
@@ -17,18 +18,20 @@ public sealed class GameServerProvisioningService : IGameServerProvisioningServi
     private readonly IProvisioningPlanBuilder _planBuilder;
     private readonly IManagedServerStore _store;
     private readonly IProvisioningOperationStore _operations;
-    private readonly IProvisioningEngine _engine;
+    private readonly IProvisioningExecutionSignal? _executionSignal;
 
     public GameServerProvisioningService(
         IProvisioningPlanBuilder planBuilder,
         IManagedServerStore store,
         IProvisioningOperationStore operations,
-        IProvisioningEngine engine)
+        IProvisioningEngine engine,
+        IProvisioningExecutionSignal? executionSignal = null)
     {
         _planBuilder = planBuilder;
         _store = store;
         _operations = operations;
-        _engine = engine;
+        _ = engine;
+        _executionSignal = executionSignal;
     }
 
     public async Task<ProvisioningPreviewResult> PreviewAsync(
@@ -40,6 +43,11 @@ public sealed class GameServerProvisioningService : IGameServerProvisioningServi
     }
 
     public async Task<ProvisioningExecutionResult> StartProvisioningAsync(
+        CreateGameServerProvisioningRequest request,
+        CancellationToken cancellationToken) =>
+        await ScheduleProvisioningAsync(request, cancellationToken);
+
+    public async Task<ProvisioningExecutionResult> ScheduleProvisioningAsync(
         CreateGameServerProvisioningRequest request,
         CancellationToken cancellationToken)
     {
@@ -71,9 +79,9 @@ public sealed class GameServerProvisioningService : IGameServerProvisioningServi
             plan.DisplayName,
             plan.RuntimeType,
             plan.Ports.Select(port => new PortReservationPlan(
-                port.DefinitionId, port.Protocol, port.Port, port.Exposure)).ToArray(),
+                port.DefinitionId, port.Protocol, port.ContainerPort, port.HostPort, port.Published, port.Exposure)).ToArray(),
             plan.Storage.Select(storage => new StorageReservationPlan(
-                storage.DefinitionId, storage.RelativePath)).ToArray(),
+                storage.DefinitionId, storage.RelativePath, storage.ApiPath, storage.HostPath)).ToArray(),
             plan.GameConfiguration,
             selection.Pipeline.Version,
             selection.Pipeline.Steps.Select(step => new ProvisioningStepPlan(
@@ -102,14 +110,12 @@ public sealed class GameServerProvisioningService : IGameServerProvisioningServi
                 "Resources could not be reserved because persisted state changed."));
         }
 
-        var context = new ProvisioningContext(
+        _executionSignal?.Signal();
+        return new ProvisioningExecutionResult(
+            true,
             reservation.ProvisioningOperationId,
-            planResult.Definition!,
-            plan,
-            reservation,
-            userRequestedCancellation: false);
-
-        return await _engine.ExecuteAsync(context, cancellationToken);
+            ProvisioningOperationStatuses.Pending,
+            null);
     }
 
     public async Task<IReadOnlyCollection<ProvisioningOperationSnapshot>> GetIncompleteOperationsAsync(

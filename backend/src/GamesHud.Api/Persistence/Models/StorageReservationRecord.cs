@@ -10,6 +10,10 @@ public sealed class StorageReservationRecord
 
     public string RelativePath { get; set; } = string.Empty;
 
+    public string ApiPath { get; set; } = string.Empty;
+
+    public string HostPath { get; set; } = string.Empty;
+
     public string Ownership { get; set; } = string.Empty;
 
     public string Status { get; set; } = string.Empty;

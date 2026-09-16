@@ -46,6 +46,7 @@ public sealed record GameStoragePlanEntry(
     string Label,
     string Purpose,
     string Ownership,
+    string ApiPath,
     string HostPath,
     string RelativePath,
     string? RuntimeTarget,
@@ -54,7 +55,25 @@ public sealed record GameStoragePlanEntry(
     bool BackupEligible,
     bool UserData,
     ulong? MinimumBytes,
-    string Status);
+    string Status)
+{
+    public GameStoragePlanEntry(
+        string definitionId,
+        string label,
+        string purpose,
+        string ownership,
+        string hostPath,
+        string relativePath,
+        string? runtimeTarget,
+        bool persistent,
+        bool required,
+        bool backupEligible,
+        bool userData,
+        ulong? minimumBytes,
+        string status)
+        : this(definitionId, label, purpose, ownership, hostPath, hostPath, relativePath,
+            runtimeTarget, persistent, required, backupEligible, userData, minimumBytes, status) { }
+}
 
 public sealed record GameStoragePlanIssue(
     string Code,

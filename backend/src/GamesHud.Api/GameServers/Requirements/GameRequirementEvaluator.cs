@@ -46,6 +46,7 @@ public sealed class GameRequirementEvaluator : IGameRequirementEvaluator
 
         checks.AddRange(requirements.RequiredRuntimes.Select(runtime =>
             EvaluateRuntime(runtime, hostCapabilities)));
+        checks.AddRange(EvaluateRuntimeImagePlatforms(definition, hostCapabilities));
 
         checks.RemoveAll(check => check.Id == "not_declared");
 
@@ -318,6 +319,53 @@ public sealed class GameRequirementEvaluator : IGameRequirementEvaluator
             FormatIdentifier(runtime.Status),
             $"{runtime.DisplayName} is required but is not available.");
     }
+
+    private static IEnumerable<GameCompatibilityCheck> EvaluateRuntimeImagePlatforms(
+        GameDefinition definition,
+        HostCapabilitySnapshot hostCapabilities)
+    {
+        foreach (var image in definition.RuntimeImages.Where(item => item.IsPinned && item.Platform is not null))
+        {
+            var runtime = hostCapabilities.Runtimes.SingleOrDefault(item => item.Id == image.RuntimeType);
+            var required = $"{image.Platform!.OperatingSystem}/{image.Platform.Architecture}";
+            if (runtime is null || !runtime.Reachable)
+            {
+                yield return Failed("runtime_platform", "Runtime Platform", required, "Unavailable",
+                    "The runtime that will execute the approved image is unavailable.");
+                continue;
+            }
+
+            var detectedOs = runtime.OperatingSystem?.Trim().ToLowerInvariant();
+            var detectedArchitecture = NormalizeRuntimeArchitecture(runtime.Architecture);
+            if (detectedOs is null || detectedArchitecture is null)
+            {
+                yield return Unknown("runtime_platform", "Runtime Platform", required, "Unknown",
+                    "Docker daemon operating system and architecture could not be proven.");
+                continue;
+            }
+
+            if (detectedOs != image.Platform.OperatingSystem
+                || detectedArchitecture != image.Platform.Architecture)
+            {
+                yield return Failed("runtime_platform", "Runtime Platform", required,
+                    $"{detectedOs}/{detectedArchitecture}",
+                    "Docker daemon platform does not match the approved runtime image.");
+                continue;
+            }
+
+            yield return Passed("runtime_platform", "Runtime Platform", required,
+                $"{detectedOs}/{detectedArchitecture}",
+                "Docker daemon platform matches the approved runtime image.");
+        }
+    }
+
+    private static string? NormalizeRuntimeArchitecture(string? value) => value?.Trim().ToLowerInvariant() switch
+    {
+        "amd64" or "x64" or "x86_64" => "amd64",
+        "arm64" or "aarch64" => "arm64",
+        null or "" => null,
+        var architecture => architecture
+    };
 
     private static string CalculateStatus(
         IReadOnlyCollection<GameCompatibilityIssue> blockingIssues,

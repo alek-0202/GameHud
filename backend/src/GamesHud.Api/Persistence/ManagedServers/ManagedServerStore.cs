@@ -13,13 +13,16 @@ public sealed class ManagedServerStore : IManagedServerStore
 
     private readonly GamesHudDbContext _dbContext;
     private readonly IPersistenceTransactionBoundary _transactionBoundary;
+    private readonly IManagedStoragePathBuilder? _paths;
 
     public ManagedServerStore(
         GamesHudDbContext dbContext,
-        IPersistenceTransactionBoundary transactionBoundary)
+        IPersistenceTransactionBoundary transactionBoundary,
+        IManagedStoragePathBuilder? paths = null)
     {
         _dbContext = dbContext;
         _transactionBoundary = transactionBoundary;
+        _paths = paths;
     }
 
     public Task<ManagedServerReservationResult> ReserveProvisioningPlanAsync(
@@ -80,7 +83,10 @@ public sealed class ManagedServerStore : IManagedServerStore
                         GameServerId = normalizedPlan.GameServerId,
                         PortDefinitionId = port.PortDefinitionId,
                         Protocol = port.Protocol,
-                        Port = port.Port,
+                        Port = port.HostPort ?? port.ContainerPort,
+                        ContainerPort = port.ContainerPort,
+                        HostPort = port.HostPort,
+                        Published = port.Published,
                         Exposure = port.Exposure,
                         Status = ReservationStatuses.Reserved,
                         ProvisioningOperationId = operationId,
@@ -95,6 +101,8 @@ public sealed class ManagedServerStore : IManagedServerStore
                         RelativePath = storage.RelativePath ?? CreateManagedRelativePath(
                             normalizedPlan.GameServerId,
                             storage.StorageDefinitionId),
+                        ApiPath = storage.ApiPath!,
+                        HostPath = storage.HostPath!,
                         Ownership = StorageOwnerships.Managed,
                         Status = ReservationStatuses.Reserved,
                         ProvisioningOperationId = operationId,
@@ -168,8 +176,8 @@ public sealed class ManagedServerStore : IManagedServerStore
 
         foreach (var port in normalized.Ports)
         {
-            if (await _dbContext.PortReservations.AnyAsync(
-                item => item.Protocol == port.Protocol && item.Port == port.Port,
+            if (port.Published && await _dbContext.PortReservations.AnyAsync(
+                item => item.Published && item.Protocol == port.Protocol && item.HostPort == port.HostPort,
                 cancellationToken))
             {
                 return new ManagedServerReservationConflict(
@@ -194,7 +202,7 @@ public sealed class ManagedServerStore : IManagedServerStore
     }
 
 
-    private static ManagedServerProvisioningPlan NormalizePlan(ManagedServerProvisioningPlan plan)
+    private ManagedServerProvisioningPlan NormalizePlan(ManagedServerProvisioningPlan plan)
     {
         var gameServerId = NormalizeGameServerId(plan.GameServerId);
         var gameId = NormalizeRequiredIdentifier(plan.GameId, nameof(plan.GameId));
@@ -276,7 +284,7 @@ public sealed class ManagedServerStore : IManagedServerStore
 
     private static PortReservationPlan NormalizePort(PortReservationPlan port)
     {
-        var networkPort = new NetworkPort(port.Port, port.Protocol);
+        var containerPort = new NetworkPort(port.ContainerPort, port.Protocol);
         var exposure = NormalizeRequiredIdentifier(port.Exposure, nameof(port.Exposure));
 
         if (exposure is not PortExposures.Public and not PortExposures.Internal)
@@ -284,14 +292,23 @@ public sealed class ManagedServerStore : IManagedServerStore
             throw new ArgumentException("Unsupported port exposure.", nameof(port));
         }
 
+        var shouldPublish = exposure == PortExposures.Public;
+        if (port.Published != shouldPublish || shouldPublish != port.HostPort.HasValue)
+            throw new ArgumentException("Port publication does not match its exposure.", nameof(port));
+        var hostPort = port.HostPort.HasValue
+            ? new NetworkPort(port.HostPort.Value, port.Protocol).Number
+            : (int?)null;
+
         return new PortReservationPlan(
             NormalizeRequiredIdentifier(port.PortDefinitionId, nameof(port.PortDefinitionId)),
-            networkPort.Protocol,
-            networkPort.Number,
+            containerPort.Protocol,
+            containerPort.Number,
+            hostPort,
+            port.Published,
             exposure);
     }
 
-    private static StorageReservationPlan NormalizeStorage(
+    private StorageReservationPlan NormalizeStorage(
         StorageReservationPlan storage,
         string gameServerId)
     {
@@ -302,7 +319,36 @@ public sealed class ManagedServerStore : IManagedServerStore
             ? CreateManagedRelativePath(gameServerId, storageDefinitionId)
             : NormalizeManagedRelativePath(storage.RelativePath);
 
-        return new StorageReservationPlan(storageDefinitionId, relativePath);
+        var apiPath = storage.ApiPath;
+        var hostPath = storage.HostPath;
+        if (string.IsNullOrWhiteSpace(apiPath) || string.IsNullOrWhiteSpace(hostPath))
+        {
+            var layout = _paths?.CreateLayout(new GameServerId(gameServerId));
+            apiPath = layout is null ? string.Empty : ManagedStoragePathBuilder.EnsureContained(
+                layout.DataRoot, Path.Combine(layout.DataRoot, relativePath),
+                "Managed API path escaped its backend-controlled root.");
+            hostPath = layout is null ? string.Empty : ManagedStoragePathBuilder.EnsureContained(
+                layout.HostRoot, Path.Combine(layout.HostRoot, relativePath),
+                "Managed Docker host path escaped its backend-controlled root.");
+        }
+        else
+        {
+            apiPath = Path.GetFullPath(apiPath);
+            hostPath = Path.GetFullPath(hostPath);
+            if (_paths is not null)
+            {
+                var layout = _paths.CreateLayout(new GameServerId(gameServerId));
+                var expectedApi = ManagedStoragePathBuilder.EnsureContained(layout.DataRoot,
+                    Path.Combine(layout.DataRoot, relativePath), "Managed API path escaped its backend-controlled root.");
+                var expectedHost = ManagedStoragePathBuilder.EnsureContained(layout.HostRoot,
+                    Path.Combine(layout.HostRoot, relativePath), "Managed Docker host path escaped its backend-controlled root.");
+                if (!apiPath.Equals(expectedApi, StringComparison.OrdinalIgnoreCase)
+                    || !hostPath.Equals(expectedHost, StringComparison.OrdinalIgnoreCase))
+                    throw new ArgumentException("Managed storage paths do not match backend-controlled roots.", nameof(storage));
+            }
+        }
+
+        return new StorageReservationPlan(storageDefinitionId, relativePath, apiPath, hostPath);
     }
 
     private static string NormalizeGameServerId(string value)

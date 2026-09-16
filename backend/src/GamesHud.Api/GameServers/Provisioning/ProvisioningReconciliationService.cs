@@ -118,6 +118,13 @@ public sealed class ProvisioningReconciliationService(IProvisioningOperationStor
                 operation.ErrorCode = code;
                 operation.ErrorMessageSafe = persisted.SafeErrorMessage;
                 operation.CompletedAtUtc = operation.Status == ProvisioningOperationStatuses.Running ? null : observedAt;
+                var server = await db.ManagedGameServers.SingleAsync(item => item.Id == operation.GameServerId, token);
+                server.LifecycleState = operation.ActiveSlot == ProvisioningOperationActiveSlots.Active
+                    && operation.Status == ProvisioningOperationStatuses.Failed
+                    ? ManagedGameServerLifecycleStates.ProvisioningBlocked
+                    : operation.Status == ProvisioningOperationStatuses.Failed
+                        ? ManagedGameServerLifecycleStates.ProvisioningFailed
+                        : ManagedGameServerLifecycleStates.PendingProvisioning;
                 return ProvisioningOperationStore.Map(operation);
             }, cancellationToken);
         }

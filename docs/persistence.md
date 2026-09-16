@@ -1,5 +1,7 @@
 # Persistence
 
+ARCH-04 adds durable API-visible and Docker-host-visible paths to new storage reservations and explicit container/host/publication fields to port reservations. The upgrade maps historical public port rows to published host bindings and historical internal rows to an unbound container port. Historical storage rows cannot recover roots that were never stored, so their empty path snapshots use the configured roots as a compatibility fallback; all new rows persist both paths and survive later root changes.
+
 GamesHud uses EF Core with SQLite as its first local persistence provider.
 
 This foundation is intentionally small. It creates the persistence infrastructure, migration lifecycle, health signal and local transaction boundary needed by ownership and allocation work. It does not introduce users, tenants, billing, secret persistence, Docker provisioning, directory creation or public database CRUD.

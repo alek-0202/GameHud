@@ -60,9 +60,10 @@ internal sealed class ManagedRuntimeStorageValidator : IManagedRuntimeStorageVal
     {
         try
         {
-            return mounts.Count > 0 && mounts.All(mount => Directory.Exists(mount.SourcePath)
-                && !IsDockerSocket(mount.SourcePath) && !IsDockerSocket(mount.RuntimeTarget)
-                && !HasReparsePoint(mount.SourcePath));
+            return mounts.Count > 0 && mounts.All(mount => Directory.Exists(mount.ApiPath ?? mount.SourcePath)
+                && !IsDockerSocket(mount.SourcePath) && !IsDockerSocket(mount.ApiPath ?? mount.SourcePath)
+                && !IsDockerSocket(mount.RuntimeTarget)
+                && !HasReparsePoint(mount.ApiPath ?? mount.SourcePath));
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
@@ -143,10 +144,10 @@ internal static class DockerCreateContainerMapper
         var bindings = new Dictionary<string, IList<PortBinding>>();
         foreach (var port in specification.Ports)
         {
-            var key = $"{port.Port}/{port.Protocol}";
+            var key = $"{port.ContainerPort}/{port.Protocol}";
             exposed[key] = default;
-            if (port.Exposure == PortExposures.Public)
-                bindings[key] = [new PortBinding { HostIP = "", HostPort = port.Port.ToString(System.Globalization.CultureInfo.InvariantCulture) }];
+            if (port.Published && port.HostPort.HasValue)
+                bindings[key] = [new PortBinding { HostIP = "", HostPort = port.HostPort.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) }];
         }
 
         return new CreateContainerParameters

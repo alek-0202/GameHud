@@ -32,7 +32,7 @@ public sealed class RuntimeMutationPolicyTests
             RuntimeType = runtime,
             Image = expectedCode == RuntimePolicyErrorCodes.UntrustedRuntimeImage
                 ? new TrustedRuntimeImage("docker", "untrusted/example", "latest", "test")
-                : _definition.RuntimeImages.Single()
+                : _definition.LegacyRuntimeImages.Single()
         };
         var result = _policy.Validate(specification, _definition, root);
         Assert.False(result.Allowed);
@@ -171,7 +171,7 @@ public sealed class RuntimeMutationPolicyTests
 
     private RuntimeMutationSpecification CreateSpecification(string root) => new(
         new GameServerId("test-server"), new GameId("palworld"), "operation", "docker",
-        _definition.RuntimeImages.Single(),
+        _definition.LegacyRuntimeImages.Single(),
         [new("port", "game", "udp", 8211, "public")],
         [new("storage", "data", Path.Combine(root, "servers", "test-server", "data"), "/palworld", false)],
         [], _definition.RuntimeEnvironment, new RuntimeResourceLimits(1, 1024), RuntimeRestartPolicies.UnlessStopped,

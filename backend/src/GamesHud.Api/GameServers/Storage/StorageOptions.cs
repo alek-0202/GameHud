@@ -5,4 +5,8 @@ public sealed class StorageOptions
     public const string SectionName = "Storage";
 
     public string DataRoot { get; set; } = string.Empty;
+
+    public string ManagedApiRoot { get; set; } = string.Empty;
+
+    public string ManagedHostRoot { get; set; } = string.Empty;
 }

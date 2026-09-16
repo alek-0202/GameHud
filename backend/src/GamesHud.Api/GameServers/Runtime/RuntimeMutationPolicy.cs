@@ -24,7 +24,10 @@ public sealed class RuntimeMutationPolicy : IRuntimeMutationPolicy
         if (!definition.SupportedRuntimes.Contains(specification.RuntimeType, StringComparer.Ordinal))
             Add(violations, RuntimePolicyErrorCodes.UnknownRuntime, "The selected runtime is not supported.");
 
-        var trustedImage = definition.RuntimeImages.SingleOrDefault(image => image.RuntimeType == specification.RuntimeType);
+        var trustedImage = (specification.VerifiedImage is null
+                ? definition.LegacyRuntimeImages
+                : definition.RuntimeImages)
+            .SingleOrDefault(image => image.RuntimeType == specification.RuntimeType);
         var verified = specification.VerifiedImage;
         var imageAllowed = verified is null
             ? trustedImage is not null && trustedImage == specification.Image
@@ -95,7 +98,6 @@ public sealed class RuntimeMutationPolicy : IRuntimeMutationPolicy
 
     private static void ValidateMounts(RuntimeMutationSpecification specification, GameDefinition definition, string dataRoot, List<RuntimePolicyViolation> violations)
     {
-        var root = Path.GetFullPath(dataRoot);
         foreach (var mount in specification.Mounts)
         {
             var storage = definition.Storages.SingleOrDefault(item => item.Id == mount.DefinitionId);
@@ -107,7 +109,8 @@ public sealed class RuntimeMutationPolicy : IRuntimeMutationPolicy
 
             try
             {
-                var contained = ManagedStoragePathBuilder.EnsureContained(root, mount.SourcePath, "Runtime storage escaped the managed data root.");
+                var root = Path.GetFullPath(mount.HostRoot ?? dataRoot);
+                var contained = ManagedStoragePathBuilder.EnsureContained(root, mount.SourcePath, "Runtime storage escaped the managed host root.");
                 if (IsSensitivePath(contained) || contained.Equals(root, StringComparison.OrdinalIgnoreCase))
                     Add(violations, RuntimePolicyErrorCodes.InvalidMount, "A runtime mount source is not allowed.");
             }
@@ -123,8 +126,11 @@ public sealed class RuntimeMutationPolicy : IRuntimeMutationPolicy
         foreach (var binding in specification.Ports)
         {
             var port = definition.Ports.SingleOrDefault(item => item.Id == binding.DefinitionId);
+            var publicPort = binding.Exposure == PortExposures.Public;
             if (port is null || port.DefaultPort.Protocol != binding.Protocol || port.Exposure != binding.Exposure
-                || (!port.AllowAlternative && port.DefaultPort.Number != binding.Port))
+                || port.DefaultPort.Number != binding.ContainerPort
+                || binding.Published != publicPort
+                || publicPort != binding.HostPort.HasValue)
                 Add(violations, RuntimePolicyErrorCodes.PortReservationMismatch, "A runtime port does not match the game definition.");
         }
     }

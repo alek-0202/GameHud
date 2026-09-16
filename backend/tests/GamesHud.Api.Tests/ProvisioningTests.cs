@@ -122,10 +122,10 @@ public sealed class ProvisioningTests
         var server = await harness.Store.GetManagedServerAsync("server-one");
 
         Assert.True(result.Succeeded);
-        Assert.Equal(ProvisioningOperationStatuses.Succeeded, operation!.Status);
-        Assert.Equal(ProvisioningStepIds.Complete, operation.CurrentStep);
-        Assert.False(operation.IsActive);
-        Assert.NotNull(operation.CompletedAtUtc);
+        Assert.Equal(ProvisioningOperationStatuses.Pending, operation!.Status);
+        Assert.Equal(ProvisioningStepIds.ReserveResources, operation.CurrentStep);
+        Assert.True(operation.IsActive);
+        Assert.Null(operation.CompletedAtUtc);
         Assert.Equal(ManagedGameServerLifecycleStates.PendingProvisioning, server!.LifecycleState);
         Assert.False(Directory.Exists(Path.Combine(root.Path, "servers")));
     }
@@ -181,7 +181,7 @@ public sealed class ProvisioningTests
 
         Assert.Equal(ProvisioningErrorCodes.OperationInProgress, active.Failure!.Code);
         Assert.True(first.Succeeded);
-        Assert.Equal(ProvisioningErrorCodes.DuplicateServer, duplicate.Failure!.Code);
+        Assert.Equal(ProvisioningErrorCodes.OperationInProgress, duplicate.Failure!.Code);
         Assert.Equal(ProvisioningErrorCodes.PortConflict, portConflict.Failure!.Code);
         Assert.Equal(ProvisioningErrorCodes.StorageConflict, storageConflict.Failure!.Code);
     }
@@ -404,16 +404,21 @@ public sealed class ProvisioningTests
             ProvisioningStepIds.PrepareStorage,
             ProvisioningStepIds.PrepareStorage,
             ProvisioningStepStatuses.Running));
-        var succeeded = await operations.ApplyCheckpointAsync(new ProvisioningCheckpoint(
+        var failed = await operations.ApplyCheckpointAsync(new ProvisioningCheckpoint(
             reservation.ProvisioningOperationId,
             running.Version,
-            ProvisioningOperationStatuses.Succeeded,
-            ProvisioningStepIds.Complete));
+            ProvisioningOperationStatuses.Failed,
+            ProvisioningStepIds.PrepareStorage,
+            ProvisioningStepIds.PrepareStorage,
+            ProvisioningStepStatuses.Failed,
+            ProvisioningFailureTypes.Permanent,
+            "test_failure",
+            "Test failure."));
 
         await Assert.ThrowsAsync<ProvisioningTransitionException>(() => operations.ApplyCheckpointAsync(
             new ProvisioningCheckpoint(
                 reservation.ProvisioningOperationId,
-                succeeded.Version,
+                failed.Version,
                 ProvisioningOperationStatuses.Running,
                 ProvisioningStepIds.CreateRuntime)));
     }
@@ -744,7 +749,7 @@ public sealed class ProvisioningTests
             new HostMemoryInfo(HostCapabilityStatuses.Available, 32UL * 1024 * 1024 * 1024, 24UL * 1024 * 1024 * 1024),
             new HostStorageInfo(HostCapabilityStatuses.Available, string.Empty, 1000UL * 1024 * 1024 * 1024, 900UL * 1024 * 1024 * 1024),
             new HostNetworkInfo(HostCapabilityStatuses.Available, 1, true, true, true),
-            [new HostRuntimeInfo("docker", "Docker", HostCapabilityStatuses.Available, true, true, "1", "linux", [])],
+            [new HostRuntimeInfo("docker", "Docker", HostCapabilityStatuses.Available, true, true, "1", "linux", [], "amd64")],
             new HostReadinessInfo(HostReadinessStatuses.Ready, "Ready"),
             []);
 

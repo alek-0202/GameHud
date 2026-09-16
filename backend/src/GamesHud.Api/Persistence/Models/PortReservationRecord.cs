@@ -17,6 +17,12 @@ public sealed class PortReservationRecord
 
     public int Port { get; set; }
 
+    public int ContainerPort { get; set; }
+
+    public int? HostPort { get; set; }
+
+    public bool Published { get; set; }
+
     public string Exposure { get; set; } = string.Empty;
 
     public string Status { get; set; } = string.Empty;

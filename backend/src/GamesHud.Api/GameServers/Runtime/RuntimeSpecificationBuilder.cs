@@ -64,19 +64,22 @@ public sealed class RuntimeSpecificationBuilder : IRuntimeSpecificationBuilder, 
         var ports = server.PortReservations.Where(item => portIds.Contains(item.Id)
             && item.GameServerId == server.Id && item.ProvisioningOperationId == context.OperationId
             && item.Status == ReservationStatuses.Reserved)
-            .Select(item => new RuntimePortBinding(item.Id, item.PortDefinitionId, item.Protocol, item.Port, item.Exposure)).ToArray();
+            .Select(item => new RuntimePortBinding(item.Id, item.PortDefinitionId, item.Protocol,
+                item.ContainerPort, item.HostPort, item.Published, item.Exposure)).ToArray();
 
-        var layout = _paths.CreateLayout(context.GameServerId);
         var mounts = server.StorageReservations.Where(item => storageIds.Contains(item.Id)
             && item.GameServerId == server.Id && item.ProvisioningOperationId == context.OperationId
             && item.Status == ReservationStatuses.Reserved && item.Ownership == StorageOwnerships.Managed)
             .Select(item =>
             {
                 var definition = context.GameDefinition.Storages.SingleOrDefault(storage => storage.Id == item.StorageDefinitionId);
-                return definition?.RuntimeTarget is null ? null : new RuntimeStorageMount(
-                    item.Id, item.StorageDefinitionId,
-                    ManagedStoragePathBuilder.EnsureContained(layout.DataRoot, Path.Combine(layout.DataRoot, item.RelativePath), "Runtime storage escaped the managed data root."),
-                    definition.RuntimeTarget, false);
+                if (definition?.RuntimeTarget is null) return null;
+                var historical = _paths.CreateLayout(context.GameServerId);
+                var apiPath = ManagedStorageTargetBuilder.ResolvePersistedPath(item.ApiPath, item.RelativePath, historical.DataRoot);
+                var hostPath = ManagedStorageTargetBuilder.ResolvePersistedPath(item.HostPath, item.RelativePath, historical.HostRoot);
+                return new RuntimeStorageMount(item.Id, item.StorageDefinitionId, hostPath,
+                    definition.RuntimeTarget, false, apiPath,
+                    ManagedStorageTargetBuilder.GetPersistedRoot(hostPath, item.RelativePath));
             }).Where(item => item is not null).Cast<RuntimeStorageMount>().ToArray();
 
         if (ports.Length != context.ReservedResources.PortReservationIds.Count
@@ -113,17 +116,21 @@ public sealed class RuntimeSpecificationBuilder : IRuntimeSpecificationBuilder, 
         if (image is null) return (null, definition);
         var ports = server.PortReservations.Where(item => item.ProvisioningOperationId == operationId
                 && item.GameServerId == server.Id && item.Status == ReservationStatuses.Reserved)
-            .Select(item => new RuntimePortBinding(item.Id, item.PortDefinitionId, item.Protocol, item.Port, item.Exposure)).ToArray();
-        var layout = _paths.CreateLayout(gameServerId);
+            .Select(item => new RuntimePortBinding(item.Id, item.PortDefinitionId, item.Protocol,
+                item.ContainerPort, item.HostPort, item.Published, item.Exposure)).ToArray();
         var mounts = server.StorageReservations.Where(item => item.ProvisioningOperationId == operationId
                 && item.GameServerId == server.Id && item.Status == ReservationStatuses.Reserved
                 && item.Ownership == StorageOwnerships.Managed)
             .Select(item =>
             {
                 var storage = definition.Storages.SingleOrDefault(candidate => candidate.Id == item.StorageDefinitionId);
-                return storage?.RuntimeTarget is null ? null : new RuntimeStorageMount(item.Id, item.StorageDefinitionId,
-                    ManagedStoragePathBuilder.EnsureContained(layout.DataRoot, Path.Combine(layout.DataRoot, item.RelativePath),
-                        "Runtime storage escaped the managed data root."), storage.RuntimeTarget, false);
+                if (storage?.RuntimeTarget is null) return null;
+                var historical = _paths.CreateLayout(gameServerId);
+                var apiPath = ManagedStorageTargetBuilder.ResolvePersistedPath(item.ApiPath, item.RelativePath, historical.DataRoot);
+                var hostPath = ManagedStorageTargetBuilder.ResolvePersistedPath(item.HostPath, item.RelativePath, historical.HostRoot);
+                return new RuntimeStorageMount(item.Id, item.StorageDefinitionId, hostPath,
+                    storage.RuntimeTarget, false, apiPath,
+                    ManagedStorageTargetBuilder.GetPersistedRoot(hostPath, item.RelativePath));
             }).Where(item => item is not null).Cast<RuntimeStorageMount>().ToArray();
         if (ports.Length == 0 || mounts.Length == 0) return (null, definition);
         var requirements = definition.Requirements;

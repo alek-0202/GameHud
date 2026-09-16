@@ -106,14 +106,18 @@ public sealed class ProvisioningPlanBuilder : IProvisioningPlanBuilder
             .Where(item => item.Allocation.AllocatedPort is not null)
             .Select(item => new ValidatedProvisioningPort(
                 item.DefinitionId,
-                item.Allocation.AllocatedPort!.Protocol,
-                item.Allocation.AllocatedPort.Number,
+                item.Allocation.RequestedPort.Protocol,
+                item.Allocation.RequestedPort.Number,
+                item.Exposure == PortExposures.Public ? item.Allocation.AllocatedPort!.Number : null,
+                item.Exposure == PortExposures.Public,
                 item.Exposure))
             .ToArray();
         var storage = storagePlan.Entries
             .Select(item => new ValidatedProvisioningStorage(
                 item.DefinitionId,
-                item.RelativePath.Replace('\\', '/')))
+                item.RelativePath.Replace('\\', '/'),
+                item.ApiPath,
+                item.HostPath))
             .ToArray();
 
         var configuration = _configurationCodecs.SingleOrDefault(codec => codec.GameId == gameId)

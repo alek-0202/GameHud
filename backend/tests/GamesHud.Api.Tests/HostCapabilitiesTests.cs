@@ -82,7 +82,7 @@ public sealed class HostCapabilitiesTests
     public async Task HostRuntimeInspectorReturnsDockerAvailable()
     {
         var inspector = new HostRuntimeInspector(new FakeDockerRuntimeClient(
-            new DockerRuntimeInspection(true, true, "26.1.0", "linux")));
+            new DockerRuntimeInspection(true, true, "26.1.0", "linux", "amd64")));
 
         var runtime = Assert.Single(await inspector.GetRuntimesAsync(CancellationToken.None));
 
@@ -91,6 +91,7 @@ public sealed class HostCapabilitiesTests
         Assert.True(runtime.EndpointConfigured);
         Assert.True(runtime.Reachable);
         Assert.Equal("26.1.0", runtime.Version);
+        Assert.Equal("amd64", runtime.Architecture);
         Assert.Empty(runtime.Issues);
     }
 
@@ -247,7 +248,8 @@ public sealed class HostCapabilitiesTests
                     true,
                     "26.1.0",
                     "linux",
-                    [])
+                    [],
+                    "amd64")
             ],
             new HostReadinessInfo(HostReadinessStatuses.Ready, "Ready to host supported game servers."),
             []);
@@ -404,7 +406,8 @@ public sealed class HostCapabilitiesTests
                     _dockerStatus == HostCapabilityStatuses.Available,
                     _dockerStatus == HostCapabilityStatuses.Available ? "26.1.0" : null,
                     _dockerStatus == HostCapabilityStatuses.Available ? "linux" : null,
-                    _dockerIssues)
+                    _dockerIssues,
+                    _dockerStatus == HostCapabilityStatuses.Available ? "amd64" : null)
             ]);
         }
     }
