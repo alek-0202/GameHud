@@ -114,6 +114,10 @@ public sealed class ProvisioningEngine : IProvisioningEngine
                         result.SafeMessage ?? "A provisioning step failed.");
                 }
             }
+            catch (ProvisioningCancelledBeforeMutationException)
+            {
+                return await CancelAsync(state, context, stepId);
+            }
             catch (OperationCanceledException)
             {
                 return persistedStep.SideEffectClassification != ProvisioningSideEffectClassifications.ReadOnly

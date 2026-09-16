@@ -8,6 +8,8 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
       Docker__Endpoint: ${GAMESHUD_DOCKER_ENDPOINT:-unix:///var/run/docker.sock}
+      RuntimeImageAcquisition__TimeoutSeconds: ${GAMESHUD_IMAGE_ACQUISITION_TIMEOUT_SECONDS:-900}
+      RuntimeImageAcquisition__InspectTimeoutSeconds: ${GAMESHUD_IMAGE_INSPECT_TIMEOUT_SECONDS:-30}
       Metrics__SnapshotIntervalSeconds: ${GAMESHUD_METRICS_SNAPSHOT_INTERVAL_SECONDS:-60}
       Metrics__RetentionHours: ${GAMESHUD_METRICS_RETENTION_HOURS:-24}
       Metrics__HostDiskPath: ${GAMESHUD_METRICS_HOST_DISK_PATH:-/}

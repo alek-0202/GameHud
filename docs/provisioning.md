@@ -41,7 +41,7 @@ the generated game file or silently defaults corrupted persisted state.
 
 The stable step ids for pipeline `gh09-v1` are `validate_host`, `plan_resources`, `reserve_resources`, `prepare_storage`, `configure_game`, `create_runtime`, `start_runtime`, `verify_health` and `complete`. Class names, display names and list indexes are not persisted identities. `gh09-v1` remains the production default.
 
-ARCH-03 registers `gh15-v2`, which inserts `acquire_image` between `configure_game` and `create_runtime` and gives mutation steps bounded reconciliation-authorized retry capacity. V2 is present for compatibility and testing but cannot be selected by the production planning path yet: its acquisition step fails closed until GH-15 provides a real adapter and an approved pinned image.
+ARCH-03 registers `gh15-v2`, which inserts `acquire_image` between `configure_game` and `create_runtime` and gives mutation steps bounded reconciliation-authorized retry capacity. GH-15 implements the step with inspect-before-pull and final verification. V2 still cannot be selected by the production planning path because Palworld has no human-approved pinned digest in the catalog.
 
 Reservation stores every expected step, its sequence and its retry/side-effect metadata. Validation, planning and reservation have already completed at that point, so their rows start as `Succeeded` with attempt 1; executable foundation steps start as `Pending` with attempt 0. Recovery reads this persisted pipeline instead of reconstructing history from the current code list. A pipeline version mismatch requires manual intervention.
 
@@ -121,7 +121,7 @@ ARCH-03 adds the internal reconciliation application service. It invokes the reg
 
 An explicit user cancellation before execution persists `Cancelled`. Explicit cancellation after a mutation starts remains terminal while retaining unknown-effect protection. Request, host-shutdown or worker interruption after provider invocation is persisted as `Failed/unknown` for reconciliation; it does not claim that the provider cancelled the external effect. A non-read-only unknown step retains the active slot in either case.
 
-On a typed failure, completed compensating steps run in reverse sequence. Each step is checkpointed `Compensating` before cleanup and `Compensated` after success. A cleanup exception persists both step and operation as `CompensationFailed`, retains the active slot and requires manual intervention. Restart during compensation is classified but not resumed automatically. Full rollback remains GH-15 work.
+On a typed failure, completed compensating steps run in reverse sequence. Each step is checkpointed `Compensating` before cleanup and `Compensated` after success. A cleanup exception persists both step and operation as `CompensationFailed`, retains the active slot and requires manual intervention. Restart during compensation is classified but not resumed automatically. Full owned-resource rollback remains future work.
 
 ## Concurrency
 
@@ -153,3 +153,5 @@ no Docker mutation and depends on the trusted `DISABLE_GENERATE_SETTINGS=true` r
 [Palworld Managed Configuration](palworld-managed-configuration.md).
 
 ARCH-03 adds the durable pinned-image identity and reconciliation foundation used by `gh15-v2`. The approved registry digest/platform intent is persisted transactionally and remains immutable; a distinct verified local image id is recorded through an optimistic acquisition checkpoint. V2 create and start reconstruction use that local id and fail closed when it is absent or mismatched. `gh09-v1` behavior is unchanged, no image is acquired, and V2 is not the production default. See [Durable Runtime Image Identity](runtime-image-identity.md).
+
+GH-15 replaces the V2 `acquire_image` placeholder with a typed Docker.DotNet adapter. It inspects the durable approved digest first, pulls only after proven absence, passes the approved platform and no registry authentication, and always requires a matching final inspect before persisting `VerifiedLocalImageId`. Progress messages are bounded and sanitized and never prove success. Cancellation before dispatch is safe; timeout or interruption after dispatch becomes `Failed/unknown` and reconciles by inspecting the same durable reference. No image removal, prune or compensation exists. Palworld and the production default remain on `gh09-v1` until a digest is explicitly approved.

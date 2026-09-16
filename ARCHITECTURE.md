@@ -186,6 +186,8 @@ ARCH-03 introduces a version registry while preserving `gh09-v1` as the producti
 
 ARCH-03 also makes reconciliation outcomes durable. A trusted reconciler observation and its append-only audit record are applied in one transaction: an existing effect advances the step, an absent effect may authorize one bounded retry, and ambiguity remains `Failed/unknown`. Any unresolved mutation keeps the unique active slot even when the operation is failed. Persisted pipeline versions are reconstructed from their own metadata, so historical V1 behavior does not change. See [Durable Runtime Image Identity](docs/runtime-image-identity.md).
 
+GH-15 implements the `gh15-v2` acquisition boundary without changing either pipeline definition. The boundary receives the persisted pinned image, inspects it locally, pulls the exact public repository digest and platform only after proven absence, and treats a final inspect as the sole proof of success. It persists the observed local image id before `create_runtime` may run. Provider progress is sanitized and bounded; cancellation or timeout after dispatch remains an unknown effect. Palworld V2 activation is still gated on human approval of a real catalog digest.
+
 Persisted timestamps are UTC. Secret material is not persisted as normal application data and must not be stored in plaintext database fields. No user, role, organization or tenant model exists yet. The current Palworld compatibility sources remain `LegacyExternal`; GamesHud must not import or adopt legacy paths, containers, ports or settings simply because they exist.
 
 ---
@@ -554,7 +556,7 @@ Lifecycle homologation must use a disposable container created specifically for 
 
 The provisioning engine never receives Docker SDK request types. SEC-03 produces a `ValidatedRuntimeMutationSpecification`; GH-10 executes it through the typed runtime adapter; GH-12 alone translates it to Docker.DotNet `CreateContainerParameters`. This boundary supports only creation and always leaves the container stopped. Stable name and ownership labels provide reconciliation identity without persisting a provider ID or changing the database schema.
 
-The adapter uses the existing configured/default Docker endpoint, verifies the trusted image locally, inspects deterministic identity before creation, and fails closed on collision or ambiguity. It does not adopt LegacyExternal resources and exposes no start, delete, pull, exec, network-create, or volume-create capability.
+The GH-12 runtime adapter uses the existing configured/default Docker endpoint, verifies the trusted image locally, inspects deterministic identity before creation, and fails closed on collision or ambiguity. It does not adopt LegacyExternal resources and exposes no start, delete, pull, exec, network-create, or volume-create capability. Image acquisition belongs only to the separate GH-15 boundary.
 
 GH-13 adds start as a second typed mutation without changing create semantics. Start proves the same Managed identity and critical configuration before `StartContainerAsync`, then proves `Running` afterward. Generic runtime readiness is a separate read-only step with bounded polling; container running state is not game-specific health. No LegacyExternal or foreign runtime participates in managed start/readiness.
 

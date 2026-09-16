@@ -358,7 +358,9 @@ public sealed class RuntimeImageIdentityFoundationTests
         {
             new FakeStep(ProvisioningStepIds.PrepareStorage, () => prepareInvocations++),
             new FakeStep(ProvisioningStepIds.ConfigureGame),
-            new AcquireImageProvisioningStep()
+            new AcquireImageProvisioningStep(ImageStore(database),
+                new UnprovableImageAcquisitionAdapter(),
+                Options.Create(new GamesHud.Api.Configuration.RuntimeImageAcquisitionOptions()))
         };
         var plan = new ValidatedProvisioningPlan(new GameServerId("server-one"), new GameId("palworld"), "Server",
             "docker", "compatible", [], [], [], [], ProvisioningPipelines.ImageAcquisition.Steps.Select(item => item.Id).ToArray());
@@ -371,7 +373,7 @@ public sealed class RuntimeImageIdentityFoundationTests
 
         Assert.False(result.Succeeded);
         Assert.Equal(0, prepareInvocations);
-        Assert.Equal("runtime_image_acquisition_unavailable", result.Failure!.Code);
+        Assert.Equal(RuntimeImageAcquisitionErrorCodes.OutcomeUnknown, result.Failure!.Code);
     }
 
     [Fact]
@@ -495,6 +497,14 @@ public sealed class RuntimeImageIdentityFoundationTests
         public Task<ProvisioningReconciliationResult> InspectAsync(ProvisioningOperationSnapshot operation,
             ProvisioningStepSnapshot step, CancellationToken cancellationToken) =>
             Task.FromResult(new ProvisioningReconciliationResult(outcome, "Test evidence."));
+    }
+
+    private sealed class UnprovableImageAcquisitionAdapter : IRuntimeImageAcquisitionAdapter
+    {
+        public Task<RuntimeImageInspectionResult> InspectAsync(TrustedRuntimeImage image, CancellationToken cancellationToken) =>
+            Task.FromResult(RuntimeImageInspectionResult.FromStatus(RuntimeImageInspectionStatuses.Unprovable));
+        public Task<RuntimeImageAcquisitionResult> AcquireAsync(TrustedRuntimeImage image, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("Acquisition must not be reached.");
     }
 
     private sealed class FakeStep(string id, Action? invocation = null) : IProvisioningStep

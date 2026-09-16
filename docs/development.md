@@ -90,6 +90,13 @@ Metrics are configured through:
 - `Metrics:HostDiskPath`
 - `Metrics__HostDiskPath`
 
+Trusted public-image acquisition is configured through:
+
+- `RuntimeImageAcquisition:TimeoutSeconds` / `RuntimeImageAcquisition__TimeoutSeconds` (default `900`, maximum `3600`)
+- `RuntimeImageAcquisition:InspectTimeoutSeconds` / `RuntimeImageAcquisition__InspectTimeoutSeconds` (default `30`, maximum `120`)
+
+These values bound Docker pull and inspect calls. The acquisition target always comes from durable pinned intent; configuration cannot supply an image, digest, platform or registry credentials.
+
 Managed game storage planning is configured through:
 
 - `Storage:DataRoot`

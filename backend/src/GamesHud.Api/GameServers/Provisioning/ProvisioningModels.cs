@@ -227,6 +227,13 @@ public sealed record ProvisioningStepResult(
 
 public sealed record ProvisioningStepExecution(string StepId, string Status);
 
+// Signals that cancellation was observed before a mutation provider was dispatched.
+public sealed class ProvisioningCancelledBeforeMutationException : OperationCanceledException
+{
+    public ProvisioningCancelledBeforeMutationException(CancellationToken cancellationToken)
+        : base("Provisioning was cancelled before mutation dispatch.", cancellationToken) { }
+}
+
 public sealed class ProvisioningContext
 {
     private readonly List<ProvisioningStepExecution> _executions = [];

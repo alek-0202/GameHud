@@ -40,7 +40,7 @@ Implemented:
 - EF Core + SQLite persistence foundation under the GamesHud data root
 - Durable managed server schema for server records, port reservations, storage reservations and provisioning operation records
 - Internal provisioning engine foundation with validated plans, durable progress and no host mutation
-- Durable pinned runtime-image intent, verified local image identity and reconciliation application foundation; image acquisition remains disabled
+- Durable pinned runtime-image intent and public digest-only Docker acquisition with final local identity verification; production V2 remains gated on an approved Palworld digest
 - `GET /api/system/persistence` health and migration status without path or connection string exposure
 - Temporary personal Palworld settings editor isolated outside Docker Core
 - Temporary Palworld REST overview and players view isolated outside Docker Core
@@ -195,6 +195,11 @@ Managed runtime readiness:
 
 - `RuntimeHealth__TimeoutSeconds` (default `60`)
 - `RuntimeHealth__PollIntervalSeconds` (default `2`)
+
+Trusted runtime image acquisition:
+
+- `RuntimeImageAcquisition__TimeoutSeconds` (default `900`, maximum `3600`)
+- `RuntimeImageAcquisition__InspectTimeoutSeconds` (default `30`, maximum `120`)
 
 When this value is empty or unset, GamesHud uses a safe app-local fallback under the backend application base directory. Storage planning uses this root to compute deterministic managed server paths, but it does not create directories, copy files, move existing data or reserve durable state.
 

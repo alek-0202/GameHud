@@ -50,7 +50,10 @@ These invariants are permanent GamesHud security rules. Future implementation ta
 - Existing filesystem resources must not be automatically adopted without durable ownership proof.
 - Destructive storage compensation requires stronger proof than existence; generic recursive deletion is forbidden.
 - Filesystem reconciliation must precede retry after an uncertain mutation outcome.
-- Managed container creation must use a locally available trusted image and must never fall back to or automatically pull another image.
+- GH-12 Managed container creation must use the verified local image id and must never pull or substitute another image.
+- GH-15 may pull only the public repository digest and platform stored in the operation's immutable V2 intent.
+- Docker pull progress never proves acquisition; a matching final inspect is required before persisting local identity.
+- Registry credentials, Docker auth configuration and local credential helpers are outside the public-image acquisition boundary.
 - V2 approved image intent must be a fully pinned registry digest plus platform, persisted transactionally with its exact Managed owner.
 - Approved image intent is immutable; its verified local image id may be recorded only by the bounded acquisition checkpoint with optimistic concurrency.
 - V2 create, start and reconciliation must use and verify the persisted local image id for the same operation, server, game and runtime owner.

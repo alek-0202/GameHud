@@ -37,6 +37,7 @@ builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection(Stor
 builder.Services.Configure<PersistenceOptions>(builder.Configuration.GetSection(PersistenceOptions.SectionName));
 builder.Services.Configure<SecretStorageOptions>(builder.Configuration.GetSection(SecretStorageOptions.SectionName));
 builder.Services.Configure<RuntimeHealthOptions>(builder.Configuration.GetSection(RuntimeHealthOptions.SectionName));
+builder.Services.Configure<RuntimeImageAcquisitionOptions>(builder.Configuration.GetSection(RuntimeImageAcquisitionOptions.SectionName));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<PalworldGameDefinition>();
 builder.Services.AddSingleton<GameDefinition>(serviceProvider =>
@@ -86,8 +87,11 @@ builder.Services.AddSingleton<DockerGameRuntimeAdapter>();
 builder.Services.AddSingleton<IGameRuntimeAdapter>(services => services.GetRequiredService<DockerGameRuntimeAdapter>());
 builder.Services.AddSingleton<IManagedRuntimeInspector>(services => services.GetRequiredService<DockerGameRuntimeAdapter>());
 builder.Services.AddScoped<IRuntimeMutationExecutor, RuntimeMutationExecutor>();
+builder.Services.AddSingleton<IDockerImageAcquisitionClient, DockerImageAcquisitionClient>();
+builder.Services.AddSingleton<IRuntimeImageAcquisitionAdapter, DockerRuntimeImageAcquisitionAdapter>();
 builder.Services.AddScoped<IProvisioningStep, CreateRuntimeProvisioningStep>();
 builder.Services.AddScoped<IProvisioningStep, AcquireImageProvisioningStep>();
+builder.Services.AddScoped<IProvisioningStepReconciler, AcquireImageReconciler>();
 builder.Services.AddScoped<IProvisioningStepReconciler, CreateRuntimeReconciler>();
 builder.Services.AddScoped<IProvisioningStep, StartRuntimeProvisioningStep>();
 builder.Services.AddScoped<IProvisioningStepReconciler, StartRuntimeReconciler>();

@@ -69,8 +69,10 @@ public sealed class RuntimeImageIntentStore(GamesHudDbContext database, IPersist
                 var operation = await db.ProvisioningOperations.Include(item => item.Steps)
                     .SingleAsync(item => item.Id == owner.OperationId, token);
                 var step = operation.Steps.Single(item => item.StepId == ProvisioningStepIds.AcquireImage);
-                if (operation.ActiveSlot is null || operation.Status != ProvisioningOperationStatuses.Running
-                    || step.Status != ProvisioningStepStatuses.Running)
+                if (operation.ActiveSlot is null
+                    || operation.Status is not ProvisioningOperationStatuses.Running
+                        and not ProvisioningOperationStatuses.Failed and not ProvisioningOperationStatuses.Cancelled
+                    || step.Status is not ProvisioningStepStatuses.Running and not ProvisioningStepStatuses.Failed)
                     throw new InvalidOperationException("Image verification requires an active acquisition step.");
                 record.VerifiedLocalImageId = imageId.Value;
                 record.VerificationState = "verified";
