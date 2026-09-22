@@ -1,12 +1,14 @@
 using Docker.DotNet.Models;
 using GamesHud.Api.Configuration;
 using GamesHud.Api.GameServers.Configuration;
+using GamesHud.Api.GameServers.Contracts;
 using GamesHud.Api.GameServers.Definitions;
 using GamesHud.Api.GameServers.Ports;
 using GamesHud.Api.GameServers.Provisioning;
 using GamesHud.Api.GameServers.Requirements;
 using GamesHud.Api.GameServers.Runtime;
 using GamesHud.Api.GameServers.Storage;
+using GamesHud.Api.GameServers.Services;
 using GamesHud.Api.HostCapabilities.Models;
 using GamesHud.Api.HostCapabilities.Services;
 using GamesHud.Api.Palworld.ManagedConfiguration;
@@ -17,6 +19,9 @@ using GamesHud.Api.Persistence.Provisioning;
 using GamesHud.Api.Secrets.Models;
 using GamesHud.Api.Secrets.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc.Testing;
+using System.Net;
+using System.Net.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -29,6 +34,72 @@ public sealed class ManagedPalworldEndToEndTests
     private const string ApprovedDigest = "sha256:aee17c5ea7b52c0fdbc2f86c446c02bfdab8788eed3867ea7c34261874ab2ec9";
     private const string ApprovedReference = "docker.io/thijsvanloef/palworld-server-docker@" + ApprovedDigest;
     private const string LocalImageId = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+    [Fact]
+    public async Task HttpSchedulesPendingIntentAndWorkerCompletesIt()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.AddSingleton<IManagedGameServerApplicationService>(new ApplicationBridge(harness.Services));
+                services.AddSingleton<IManagedGameServerQueryService>(new QueryBridge(harness.Services));
+            }));
+        using var client = factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/game-servers")
+        { Content = JsonContent.Create(new { gameId = "palworld", displayName = "HTTP E2E" }) };
+        request.Headers.Add("Idempotency-Key", "http-worker-e2e");
+        using var response = await client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        var created = await response.Content.ReadFromJsonAsync<CreateManagedGameServerResponse>();
+        Assert.NotNull(created);
+        Assert.Equal(0, harness.Containers.CreateCount);
+        var pending = await client.GetFromJsonAsync<ManagedProvisioningResponse>(
+            $"/api/game-servers/{created.GameServerId}/provisioning");
+        Assert.Equal(ProvisioningOperationStatuses.Pending, pending?.Status);
+
+        await harness.ExecuteWorkerAsync();
+
+        var server = await client.GetFromJsonAsync<ManagedGameServerResponse>($"/api/game-servers/{created.GameServerId}");
+        var completed = await client.GetFromJsonAsync<ManagedProvisioningResponse>(
+            $"/api/game-servers/{created.GameServerId}/provisioning");
+        Assert.Equal(ManagedGameServerLifecycleStates.Running, server?.LifecycleState);
+        Assert.Equal(ProvisioningOperationStatuses.Succeeded, completed?.Status);
+        Assert.Equal(1, harness.Containers.CreateCount);
+    }
+
+    [Fact]
+    public async Task ConcurrentHttpRetriesCreateExactlyOneDurableIntent()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.AddSingleton<IManagedGameServerApplicationService>(new ApplicationBridge(harness.Services));
+                services.AddSingleton<IManagedGameServerQueryService>(new QueryBridge(harness.Services));
+            }));
+        using var client = factory.CreateClient();
+        static HttpRequestMessage CreateRequest()
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, "/api/game-servers")
+            { Content = JsonContent.Create(new { gameId = "palworld", displayName = "Concurrent" }) };
+            request.Headers.Add("Idempotency-Key", "same-concurrent-key");
+            return request;
+        }
+        using var firstRequest = CreateRequest(); using var secondRequest = CreateRequest();
+        var responses = await Task.WhenAll(client.SendAsync(firstRequest), client.SendAsync(secondRequest));
+        Assert.All(responses, response => Assert.Equal(HttpStatusCode.Accepted, response.StatusCode));
+        var bodies = await Task.WhenAll(responses.Select(response =>
+            response.Content.ReadFromJsonAsync<CreateManagedGameServerResponse>()));
+        Assert.Single(bodies.Select(body => body!.GameServerId).Distinct());
+        Assert.Single(bodies.Select(body => body!.ProvisioningOperationId).Distinct());
+        await using var scope = harness.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<GamesHudDbContext>();
+        Assert.Equal(1, await db.ManagedGameServers.CountAsync());
+        Assert.Equal(1, await db.ProvisioningOperations.CountAsync());
+        Assert.Equal(1, await db.ManagedGameServerRequests.CountAsync());
+        foreach (var response in responses) response.Dispose();
+    }
 
     [Theory]
     [InlineData(false, false)]
@@ -491,6 +562,8 @@ public sealed class ManagedPalworldEndToEndTests
             services.AddScoped<IRuntimeImageIntentStore, RuntimeImageIntentStore>();
             services.AddScoped<IProvisioningPlanBuilder, ProvisioningPlanBuilder>();
             services.AddScoped<IGameServerProvisioningService, GameServerProvisioningService>();
+            services.AddScoped<IManagedGameServerApplicationService, ManagedGameServerApplicationService>();
+            services.AddScoped<IManagedGameServerQueryService, ManagedGameServerQueryService>();
             services.AddScoped<IProvisioningEngine, ProvisioningEngine>();
             services.AddSingleton<ISecretStore>(secrets);
             services.AddScoped<IPalworldManagedConfigurationIntentReader, PalworldManagedConfigurationIntentReader>();
@@ -557,6 +630,32 @@ public sealed class ManagedPalworldEndToEndTests
             try { Directory.Delete(_root, recursive: true); }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    private sealed class ApplicationBridge(IServiceProvider provider) : IManagedGameServerApplicationService
+    {
+        public async Task<CreateManagedGameServerResult> CreateAsync(CreateManagedGameServerRequest? request,
+            string? key, CancellationToken token)
+        {
+            await using var scope = provider.CreateAsyncScope();
+            return await scope.ServiceProvider.GetRequiredService<IManagedGameServerApplicationService>()
+                .CreateAsync(request, key, token);
+        }
+    }
+
+    private sealed class QueryBridge(IServiceProvider provider) : IManagedGameServerQueryService
+    {
+        public async Task<ManagedGameServerResponse?> GetAsync(string id, CancellationToken token)
+        {
+            await using var scope = provider.CreateAsyncScope();
+            return await scope.ServiceProvider.GetRequiredService<IManagedGameServerQueryService>().GetAsync(id, token);
+        }
+        public async Task<ManagedProvisioningResponse?> GetProvisioningAsync(string id, CancellationToken token)
+        {
+            await using var scope = provider.CreateAsyncScope();
+            return await scope.ServiceProvider.GetRequiredService<IManagedGameServerQueryService>()
+                .GetProvisioningAsync(id, token);
         }
     }
 

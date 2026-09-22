@@ -308,6 +308,111 @@ public sealed class ManagedServerStore : IManagedServerStore
             exposure);
     }
 
+    public async Task<ManagedServerRequestResult> ReserveIdempotentProvisioningPlanAsync(
+        ManagedServerProvisioningPlan plan,
+        ManagedServerRequestIdentity requestIdentity,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(requestIdentity);
+        ValidateHash(requestIdentity.IdempotencyKeyHash, nameof(requestIdentity.IdempotencyKeyHash));
+        ValidateHash(requestIdentity.RequestFingerprint, nameof(requestIdentity.RequestFingerprint));
+
+        var existing = await GetRequestAsync(requestIdentity.IdempotencyKeyHash, cancellationToken);
+        if (existing is not null) return existing;
+
+        var normalizedPlan = NormalizePlan(plan);
+        return await _transactionBoundary.ExecuteAsync(async (dbContext, token) =>
+        {
+            var reservation = await AddProvisioningPlanAsync(dbContext, normalizedPlan);
+            var request = new ManagedGameServerRequestRecord
+            {
+                Id = CreateId(),
+                IdempotencyKeyHash = requestIdentity.IdempotencyKeyHash,
+                RequestFingerprint = requestIdentity.RequestFingerprint,
+                GameServerId = reservation.GameServerId,
+                ProvisioningOperationId = reservation.ProvisioningOperationId
+            };
+            dbContext.ManagedGameServerRequests.Add(request);
+            return new ManagedServerRequestResult(request.RequestFingerprint, request.GameServerId,
+                request.ProvisioningOperationId, request.CreatedAtUtc, true);
+        }, cancellationToken);
+    }
+
+    public async Task<ManagedServerRequestResult?> GetRequestAsync(
+        string idempotencyKeyHash,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateHash(idempotencyKeyHash, nameof(idempotencyKeyHash));
+        var request = await _dbContext.ManagedGameServerRequests.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.IdempotencyKeyHash == idempotencyKeyHash, cancellationToken);
+        return request is null ? null : new ManagedServerRequestResult(request.RequestFingerprint,
+            request.GameServerId, request.ProvisioningOperationId, request.CreatedAtUtc, false);
+    }
+
+    private static void ValidateHash(string value, string parameterName)
+    {
+        if (value.Length != 64 || value.Any(character => !char.IsAsciiHexDigit(character)))
+            throw new ArgumentException("A SHA-256 hexadecimal hash is required.", parameterName);
+    }
+
+    private static Task<ManagedServerReservationResult> AddProvisioningPlanAsync(
+        GamesHudDbContext dbContext,
+        ManagedServerProvisioningPlan normalizedPlan)
+    {
+        var operationId = CreateId();
+        var gameServer = new ManagedGameServerRecord
+        {
+            Id = normalizedPlan.GameServerId, GameId = normalizedPlan.GameId,
+            DisplayName = normalizedPlan.DisplayName, InstallationType = ManagedInstallationTypes.Managed,
+            RuntimeType = normalizedPlan.RuntimeType,
+            LifecycleState = ManagedGameServerLifecycleStates.PendingProvisioning
+        };
+        var operation = new ProvisioningOperationRecord
+        {
+            Id = operationId, GameServerId = normalizedPlan.GameServerId,
+            Type = ProvisioningOperationTypes.Provision, Status = ProvisioningOperationStatuses.Pending,
+            ActiveSlot = ProvisioningOperationActiveSlots.Active, CurrentStep = InitialProvisioningStep,
+            PipelineVersion = normalizedPlan.PipelineVersion!, Version = 1
+        };
+        var now = DateTimeOffset.UtcNow;
+        var steps = normalizedPlan.Steps!.Select(step => new ProvisioningStepRecord
+        {
+            Id = CreateId(), OperationId = operationId, StepId = step.StepId, Sequence = step.Sequence,
+            Status = step.CompletedBeforeReservation ? ProvisioningStepStatuses.Succeeded : ProvisioningStepStatuses.Pending,
+            Attempt = step.CompletedBeforeReservation ? 1 : 0, RetryClassification = step.RetryClassification,
+            SideEffectClassification = step.SideEffectClassification, MaxAttempts = step.MaxAttempts,
+            StartedAtUtc = step.CompletedBeforeReservation ? now : null,
+            CompletedAtUtc = step.CompletedBeforeReservation ? now : null
+        }).ToArray();
+        var ports = normalizedPlan.Ports.Select(port => new PortReservationRecord
+        {
+            Id = CreateId(), GameServerId = normalizedPlan.GameServerId, PortDefinitionId = port.PortDefinitionId,
+            Protocol = port.Protocol, Port = port.HostPort ?? port.ContainerPort, ContainerPort = port.ContainerPort,
+            HostPort = port.HostPort, Published = port.Published, Exposure = port.Exposure,
+            Status = ReservationStatuses.Reserved, ProvisioningOperationId = operationId
+        }).ToArray();
+        var storage = normalizedPlan.Storage.Select(item => new StorageReservationRecord
+        {
+            Id = CreateId(), GameServerId = normalizedPlan.GameServerId, StorageDefinitionId = item.StorageDefinitionId,
+            RelativePath = item.RelativePath!, ApiPath = item.ApiPath!, HostPath = item.HostPath!,
+            Ownership = StorageOwnerships.Managed, Status = ReservationStatuses.Reserved,
+            ProvisioningOperationId = operationId
+        }).ToArray();
+        dbContext.ManagedGameServers.Add(gameServer); dbContext.ProvisioningOperations.Add(operation);
+        dbContext.ProvisioningSteps.AddRange(steps); dbContext.PortReservations.AddRange(ports);
+        dbContext.StorageReservations.AddRange(storage);
+        if (normalizedPlan.Configuration is not null) dbContext.ManagedGameConfigurations.Add(new ManagedGameConfigurationRecord
+        {
+            Id = CreateId(), GameServerId = normalizedPlan.GameServerId, GameId = normalizedPlan.Configuration.GameId.Value,
+            ConfigurationKind = normalizedPlan.Configuration.ConfigurationKind, SchemaVersion = normalizedPlan.Configuration.SchemaVersion,
+            Payload = normalizedPlan.Configuration.Payload, Version = 1
+        });
+        if (normalizedPlan.RuntimeImage is not null)
+            dbContext.RuntimeImageIntents.Add(RuntimeImageIntentStore.Create(operationId, normalizedPlan));
+        return Task.FromResult(new ManagedServerReservationResult(normalizedPlan.GameServerId, operationId,
+            ports.Select(x => x.Id).ToArray(), storage.Select(x => x.Id).ToArray()));
+    }
+
     private StorageReservationPlan NormalizeStorage(
         StorageReservationPlan storage,
         string gameServerId)

@@ -50,3 +50,12 @@ public sealed record ManagedServerReservationResult(
     IReadOnlyCollection<string> StorageReservationIds);
 
 public sealed record ManagedServerReservationConflict(string Code, string SafeMessage);
+
+public sealed record ManagedServerRequestIdentity(string IdempotencyKeyHash, string RequestFingerprint);
+
+public sealed record ManagedServerRequestResult(
+    string RequestFingerprint,
+    string GameServerId,
+    string ProvisioningOperationId,
+    DateTimeOffset CreatedAtUtc,
+    bool Created);

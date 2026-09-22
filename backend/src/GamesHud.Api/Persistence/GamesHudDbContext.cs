@@ -25,6 +25,7 @@ public sealed class GamesHudDbContext : DbContext
     public DbSet<ManagedGameConfigurationRecord> ManagedGameConfigurations => Set<ManagedGameConfigurationRecord>();
     public DbSet<RuntimeImageIntentRecord> RuntimeImageIntents => Set<RuntimeImageIntentRecord>();
     public DbSet<ProvisioningReconciliationRecord> ProvisioningReconciliations => Set<ProvisioningReconciliationRecord>();
+    public DbSet<ManagedGameServerRequestRecord> ManagedGameServerRequests => Set<ManagedGameServerRequestRecord>();
 
     public override int SaveChanges()
     {
@@ -101,6 +102,27 @@ public sealed class GamesHudDbContext : DbContext
                 .IsRequired();
             entity.Property(server => server.UpdatedAtUtc)
                 .IsRequired();
+        });
+
+        modelBuilder.Entity<ManagedGameServerRequestRecord>(entity =>
+        {
+            entity.ToTable("managed_game_server_requests");
+            entity.HasKey(request => request.Id);
+            entity.Property(request => request.Id).HasMaxLength(32).IsRequired();
+            entity.Property(request => request.IdempotencyKeyHash).HasMaxLength(64).IsRequired();
+            entity.Property(request => request.RequestFingerprint).HasMaxLength(64).IsRequired();
+            entity.Property(request => request.GameServerId).HasMaxLength(80).IsRequired();
+            entity.Property(request => request.ProvisioningOperationId).HasMaxLength(32).IsRequired();
+            entity.Property(request => request.CreatedAtUtc).IsRequired();
+            entity.HasIndex(request => request.IdempotencyKeyHash).IsUnique();
+            entity.HasIndex(request => request.GameServerId).IsUnique();
+            entity.HasIndex(request => request.ProvisioningOperationId).IsUnique();
+            entity.HasOne(request => request.GameServer).WithOne()
+                .HasForeignKey<ManagedGameServerRequestRecord>(request => request.GameServerId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(request => request.ProvisioningOperation).WithOne()
+                .HasForeignKey<ManagedGameServerRequestRecord>(request => request.ProvisioningOperationId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<ProvisioningOperationRecord>(entity =>
@@ -394,6 +416,12 @@ public sealed class GamesHudDbContext : DbContext
                 entry.Entity.CompensationStartedAtUtc = entry.Entity.CompensationStartedAtUtc?.ToUniversalTime();
                 entry.Entity.CompensationCompletedAtUtc = entry.Entity.CompensationCompletedAtUtc?.ToUniversalTime();
             }
+        }
+
+        foreach (var entry in ChangeTracker.Entries<ManagedGameServerRequestRecord>())
+        {
+            if (entry.State == EntityState.Added)
+                entry.Entity.CreatedAtUtc = ToUtc(entry.Entity.CreatedAtUtc, now);
         }
     }
 

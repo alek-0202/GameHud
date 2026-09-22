@@ -180,6 +180,15 @@ public sealed record ProvisioningExecutionResult(
     string Status,
     ProvisioningFailure? Failure);
 
+public sealed record IdempotentProvisioningExecutionResult(
+    bool Succeeded,
+    bool Created,
+    string? GameServerId,
+    string? OperationId,
+    string? RequestFingerprint,
+    string Status,
+    ProvisioningFailure? Failure);
+
 public sealed record ProvisioningOperationSnapshot(
     string OperationId,
     string GameServerId,

@@ -589,3 +589,6 @@ The VPS may already host production containers such as Palworld and Portainer. G
 ## License
 
 Not defined yet.
+# Managed provisioning API (GH-17)
+
+The backend exposes asynchronous managed provisioning at `POST /api/game-servers`, with durable status at `GET /api/game-servers/{id}` and `GET /api/game-servers/{id}/provisioning`. See [the API contract](docs/managed-game-server-api.md). Real production or homologation activation remains gated by the opt-in GH-16B Docker validation.

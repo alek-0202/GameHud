@@ -81,6 +81,8 @@ builder.Services.AddScoped<IGameProvisioningConfigurationStore, GameProvisioning
 builder.Services.AddScoped<IRuntimeImageIntentStore, RuntimeImageIntentStore>();
 builder.Services.AddScoped<IProvisioningEngine, ProvisioningEngine>();
 builder.Services.AddScoped<IGameServerProvisioningService, GameServerProvisioningService>();
+builder.Services.AddScoped<IManagedGameServerApplicationService, ManagedGameServerApplicationService>();
+builder.Services.AddScoped<IManagedGameServerQueryService, ManagedGameServerQueryService>();
 builder.Services.AddSingleton<IRuntimeMutationPolicy, RuntimeMutationPolicy>();
 builder.Services.AddScoped<IRuntimeSpecificationBuilder, RuntimeSpecificationBuilder>();
 builder.Services.AddScoped<IRuntimeReconciliationSpecificationBuilder>(services =>

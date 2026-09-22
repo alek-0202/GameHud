@@ -364,3 +364,6 @@ Status: In progress
 - Multi-user permissions
 - Additional game plugins
 - ARCH-01 GamesHud Agent architecture
+# GH-17 — Managed Game Server Provisioning API
+
+Implemented: asynchronous create, durable SHA-256 idempotency, public server/provisioning projections, ordered step progress, and sanitized failures. Authentication/ownership, rate limiting, and production activation remain gated; production activation also requires a successful opt-in GH-16B run against real Docker.
