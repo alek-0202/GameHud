@@ -14,6 +14,8 @@ After Docker accepts start, GamesHud inspects again and reports success only whe
 
 `VerifyHealth` is read-only. Running without a Docker HEALTHCHECK is generic runtime readiness. When HEALTHCHECK exists, `healthy` is ready, `starting` is polled, and `unhealthy` fails. Running is not automatically game-specific health; Palworld REST readiness remains future plugin work and LegacyExternal Palworld is not queried.
 
-Polling defaults to a 60-second timeout and 2-second interval through `RuntimeHealth__TimeoutSeconds` and `RuntimeHealth__PollIntervalSeconds`. Timeout is capped at 600 seconds, interval at 30 seconds, and interval cannot exceed timeout. Timeout leaves the runtime running for inspection: there is no implicit stop, restart, remove, or compensation mutation.
+Polling defaults to a 60-second timeout and 2-second interval through `RuntimeHealth__TimeoutSeconds` and `RuntimeHealth__PollIntervalSeconds`. Managed Palworld uses the game-specific `RuntimeHealth__PalworldTimeoutSeconds`, defaulting to 600 seconds for first boot and capped at 1800 seconds. Other games retain the 60-second default and 600-second cap. The interval is capped at 30 seconds and cannot exceed the selected timeout. Timeout leaves the runtime running for inspection: there is no implicit stop, restart, remove, or compensation mutation.
+
+The Palworld readiness contract remains runtime-only: the owned container must be running and, when Docker exposes a HEALTHCHECK, it must report `healthy`. GamesHud does not connect to UDP 8211, the query endpoint, or the REST API during provisioning.
 
 The existing typed restart policy remains `unless-stopped`, derived from SEC-03. Docker may independently move a runtime between running, restarting, and exited; reconciliation proves current state and ownership rather than attributing every transition to the provisioning operation.

@@ -12,7 +12,7 @@ When every step is complete, one transaction marks the operation `succeeded`, ch
 
 Current trusted game metadata still supplies resource, environment, port and storage definitions during reconstruction. Historical runtime image authority does not: V1 uses its legacy identity and V2 reloads its durable approved and verified identity.
 
-GH-08 introduced the internal provisioning engine. GH-09 keeps that engine and makes its operation and step state explicit, durable and recoverable. It still exposes no create-server API and creates no container, directory, volume, network, firewall rule, game installation or configuration file.
+GH-08 introduced the internal provisioning engine. GH-09 made its operation and step state explicit and durable. ARCH-04 added the worker-owned execution and recovery loop. GH-16 proves the complete Managed Palworld path internally without adding an HTTP create-server API.
 
 ## Flow
 
@@ -53,7 +53,7 @@ the generated game file or silently defaults corrupted persisted state.
 
 The stable step ids for pipeline `gh09-v1` are `validate_host`, `plan_resources`, `reserve_resources`, `prepare_storage`, `configure_game`, `create_runtime`, `start_runtime`, `verify_health` and `complete`. Class names, display names and list indexes are not persisted identities. `gh09-v1` remains the production default.
 
-ARCH-03 registers `gh15-v2`, which inserts `acquire_image` between `configure_game` and `create_runtime` and gives mutation steps bounded reconciliation-authorized retry capacity. GH-15 implements the step with inspect-before-pull and final verification. V2 still cannot be selected by the production planning path because Palworld has no human-approved pinned digest in the catalog.
+ARCH-03 registers `gh15-v2`, which inserts `acquire_image` between `configure_game` and `create_runtime` and gives mutation steps bounded reconciliation-authorized retry capacity. GH-15 implements the step with inspect-before-pull and final verification. GH-15A activates V2 for new Managed Palworld operations using the approved v2.7.3 `linux/amd64` platform digest. Persisted `gh09-v1` operations remain V1 with nine steps and their legacy runtime image authority.
 
 Reservation stores every expected step, its sequence and its retry/side-effect metadata. Validation, planning and reservation have already completed at that point, so their rows start as `Succeeded` with attempt 1; executable foundation steps start as `Pending` with attempt 0. Recovery reads this persisted pipeline instead of reconstructing history from the current code list. A pipeline version mismatch requires manual intervention.
 
@@ -123,7 +123,7 @@ The database transaction cannot include a future external side effect. A process
 | `manual_intervention` | Pipeline versions differ, compensation is incomplete, or state cannot be proven safe. |
 | `terminal` | No recovery action is required. |
 
-At startup, `ProvisioningRecoveryStartupObserver` only classifies incomplete operations and logs operation id, decision, step id and reason code. It does not execute steps, mutate the host or automatically resume any operation.
+At startup and after channel wake-up, `ProvisioningExecutor` discovers incomplete operations from the database. It reconstructs the durable context, applies trusted reconciliation when required, resumes only authorized work and finalizes completed operations atomically. The current executor is intentionally single-instance and sequential.
 
 `IProvisioningStepReconciler` is the game/runtime adapter boundary. A reconciler may report effect present, absent or ambiguous. GH-12 implements real Docker inspection for `create_runtime`.
 
@@ -166,4 +166,6 @@ no Docker mutation and depends on the trusted `DISABLE_GENERATE_SETTINGS=true` r
 
 ARCH-03 adds the durable pinned-image identity and reconciliation foundation used by `gh15-v2`. The approved registry digest/platform intent is persisted transactionally and remains immutable; a distinct verified local image id is recorded through an optimistic acquisition checkpoint. V2 create and start reconstruction use that local id and fail closed when it is absent or mismatched. `gh09-v1` behavior is unchanged, no image is acquired, and V2 is not the production default. See [Durable Runtime Image Identity](runtime-image-identity.md).
 
-GH-15 replaces the V2 `acquire_image` placeholder with a typed Docker.DotNet adapter. It inspects the durable approved digest first, pulls only after proven absence, passes the approved platform and no registry authentication, and always requires a matching final inspect before persisting `VerifiedLocalImageId`. Progress messages are bounded and sanitized and never prove success. Cancellation before dispatch is safe; timeout or interruption after dispatch becomes `Failed/unknown` and reconciles by inspecting the same durable reference. No image removal, prune or compensation exists. Palworld and the production default remain on `gh09-v1` until a digest is explicitly approved.
+GH-15 replaces the V2 `acquire_image` placeholder with a typed Docker.DotNet adapter. It inspects the durable approved digest first, pulls only after proven absence, passes the approved platform and no registry authentication, and always requires a matching final inspect before persisting `VerifiedLocalImageId`. Progress messages are bounded and sanitized and never prove success. Cancellation before dispatch is safe; timeout or interruption after dispatch becomes `Failed/unknown` and reconciles by inspecting the same durable reference. No image removal, prune or compensation exists.
+
+GH-16 validates the production pipeline with SQLite and a real temporary filesystem. Scheduling commits and returns before mutations; another scope runs storage preparation, Palworld INI materialization, digest acquisition, specification policy, stopped create, start, Docker-health readiness and atomic finalization. Host capability, port availability, secret values and Docker image/container APIs are controlled fakes. Recovery coverage interrupts after configuration, pull, create, start and during health; ambiguous mutation evidence remains blocked. See [Managed Palworld E2E](managed-palworld-e2e.md).

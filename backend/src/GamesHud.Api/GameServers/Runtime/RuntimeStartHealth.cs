@@ -147,9 +147,15 @@ internal sealed class VerifyRuntimeHealthProvisioningStep : IProvisioningStep
 
     public async Task<ProvisioningStepResult> ExecuteAsync(ProvisioningContext context, CancellationToken cancellationToken)
     {
-        if (_options.TimeoutSeconds <= 0 || _options.TimeoutSeconds > RuntimeHealthOptions.MaximumTimeoutSeconds
+        var timeoutSeconds = context.ValidatedPlan.GameId.Value == "palworld"
+            ? _options.PalworldTimeoutSeconds
+            : _options.TimeoutSeconds;
+        var maximumTimeoutSeconds = context.ValidatedPlan.GameId.Value == "palworld"
+            ? RuntimeHealthOptions.MaximumGameTimeoutSeconds
+            : RuntimeHealthOptions.MaximumTimeoutSeconds;
+        if (timeoutSeconds <= 0 || timeoutSeconds > maximumTimeoutSeconds
             || _options.PollIntervalSeconds <= 0 || _options.PollIntervalSeconds > RuntimeHealthOptions.MaximumPollIntervalSeconds
-            || _options.PollIntervalSeconds > _options.TimeoutSeconds)
+            || _options.PollIntervalSeconds > timeoutSeconds)
             return ProvisioningStepResult.Failure(RuntimeStartHealthErrorCodes.HealthUnknown, "Runtime health configuration is invalid.");
         var specification = await _builder.BuildAsync(context, cancellationToken);
         if (specification is null) return Invalid();
@@ -157,7 +163,7 @@ internal sealed class VerifyRuntimeHealthProvisioningStep : IProvisioningStep
         if (!validated.Allowed) return Invalid();
         var executionContext = new RuntimeMutationExecutionContext(validated.Specification!, RuntimeMutationKind.StartRuntime, Id, 1);
         var interval = TimeSpan.FromSeconds(_options.PollIntervalSeconds);
-        var attempts = checked((_options.TimeoutSeconds + _options.PollIntervalSeconds - 1) / _options.PollIntervalSeconds + 1);
+        var attempts = checked((timeoutSeconds + _options.PollIntervalSeconds - 1) / _options.PollIntervalSeconds + 1);
 
         for (var attempt = 0; attempt < attempts; attempt++)
         {

@@ -204,6 +204,7 @@ Provisioning commands commit durable state and return before filesystem or Docke
 Managed runtime readiness:
 
 - `RuntimeHealth__TimeoutSeconds` (default `60`)
+- `RuntimeHealth__PalworldTimeoutSeconds` (default `600`, maximum `1800`)
 - `RuntimeHealth__PollIntervalSeconds` (default `2`)
 
 Trusted runtime image acquisition:

@@ -15,3 +15,5 @@ and no GamesHud secret may travel through this mechanism.
 
 Container creation remains create-only and daemon-free fakes cover the normal test suite. Pipeline `gh09-v1`,
 persistence, LegacyExternal behavior, and all other Docker mutations are unchanged.
+
+For Managed Palworld V2, `Image` is always the persisted `VerifiedLocalImageId`; the approved digest is acquisition authority and never the create value. The data bind uses the persisted daemon-visible `HostPath` at `/palworld:rw`. `8211/udp` and `27015/udp` keep their catalog container ports while Docker maps allocated host ports. Internal `8212/tcp` is exposed to the container network without a host binding. Host-port alternatives never create `PORT`, `QUERY_PORT` or `REST_API_PORT` environment entries.

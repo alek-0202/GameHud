@@ -187,7 +187,12 @@ public sealed class RuntimeStartHealthTests
     {
         var specification = Specification();
         return new(new FakeBuilder(specification), new AllowPolicy(), new FakePaths(), Adapter(client), delay ?? new FakeDelay(),
-            Options.Create(new RuntimeHealthOptions { TimeoutSeconds = timeout, PollIntervalSeconds = interval }));
+            Options.Create(new RuntimeHealthOptions
+            {
+                TimeoutSeconds = timeout,
+                PalworldTimeoutSeconds = timeout,
+                PollIntervalSeconds = interval
+            }));
     }
 
     private static DockerGameRuntimeAdapter Adapter(FakeClient client) => new(client, new SafeStorage());
