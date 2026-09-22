@@ -564,6 +564,7 @@ The VPS may already host production containers such as Palworld and Portainer. G
 - [Palworld Updates Guide](docs/palworld-updates.md)
 - [Palworld Settings Guide](docs/palworld-settings.md)
 - [Palworld Managed Configuration](docs/palworld-managed-configuration.md)
+- [Controlled Docker Integration Validation](docs/docker-integration-validation.md)
 - [Palworld REST API Guide](docs/palworld-rest-api.md)
 - [Operations Guide](docs/operations.md)
 - [Persistence Guide](docs/persistence.md)

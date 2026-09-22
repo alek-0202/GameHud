@@ -35,4 +35,4 @@ The next validation level must run in an isolated, disposable Docker environment
 5. start and Docker HEALTHCHECK transition to healthy within the Palworld window;
 6. persistence of configuration, image identity, ownership and recovery evidence across API and container restarts.
 
-GH-16B must not use a production VPS or adopt an existing Palworld server. Cleanup must target only resources created by the isolated validation run.
+GH-16B must not use a production VPS or adopt an existing Palworld server. Cleanup must target only resources created by the isolated validation run. The prepared opt-in harness and execution procedure are documented in [Controlled Docker Integration Validation](docker-integration-validation.md).

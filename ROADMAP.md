@@ -308,7 +308,7 @@ Remaining:
 - GH-15A Pinned Palworld image activation (Completed: new Managed Palworld operations select `gh15-v2` using the human-approved `v2.7.3` `linux/amd64` platform manifest digest while persisted V1 operations remain V1)
 - ARCH-04 Durable Managed provisioning orchestrator and Docker host contract (Completed: worker-owned execution, DB discovery, reconciliation/resume, atomic finalization, API/host paths and container/host ports)
 - GH-16 End-to-end Managed Palworld (Completed: real internal V2 pipeline with SQLite/filesystem integration, boundary fakes, recovery hardening and durable final-state proof)
-- GH-16B Controlled Docker integration validation (Planned: exact digest pull, local image identity, bind visibility, HEALTHCHECK, port bindings and restart persistence)
+- GH-16B Controlled Docker integration validation (Prepared, execution pending explicit approval: exact digest pull, local image identity, bind visibility, HEALTHCHECK, port bindings and restart persistence)
 
 ---
 
