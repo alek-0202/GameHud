@@ -20,12 +20,18 @@ public sealed class ManagedGameServerApiTests
     {
         await using var factory = CreateFactory(new StubApplication());
         using var client = factory.CreateClient();
-        using var missing = await client.PostAsJsonAsync("/api/game-servers", new { gameId = "palworld", displayName = "A" });
+        client.AuthenticateAs("user-a");
+        var csrf = await client.GetCsrfTokenAsync();
+        using var missingRequest = new HttpRequestMessage(HttpMethod.Post, "/api/game-servers")
+        { Content = JsonContent.Create(new { gameId = "palworld", displayName = "A" }) };
+        missingRequest.AddCsrf(csrf);
+        using var missing = await client.SendAsync(missingRequest);
         Assert.Equal(HttpStatusCode.BadRequest, missing.StatusCode);
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/game-servers")
         { Content = JsonContent.Create(new { gameId = "palworld", displayName = "A", gameServerId = "attacker" }) };
         request.Headers.Add("Idempotency-Key", "create-a");
+        request.AddCsrf(csrf);
         using var accepted = await client.SendAsync(request);
         Assert.Equal(HttpStatusCode.Accepted, accepted.StatusCode);
         Assert.Equal("/api/game-servers/gs-approved", accepted.Headers.Location?.PathAndQuery);
@@ -38,11 +44,13 @@ public sealed class ManagedGameServerApiTests
     {
         await using var conflictFactory = CreateFactory(new StubApplication("idempotency_conflict"));
         using var conflictClient = conflictFactory.CreateClient();
+        conflictClient.AuthenticateAs("user-a");
         using var conflict = await Post(conflictClient);
         Assert.Equal(HttpStatusCode.Conflict, conflict.StatusCode);
 
         await using var unsupportedFactory = CreateFactory(new StubApplication(ProvisioningErrorCodes.HostIncompatible));
         using var unsupportedClient = unsupportedFactory.CreateClient();
+        unsupportedClient.AuthenticateAs("user-a");
         using var unsupported = await Post(unsupportedClient);
         Assert.Equal(HttpStatusCode.UnprocessableEntity, unsupported.StatusCode);
     }
@@ -51,11 +59,12 @@ public sealed class ManagedGameServerApiTests
     public async Task ApplicationHashesOpaqueKeyAndCanonicalVersionedPayload()
     {
         var provisioning = new CapturingProvisioningService();
-        var service = new ManagedGameServerApplicationService(provisioning);
+        var service = new ManagedGameServerApplicationService(provisioning, new StubCurrentUser());
         var result = await service.CreateAsync(new(" PALWORLD ", " My Server "), "raw-secret-key", default);
         Assert.True(result.Succeeded);
         Assert.Equal(64, provisioning.KeyHash!.Length);
         Assert.Equal(64, provisioning.Fingerprint!.Length);
+        Assert.Equal("user-a", provisioning.OwnerId);
         Assert.DoesNotContain("raw-secret-key", provisioning.KeyHash);
 
         await service.CreateAsync(new("palworld", "My Server"), "raw-secret-key", default);
@@ -104,16 +113,18 @@ public sealed class ManagedGameServerApiTests
         return Convert.ToInt32(await command.ExecuteScalarAsync()) == 1;
     }
 
-    private static Task<HttpResponseMessage> Post(HttpClient client)
+    private static async Task<HttpResponseMessage> Post(HttpClient client)
     {
+        var csrf = await client.GetCsrfTokenAsync();
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/game-servers")
         { Content = JsonContent.Create(new { gameId = "palworld", displayName = "A" }) };
-        request.Headers.Add("Idempotency-Key", "key"); return client.SendAsync(request);
+        request.Headers.Add("Idempotency-Key", "key"); request.AddCsrf(csrf);
+        return await client.SendAsync(request);
     }
 
     private static WebApplicationFactory<Program> CreateFactory(IManagedGameServerApplicationService application) =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder.ConfigureServices(services =>
-        { services.AddSingleton(application); services.AddSingleton<IManagedGameServerQueryService, EmptyQueries>(); }));
+        { TestAuthentication.Add(services); services.AddSingleton(application); services.AddSingleton<IManagedGameServerQueryService, EmptyQueries>(); }));
 
     private sealed class StubApplication(string? error = null) : IManagedGameServerApplicationService
     {
@@ -124,17 +135,22 @@ public sealed class ManagedGameServerApiTests
     }
     private sealed class EmptyQueries : IManagedGameServerQueryService
     {
-        public Task<ManagedGameServerResponse?> GetAsync(string id, CancellationToken token) => Task.FromResult<ManagedGameServerResponse?>(null);
-        public Task<ManagedProvisioningResponse?> GetProvisioningAsync(string id, CancellationToken token) => Task.FromResult<ManagedProvisioningResponse?>(null);
+        public Task<ManagedGameServerResponse?> GetAsync(string ownerId, string id, CancellationToken token) => Task.FromResult<ManagedGameServerResponse?>(null);
+        public Task<ManagedProvisioningResponse?> GetProvisioningAsync(string ownerId, string id, CancellationToken token) => Task.FromResult<ManagedProvisioningResponse?>(null);
     }
     private sealed class CapturingProvisioningService : IGameServerProvisioningService
     {
-        public string? KeyHash { get; private set; } public string? Fingerprint { get; private set; } public string? FirstFingerprint { get; private set; }
-        public Task<IdempotentProvisioningExecutionResult> ScheduleIdempotentProvisioningAsync(CreateGameServerProvisioningRequest request, string keyHash, string fingerprint, CancellationToken token)
-        { KeyHash = keyHash; Fingerprint = fingerprint; FirstFingerprint ??= fingerprint; return Task.FromResult(new IdempotentProvisioningExecutionResult(true, true, request.GameServerId, "op", fingerprint, "pending", null)); }
+        public string? OwnerId { get; private set; } public string? KeyHash { get; private set; } public string? Fingerprint { get; private set; } public string? FirstFingerprint { get; private set; }
+        public Task<IdempotentProvisioningExecutionResult> ScheduleIdempotentProvisioningAsync(CreateGameServerProvisioningRequest request, string ownerId, string keyHash, string fingerprint, CancellationToken token)
+        { OwnerId = ownerId; KeyHash = keyHash; Fingerprint = fingerprint; FirstFingerprint ??= fingerprint; return Task.FromResult(new IdempotentProvisioningExecutionResult(true, true, request.GameServerId, "op", fingerprint, "pending", null)); }
         public Task<ProvisioningPreviewResult> PreviewAsync(CreateGameServerProvisioningRequest request, CancellationToken token) => throw new NotSupportedException();
         public Task<ProvisioningExecutionResult> ScheduleProvisioningAsync(CreateGameServerProvisioningRequest request, CancellationToken token) => throw new NotSupportedException();
         public Task<ProvisioningExecutionResult> StartProvisioningAsync(CreateGameServerProvisioningRequest request, CancellationToken token) => throw new NotSupportedException();
         public Task<IReadOnlyCollection<ProvisioningOperationSnapshot>> GetIncompleteOperationsAsync(CancellationToken token) => throw new NotSupportedException();
+    }
+    private sealed class StubCurrentUser : GamesHud.Api.Authentication.ICurrentUser
+    {
+        public bool IsAuthenticated => true;
+        public string UserId => "user-a";
     }
 }

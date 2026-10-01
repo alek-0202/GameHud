@@ -1,5 +1,6 @@
 using Docker.DotNet.Models;
 using GamesHud.Api.Configuration;
+using GamesHud.Api.Authentication;
 using GamesHud.Api.GameServers.Configuration;
 using GamesHud.Api.GameServers.Contracts;
 using GamesHud.Api.GameServers.Definitions;
@@ -20,6 +21,7 @@ using GamesHud.Api.Secrets.Models;
 using GamesHud.Api.Secrets.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Http;
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
@@ -42,13 +44,19 @@ public sealed class ManagedPalworldEndToEndTests
         await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.AddSingleton<IManagedGameServerApplicationService>(new ApplicationBridge(harness.Services));
+                TestAuthentication.Add(services);
+                services.AddSingleton<IManagedGameServerApplicationService>(services =>
+                    new ApplicationBridge(harness.Services, services.GetRequiredService<IHttpContextAccessor>()));
                 services.AddSingleton<IManagedGameServerQueryService>(new QueryBridge(harness.Services));
             }));
         using var client = factory.CreateClient();
+        client.AuthenticateAs("user-a");
+        var csrf = await client.GetCsrfTokenAsync();
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/game-servers")
-        { Content = JsonContent.Create(new { gameId = "palworld", displayName = "HTTP E2E" }) };
+        { Content = JsonContent.Create(new { gameId = "palworld", displayName = "HTTP E2E",
+            ownerId = "attacker", userId = "attacker", accountId = "attacker" }) };
         request.Headers.Add("Idempotency-Key", "http-worker-e2e");
+        request.AddCsrf(csrf);
         using var response = await client.SendAsync(request);
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
         var created = await response.Content.ReadFromJsonAsync<CreateManagedGameServerResponse>();
@@ -66,6 +74,31 @@ public sealed class ManagedPalworldEndToEndTests
         Assert.Equal(ManagedGameServerLifecycleStates.Running, server?.LifecycleState);
         Assert.Equal(ProvisioningOperationStatuses.Succeeded, completed?.Status);
         Assert.Equal(1, harness.Containers.CreateCount);
+
+        await using (var verification = harness.Services.CreateAsyncScope())
+        {
+            var database = verification.ServiceProvider.GetRequiredService<GamesHudDbContext>();
+            Assert.Equal("user-a", (await database.ManagedGameServers.SingleAsync(
+                item => item.Id == created.GameServerId)).OwnerId);
+            database.ManagedGameServers.Add(new ManagedGameServerRecord
+            {
+                Id = "ownerless-history", GameId = "palworld", DisplayName = "Historical",
+                InstallationType = ManagedInstallationTypes.Managed, RuntimeType = "docker",
+                LifecycleState = ManagedGameServerLifecycleStates.Running
+            });
+            await database.SaveChangesAsync();
+        }
+
+        client.DefaultRequestHeaders.Remove(TestAuthentication.UserHeader);
+        client.AuthenticateAs("user-b");
+        Assert.Equal(HttpStatusCode.NotFound,
+            (await client.GetAsync($"/api/game-servers/{created.GameServerId}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound,
+            (await client.GetAsync($"/api/game-servers/{created.GameServerId}/provisioning")).StatusCode);
+        client.DefaultRequestHeaders.Remove(TestAuthentication.UserHeader);
+        client.AuthenticateAs("user-a");
+        Assert.Equal(HttpStatusCode.NotFound,
+            (await client.GetAsync("/api/game-servers/ownerless-history")).StatusCode);
     }
 
     [Fact]
@@ -75,15 +108,20 @@ public sealed class ManagedPalworldEndToEndTests
         await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.AddSingleton<IManagedGameServerApplicationService>(new ApplicationBridge(harness.Services));
+                TestAuthentication.Add(services);
+                services.AddSingleton<IManagedGameServerApplicationService>(services =>
+                    new ApplicationBridge(harness.Services, services.GetRequiredService<IHttpContextAccessor>()));
                 services.AddSingleton<IManagedGameServerQueryService>(new QueryBridge(harness.Services));
             }));
         using var client = factory.CreateClient();
-        static HttpRequestMessage CreateRequest()
+        client.AuthenticateAs("user-a");
+        var csrf = await client.GetCsrfTokenAsync();
+        HttpRequestMessage CreateRequest()
         {
             var request = new HttpRequestMessage(HttpMethod.Post, "/api/game-servers")
             { Content = JsonContent.Create(new { gameId = "palworld", displayName = "Concurrent" }) };
             request.Headers.Add("Idempotency-Key", "same-concurrent-key");
+            request.AddCsrf(csrf);
             return request;
         }
         using var firstRequest = CreateRequest(); using var secondRequest = CreateRequest();
@@ -564,6 +602,8 @@ public sealed class ManagedPalworldEndToEndTests
             services.AddScoped<IGameServerProvisioningService, GameServerProvisioningService>();
             services.AddScoped<IManagedGameServerApplicationService, ManagedGameServerApplicationService>();
             services.AddScoped<IManagedGameServerQueryService, ManagedGameServerQueryService>();
+            services.AddSingleton<GamesHud.Api.Authentication.ICurrentUser>(
+                new FixedCurrentUser("user-a"));
             services.AddScoped<IProvisioningEngine, ProvisioningEngine>();
             services.AddSingleton<ISecretStore>(secrets);
             services.AddScoped<IPalworldManagedConfigurationIntentReader, PalworldManagedConfigurationIntentReader>();
@@ -605,7 +645,23 @@ public sealed class ManagedPalworldEndToEndTests
 
             var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
             await using (var scope = provider.CreateAsyncScope())
-                await scope.ServiceProvider.GetRequiredService<GamesHudDbContext>().Database.MigrateAsync();
+            {
+                var database = scope.ServiceProvider.GetRequiredService<GamesHudDbContext>();
+                await database.Database.MigrateAsync();
+                database.Users.Add(new ApplicationUser
+                {
+                    Id = "user-a", UserName = "user-a@test.invalid",
+                    NormalizedUserName = "USER-A@TEST.INVALID", Email = "user-a@test.invalid",
+                    NormalizedEmail = "USER-A@TEST.INVALID", SecurityStamp = Guid.NewGuid().ToString("N")
+                });
+                database.Users.Add(new ApplicationUser
+                {
+                    Id = "user-b", UserName = "user-b@test.invalid",
+                    NormalizedUserName = "USER-B@TEST.INVALID", Email = "user-b@test.invalid",
+                    NormalizedEmail = "USER-B@TEST.INVALID", SecurityStamp = Guid.NewGuid().ToString("N")
+                });
+                await database.SaveChangesAsync();
+            }
             return new(root, provider, images, containers, signal, secrets, healthDelay,
                 apiRoot, hostRoot, collision, secretReference);
         }
@@ -633,29 +689,38 @@ public sealed class ManagedPalworldEndToEndTests
         }
     }
 
-    private sealed class ApplicationBridge(IServiceProvider provider) : IManagedGameServerApplicationService
+    private sealed class ApplicationBridge(IServiceProvider provider, IHttpContextAccessor accessor)
+        : IManagedGameServerApplicationService
     {
         public async Task<CreateManagedGameServerResult> CreateAsync(CreateManagedGameServerRequest? request,
             string? key, CancellationToken token)
         {
             await using var scope = provider.CreateAsyncScope();
-            return await scope.ServiceProvider.GetRequiredService<IManagedGameServerApplicationService>()
-                .CreateAsync(request, key, token);
+            var service = new ManagedGameServerApplicationService(
+                scope.ServiceProvider.GetRequiredService<IGameServerProvisioningService>(),
+                new HttpCurrentUser(accessor));
+            return await service.CreateAsync(request, key, token);
         }
+    }
+
+    private sealed class FixedCurrentUser(string userId) : GamesHud.Api.Authentication.ICurrentUser
+    {
+        public bool IsAuthenticated => true;
+        public string UserId => userId;
     }
 
     private sealed class QueryBridge(IServiceProvider provider) : IManagedGameServerQueryService
     {
-        public async Task<ManagedGameServerResponse?> GetAsync(string id, CancellationToken token)
+        public async Task<ManagedGameServerResponse?> GetAsync(string ownerId, string id, CancellationToken token)
         {
             await using var scope = provider.CreateAsyncScope();
-            return await scope.ServiceProvider.GetRequiredService<IManagedGameServerQueryService>().GetAsync(id, token);
+            return await scope.ServiceProvider.GetRequiredService<IManagedGameServerQueryService>().GetAsync(ownerId, id, token);
         }
-        public async Task<ManagedProvisioningResponse?> GetProvisioningAsync(string id, CancellationToken token)
+        public async Task<ManagedProvisioningResponse?> GetProvisioningAsync(string ownerId, string id, CancellationToken token)
         {
             await using var scope = provider.CreateAsyncScope();
             return await scope.ServiceProvider.GetRequiredService<IManagedGameServerQueryService>()
-                .GetProvisioningAsync(id, token);
+                .GetProvisioningAsync(ownerId, id, token);
         }
     }
 

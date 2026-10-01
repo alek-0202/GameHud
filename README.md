@@ -591,4 +591,6 @@ The VPS may already host production containers such as Palworld and Portainer. G
 Not defined yet.
 # Managed provisioning API (GH-17)
 
-The backend exposes asynchronous managed provisioning at `POST /api/game-servers`, with durable status at `GET /api/game-servers/{id}` and `GET /api/game-servers/{id}/provisioning`. See [the API contract](docs/managed-game-server-api.md). Real production or homologation activation remains gated by the opt-in GH-16B Docker validation.
+The backend exposes authenticated asynchronous managed provisioning at `POST /api/game-servers`, with owner-scoped durable status at `GET /api/game-servers/{id}` and `GET /api/game-servers/{id}/provisioning`. SEC-04 uses local ASP.NET Core Identity, a same-origin HttpOnly cookie, and framework antiforgery tokens. Public registration is disabled. See [the API contract](docs/managed-game-server-api.md) and [authentication and ownership](docs/security/authentication-ownership.md).
+
+Historical ownerless resources are not visible through the authenticated Managed API. Existing legacy administrative APIs remain a public-deployment release gate. Real production or homologation activation also remains gated by the opt-in GH-16B Docker validation.

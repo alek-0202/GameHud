@@ -15,6 +15,7 @@ public interface IManagedServerStore
         throw new NotSupportedException("This store does not support HTTP idempotency.");
 
     Task<ManagedServerRequestResult?> GetRequestAsync(
+        string ownerId,
         string idempotencyKeyHash,
         CancellationToken cancellationToken = default) => Task.FromResult<ManagedServerRequestResult?>(null);
 

@@ -198,8 +198,8 @@ Status: Planned
 - SEC-01 threat model (Completed)
 - SEC-02 secrets management and redaction (Completed)
 - SEC-03 authentication (Planned)
-- SEC-04 ownership and authorization (Planned)
-- SEC-05 audit and security logging (Planned)
+- SEC-04 local Identity, cookie sessions and Managed API ownership (Completed)
+- SEC-05 legacy administrative surface isolation and security logging (Planned)
 - SEC-06 API and deployment hardening (Planned)
 
 ---
@@ -366,4 +366,4 @@ Status: In progress
 - ARCH-01 GamesHud Agent architecture
 # GH-17 — Managed Game Server Provisioning API
 
-Implemented: asynchronous create, durable SHA-256 idempotency, public server/provisioning projections, ordered step progress, and sanitized failures. Authentication/ownership, rate limiting, and production activation remain gated; production activation also requires a successful opt-in GH-16B run against real Docker.
+Implemented: asynchronous create, durable owner-scoped SHA-256 idempotency, authenticated owner-scoped server/provisioning projections, ordered step progress, and sanitized failures. SEC-04 adds local Identity cookie sessions, antiforgery, and historical ownerless isolation. Rate limiting, isolation of the legacy administrative surface, deployment hardening, and production activation remain gated; production activation also requires a successful opt-in GH-16B run against real Docker.

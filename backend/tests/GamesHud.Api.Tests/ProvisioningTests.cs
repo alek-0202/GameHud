@@ -1,4 +1,5 @@
 using System.Text.Json;
+using GamesHud.Api.Authentication;
 using GamesHud.Api.GameServers.Definitions;
 using GamesHud.Api.GameServers.Domain;
 using GamesHud.Api.GameServers.Ports;
@@ -671,6 +672,48 @@ public sealed class ProvisioningTests
         Assert.True(firstResult.Succeeded);
         Assert.True(secondResult.Succeeded);
         Assert.Equal(2, await database.ManagedGameServers.CountAsync());
+    }
+
+    [Fact]
+    public async Task IdempotencyIsScopedByOwnerAndRejectsFingerprintChangesWithinOwner()
+    {
+        using var root = TemporaryDirectory.Create();
+        await using var database = CreateInitializedDbContext(root.Path);
+        database.Users.AddRange(
+            new ApplicationUser { Id = "user-a", UserName = "user-a", SecurityStamp = "a" },
+            new ApplicationUser { Id = "user-b", UserName = "user-b", SecurityStamp = "b" });
+        await database.SaveChangesAsync();
+        var harness = CreateHarness(database, request => CreateValidatedPlan(request.GameServerId,
+            request.GameServerId == "server-b" ? 8212 : 8211, $"servers/{request.GameServerId}/data"));
+        var keyHash = new string('a', 64);
+        var firstFingerprint = new string('b', 64);
+        var secondFingerprint = new string('c', 64);
+
+        var first = await harness.Service.ScheduleIdempotentProvisioningAsync(
+            CreateRequest("server-a"), "user-a", keyHash, firstFingerprint, default);
+        var retry = await harness.Service.ScheduleIdempotentProvisioningAsync(
+            CreateRequest("ignored-retry-id"), "user-a", keyHash, firstFingerprint, default);
+        var conflict = await harness.Service.ScheduleIdempotentProvisioningAsync(
+            CreateRequest("ignored-conflict-id"), "user-a", keyHash, secondFingerprint, default);
+        var otherOwner = await harness.Service.ScheduleIdempotentProvisioningAsync(
+            CreateRequest("server-b"), "user-b", keyHash, secondFingerprint, default);
+
+        Assert.True(first.Succeeded);
+        Assert.True(first.Created);
+        Assert.True(retry.Succeeded);
+        Assert.False(retry.Created);
+        Assert.Equal(first.GameServerId, retry.GameServerId);
+        Assert.Equal(first.OperationId, retry.OperationId);
+        Assert.False(conflict.Succeeded);
+        Assert.Equal("idempotency_conflict", conflict.Failure?.Code);
+        Assert.True(otherOwner.Succeeded);
+        Assert.True(otherOwner.Created);
+        Assert.NotEqual(first.GameServerId, otherOwner.GameServerId);
+        Assert.Equal(2, await database.ManagedGameServers.CountAsync());
+        Assert.Equal(2, await database.ProvisioningOperations.CountAsync());
+        Assert.Equal(2, await database.ManagedGameServerRequests.CountAsync());
+        Assert.Equal(["user-a", "user-b"], await database.ManagedGameServerRequests
+            .OrderBy(request => request.OwnerId).Select(request => request.OwnerId!).ToArrayAsync());
     }
 
     private static ProvisioningPlanBuilder CreatePlanBuilder(GameDefinition definition, HostCapabilitySnapshot host) =>

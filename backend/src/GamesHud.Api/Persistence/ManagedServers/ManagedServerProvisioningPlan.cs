@@ -51,7 +51,10 @@ public sealed record ManagedServerReservationResult(
 
 public sealed record ManagedServerReservationConflict(string Code, string SafeMessage);
 
-public sealed record ManagedServerRequestIdentity(string IdempotencyKeyHash, string RequestFingerprint);
+public sealed record ManagedServerRequestIdentity(
+    string OwnerId,
+    string IdempotencyKeyHash,
+    string RequestFingerprint);
 
 public sealed record ManagedServerRequestResult(
     string RequestFingerprint,

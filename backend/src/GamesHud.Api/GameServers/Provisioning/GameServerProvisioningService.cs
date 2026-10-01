@@ -11,7 +11,7 @@ public interface IGameServerProvisioningService
     Task<ProvisioningExecutionResult> ScheduleProvisioningAsync(CreateGameServerProvisioningRequest request, CancellationToken cancellationToken);
     Task<ProvisioningExecutionResult> StartProvisioningAsync(CreateGameServerProvisioningRequest request, CancellationToken cancellationToken);
     Task<IdempotentProvisioningExecutionResult> ScheduleIdempotentProvisioningAsync(
-        CreateGameServerProvisioningRequest request, string idempotencyKeyHash,
+        CreateGameServerProvisioningRequest request, string ownerId, string idempotencyKeyHash,
         string requestFingerprint, CancellationToken cancellationToken);
     Task<IReadOnlyCollection<ProvisioningOperationSnapshot>> GetIncompleteOperationsAsync(CancellationToken cancellationToken);
 }
@@ -123,11 +123,13 @@ public sealed class GameServerProvisioningService : IGameServerProvisioningServi
 
     public async Task<IdempotentProvisioningExecutionResult> ScheduleIdempotentProvisioningAsync(
         CreateGameServerProvisioningRequest request,
+        string ownerId,
         string idempotencyKeyHash,
         string requestFingerprint,
         CancellationToken cancellationToken)
     {
-        var existing = await _store.GetRequestAsync(idempotencyKeyHash, cancellationToken);
+        ArgumentException.ThrowIfNullOrWhiteSpace(ownerId);
+        var existing = await _store.GetRequestAsync(ownerId, idempotencyKeyHash, cancellationToken);
         if (existing is not null)
             return Existing(existing, requestFingerprint);
 
@@ -138,18 +140,22 @@ public sealed class GameServerProvisioningService : IGameServerProvisioningServi
         var plan = CreatePersistencePlan(planResult);
         var conflict = await _store.FindReservationConflictAsync(plan, cancellationToken);
         if (conflict is not null)
+        {
+            existing = await _store.GetRequestAsync(ownerId, idempotencyKeyHash, cancellationToken);
+            if (existing is not null) return Existing(existing, requestFingerprint);
             return IdempotentFailed(new ProvisioningFailure(conflict.Code, conflict.SafeMessage));
+        }
 
         try
         {
             var result = await _store.ReserveIdempotentProvisioningPlanAsync(plan,
-                new ManagedServerRequestIdentity(idempotencyKeyHash, requestFingerprint), cancellationToken);
+                new ManagedServerRequestIdentity(ownerId, idempotencyKeyHash, requestFingerprint), cancellationToken);
             if (result.Created) _executionSignal?.Signal();
             return Existing(result, requestFingerprint);
         }
         catch (DbUpdateException)
         {
-            var winner = await _store.GetRequestAsync(idempotencyKeyHash, cancellationToken);
+            var winner = await _store.GetRequestAsync(ownerId, idempotencyKeyHash, cancellationToken);
             if (winner is not null) return Existing(winner, requestFingerprint);
             return IdempotentFailed(new ProvisioningFailure(ProvisioningErrorCodes.ReservationFailed,
                 "Resources could not be reserved because persisted state changed."));

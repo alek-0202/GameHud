@@ -314,23 +314,25 @@ public sealed class ManagedServerStore : IManagedServerStore
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(requestIdentity);
+        var ownerId = NormalizeOwnerId(requestIdentity.OwnerId);
         ValidateHash(requestIdentity.IdempotencyKeyHash, nameof(requestIdentity.IdempotencyKeyHash));
         ValidateHash(requestIdentity.RequestFingerprint, nameof(requestIdentity.RequestFingerprint));
 
-        var existing = await GetRequestAsync(requestIdentity.IdempotencyKeyHash, cancellationToken);
+        var existing = await GetRequestAsync(ownerId, requestIdentity.IdempotencyKeyHash, cancellationToken);
         if (existing is not null) return existing;
 
         var normalizedPlan = NormalizePlan(plan);
         return await _transactionBoundary.ExecuteAsync(async (dbContext, token) =>
         {
-            var reservation = await AddProvisioningPlanAsync(dbContext, normalizedPlan);
+            var reservation = await AddProvisioningPlanAsync(dbContext, normalizedPlan, ownerId);
             var request = new ManagedGameServerRequestRecord
             {
                 Id = CreateId(),
                 IdempotencyKeyHash = requestIdentity.IdempotencyKeyHash,
                 RequestFingerprint = requestIdentity.RequestFingerprint,
                 GameServerId = reservation.GameServerId,
-                ProvisioningOperationId = reservation.ProvisioningOperationId
+                ProvisioningOperationId = reservation.ProvisioningOperationId,
+                OwnerId = ownerId
             };
             dbContext.ManagedGameServerRequests.Add(request);
             return new ManagedServerRequestResult(request.RequestFingerprint, request.GameServerId,
@@ -339,12 +341,15 @@ public sealed class ManagedServerStore : IManagedServerStore
     }
 
     public async Task<ManagedServerRequestResult?> GetRequestAsync(
+        string ownerId,
         string idempotencyKeyHash,
         CancellationToken cancellationToken = default)
     {
+        var normalizedOwnerId = NormalizeOwnerId(ownerId);
         ValidateHash(idempotencyKeyHash, nameof(idempotencyKeyHash));
         var request = await _dbContext.ManagedGameServerRequests.AsNoTracking()
-            .SingleOrDefaultAsync(item => item.IdempotencyKeyHash == idempotencyKeyHash, cancellationToken);
+            .SingleOrDefaultAsync(item => item.OwnerId == normalizedOwnerId
+                && item.IdempotencyKeyHash == idempotencyKeyHash, cancellationToken);
         return request is null ? null : new ManagedServerRequestResult(request.RequestFingerprint,
             request.GameServerId, request.ProvisioningOperationId, request.CreatedAtUtc, false);
     }
@@ -355,9 +360,18 @@ public sealed class ManagedServerStore : IManagedServerStore
             throw new ArgumentException("A SHA-256 hexadecimal hash is required.", parameterName);
     }
 
+    private static string NormalizeOwnerId(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        var normalized = value.Trim();
+        return normalized.Length <= 450 ? normalized
+            : throw new ArgumentException("Owner id is too long.", nameof(value));
+    }
+
     private static Task<ManagedServerReservationResult> AddProvisioningPlanAsync(
         GamesHudDbContext dbContext,
-        ManagedServerProvisioningPlan normalizedPlan)
+        ManagedServerProvisioningPlan normalizedPlan,
+        string ownerId)
     {
         var operationId = CreateId();
         var gameServer = new ManagedGameServerRecord
@@ -365,7 +379,8 @@ public sealed class ManagedServerStore : IManagedServerStore
             Id = normalizedPlan.GameServerId, GameId = normalizedPlan.GameId,
             DisplayName = normalizedPlan.DisplayName, InstallationType = ManagedInstallationTypes.Managed,
             RuntimeType = normalizedPlan.RuntimeType,
-            LifecycleState = ManagedGameServerLifecycleStates.PendingProvisioning
+            LifecycleState = ManagedGameServerLifecycleStates.PendingProvisioning,
+            OwnerId = ownerId
         };
         var operation = new ProvisioningOperationRecord
         {

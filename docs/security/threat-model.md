@@ -426,7 +426,9 @@ SEC-02 controls implemented:
 
 ## Authentication and Authorization Assessment
 
-Current product is private/local and has no auth. If the API is exposed beyond the intended private boundary, reachable clients can:
+SEC-04 protects the Managed provisioning create and read routes with local ASP.NET Core Identity, same-origin HttpOnly cookie sessions, framework antiforgery, and owner-scoped data access. Cross-owner and historical ownerless resources return `404`; anonymous callers return `401` without login redirects. Durable idempotency is scoped by the authenticated owner.
+
+This protection does not cover the legacy administrative surface. If that API is exposed beyond the intended private boundary, reachable clients can:
 
 - Start, stop and restart arbitrary Docker containers accepted by Docker.
 - Read container logs and details.
@@ -437,22 +439,21 @@ Current product is private/local and has no auth. If the API is exposed beyond t
 - Trigger update flow.
 - Trigger Discord notification tests.
 
-SEC-03 requirements:
+SEC-04 controls implemented:
 
-- Secure admin login.
-- Session or token lifecycle.
-- CSRF strategy if cookie-based.
-- Rate limits and lockouts.
-- Secure defaults for local/private setup.
-- Public deployment blocked unless auth is configured.
+- Local Identity login, logout, and minimal session projection; public registration is disabled.
+- Identity password handling and lockout, generic login failures, and an internal account-provisioning boundary.
+- HttpOnly, `SameSite=Strict` cookie; production requires Secure transport.
+- Official ASP.NET Core antiforgery on login, logout, and Managed create.
+- `ICurrentUser` boundary and trusted-principal ownership for new Managed resources.
+- Owner-scoped queries and idempotency, with ownerless history preserved but hidden from the Managed API.
+- Persistent backend-configured Data Protection key directory.
 
-SEC-04 requirements:
+Remaining release gates:
 
-- Resource ownership model.
-- Per-server authorization.
-- Separation of read, operational, destructive and admin permissions.
-- Authorization checks before every mutating endpoint.
-- No authorization based only on frontend visibility.
+- SEC-05 isolation and actor-aware auditing for the legacy administrative endpoints.
+- SEC-06 deployment activation for persistent Data Protection storage, HTTPS, rate limiting, security headers, and controlled initial account provisioning.
+- GH-16B opt-in real Docker validation before Managed production activation.
 
 ## SSRF and Network Request Assessment
 
@@ -716,8 +717,8 @@ Existing or implied cards before future GH work:
 - GH-07.6 database design before durable multi-server persistence. (Completed)
 - SEC-02 local foundation is complete; future durable secret flows must use its references and store boundary.
 - SEC-03 before public deployment, public HTTPS or domain setup.
-- SEC-04 before multi-user access, server ownership or destructive operations under auth.
-- SEC-05 before public or multi-user destructive operations.
+- SEC-04 Managed API authentication and ownership is complete; it does not authorize the legacy administrative surface.
+- SEC-05 before public or multi-user legacy administrative or destructive operations.
 - SEC-06 before public API hardening and broader network exposure.
 - OPS-01/OPS-02/OPS-03 before an automated GamesHud updater or unpinned production image strategy.
 - OPS-04 before expanding restore automation.
@@ -725,8 +726,8 @@ Existing or implied cards before future GH work:
 
 New recommended cards:
 
-- SEC-05 Audit and Security Logging: durable actor/action/resource/outcome trail, redaction and incident review.
-- SEC-06 API and Deployment Hardening: rate limits, CSRF strategy, response minimization, public exposure guardrails and outbound request policy.
+- SEC-05 Legacy Administrative Surface Isolation: authenticate and authorize container lifecycle, logs, backups, Palworld administration, scheduler, updates, persistence and system operations; add a durable actor/action/resource/outcome audit trail.
+- SEC-06 Public Deployment/Auth Hardening: activate persistent Data Protection storage and HTTPS, add rate limits and security headers, define controlled initial account provisioning, and verify public exposure guardrails.
 - OPS-01 CI Pipeline: automated backend, frontend and migration validation. (Completed)
 - OPS-02 Dependency And Secret Scanning: NuGet/npm vulnerability gates and full-history secret scanning. (Completed)
 - OPS-03 Release Versioning and Integrity: versioning, build provenance, SBOM and signed release/update artifacts.

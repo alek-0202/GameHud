@@ -1,4 +1,5 @@
 using GamesHud.Api.Configuration;
+using GamesHud.Api.Authentication;
 using GamesHud.Api.Docker.Services;
 using GamesHud.Api.GameServers.Definitions;
 using GamesHud.Api.GameServers.Configuration;
@@ -25,8 +26,24 @@ using GamesHud.Api.Persistence.Provisioning;
 using GamesHud.Api.Secrets.Configuration;
 using GamesHud.Api.Secrets.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
+
+var authenticationOptions = new GamesHud.Api.Authentication.AuthenticationOptions();
+builder.Configuration.GetSection(GamesHud.Api.Authentication.AuthenticationOptions.SectionName)
+    .Bind(authenticationOptions);
+var storageOptions = new StorageOptions();
+builder.Configuration.GetSection(StorageOptions.SectionName).Bind(storageOptions);
+var dataProtectionKeysPath = string.IsNullOrWhiteSpace(authenticationOptions.DataProtectionKeysPath)
+    ? Path.Combine(ManagedStoragePathBuilder.ResolveDataRoot(storageOptions.DataRoot), "system", "data-protection-keys")
+    : Path.GetFullPath(authenticationOptions.DataProtectionKeysPath.Trim());
+Directory.CreateDirectory(dataProtectionKeysPath);
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath))
+    .SetApplicationName("GamesHud");
 
 builder.Services.Configure<DockerOptions>(builder.Configuration.GetSection(DockerOptions.SectionName));
 builder.Services.Configure<PalworldOptions>(builder.Configuration.GetSection(PalworldOptions.SectionName));
@@ -39,6 +56,8 @@ builder.Services.Configure<SecretStorageOptions>(builder.Configuration.GetSectio
 builder.Services.Configure<RuntimeHealthOptions>(builder.Configuration.GetSection(RuntimeHealthOptions.SectionName));
 builder.Services.Configure<RuntimeImageAcquisitionOptions>(builder.Configuration.GetSection(RuntimeImageAcquisitionOptions.SectionName));
 builder.Services.Configure<ProvisioningExecutorOptions>(builder.Configuration.GetSection(ProvisioningExecutorOptions.SectionName));
+builder.Services.Configure<GamesHud.Api.Authentication.AuthenticationOptions>(
+    builder.Configuration.GetSection(GamesHud.Api.Authentication.AuthenticationOptions.SectionName));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<PalworldGameDefinition>();
 builder.Services.AddSingleton<GameDefinition>(serviceProvider =>
@@ -62,6 +81,51 @@ builder.Services.AddDbContext<GamesHudDbContext>((serviceProvider, options) =>
     var layout = serviceProvider.GetRequiredService<IPersistenceLayoutResolver>().ResolveLayout();
     options.UseSqlite(PersistenceConnectionStringFactory.CreateSqliteConnectionString(layout.DatabasePath));
 });
+builder.Services.AddIdentityCore<ApplicationUser>(options =>
+{
+    options.User.RequireUniqueEmail = true;
+    options.Lockout.AllowedForNewUsers = true;
+    options.Lockout.MaxFailedAccessAttempts = 5;
+    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
+})
+    .AddEntityFrameworkStores<GamesHudDbContext>()
+    .AddSignInManager()
+    .AddDefaultTokenProviders();
+builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme).AddIdentityCookies();
+builder.Services.Configure<CookieAuthenticationOptions>(IdentityConstants.ApplicationScheme, options =>
+{
+    options.Cookie.Name = builder.Environment.IsDevelopment() ? "GamesHud.Auth" : "__Host-GamesHud.Auth";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
+    options.Cookie.Path = "/";
+    options.Events.OnRedirectToLogin = context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        return Task.CompletedTask;
+    };
+    options.Events.OnRedirectToAccessDenied = context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+        return Task.CompletedTask;
+    };
+});
+builder.Services.AddAuthorization();
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "X-CSRF-TOKEN";
+    options.Cookie.Name = builder.Environment.IsDevelopment()
+        ? "GamesHud.Antiforgery" : "__Host-GamesHud.Antiforgery";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
+    options.Cookie.Path = "/";
+});
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
+builder.Services.AddScoped<IAccountProvisioningService, AccountProvisioningService>();
 builder.Services.AddScoped<IPersistenceInitializer, PersistenceInitializer>();
 builder.Services.AddScoped<IPersistenceHealthService, PersistenceHealthService>();
 builder.Services.AddScoped<IPersistenceTransactionBoundary, EfCorePersistenceTransactionBoundary>();
@@ -167,7 +231,7 @@ builder.Services.AddHostedService<OperationalScheduler>();
 builder.Services
     .AddHttpClient<IPalworldRestService, PalworldRestService>()
     .ConfigureHttpClient(client => client.Timeout = Timeout.InfiniteTimeSpan);
-builder.Services.AddControllers();
+builder.Services.AddControllersWithViews();
 
 if (builder.Environment.IsDevelopment())
 {
@@ -194,6 +258,9 @@ if (app.Environment.IsDevelopment())
 {
     app.UseCors("LocalVite");
 }
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy" }));
 app.MapControllers();

@@ -1,5 +1,7 @@
 namespace GamesHud.Api.Persistence.Models;
 
+using GamesHud.Api.Authentication;
+
 public static class ManagedInstallationTypes
 {
     public const string Managed = "managed";
@@ -27,6 +29,10 @@ public sealed class ManagedGameServerRecord
     public string RuntimeType { get; set; } = string.Empty;
 
     public string LifecycleState { get; set; } = string.Empty;
+
+    public string? OwnerId { get; set; }
+
+    public ApplicationUser? Owner { get; set; }
 
     public DateTimeOffset CreatedAtUtc { get; set; }
 

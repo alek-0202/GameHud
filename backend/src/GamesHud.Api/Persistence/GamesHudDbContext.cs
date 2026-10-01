@@ -1,9 +1,11 @@
 using GamesHud.Api.Persistence.Models;
+using GamesHud.Api.Authentication;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace GamesHud.Api.Persistence;
 
-public sealed class GamesHudDbContext : DbContext
+public sealed class GamesHudDbContext : IdentityUserContext<ApplicationUser>
 {
     public GamesHudDbContext(DbContextOptions<GamesHudDbContext> options)
         : base(options)
@@ -60,6 +62,7 @@ public sealed class GamesHudDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         RuntimeImagePersistence.Configure(modelBuilder);
+        base.OnModelCreating(modelBuilder);
         modelBuilder.Entity<PersistenceMetadataRecord>(entity =>
         {
             entity.ToTable("persistence_metadata");
@@ -102,6 +105,10 @@ public sealed class GamesHudDbContext : DbContext
                 .IsRequired();
             entity.Property(server => server.UpdatedAtUtc)
                 .IsRequired();
+            entity.Property(server => server.OwnerId).HasMaxLength(450);
+            entity.HasIndex(server => server.OwnerId);
+            entity.HasOne(server => server.Owner).WithMany()
+                .HasForeignKey(server => server.OwnerId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<ManagedGameServerRequestRecord>(entity =>
@@ -114,7 +121,10 @@ public sealed class GamesHudDbContext : DbContext
             entity.Property(request => request.GameServerId).HasMaxLength(80).IsRequired();
             entity.Property(request => request.ProvisioningOperationId).HasMaxLength(32).IsRequired();
             entity.Property(request => request.CreatedAtUtc).IsRequired();
-            entity.HasIndex(request => request.IdempotencyKeyHash).IsUnique();
+            entity.Property(request => request.OwnerId).HasMaxLength(450);
+            entity.HasIndex(request => new { request.OwnerId, request.IdempotencyKeyHash }).IsUnique();
+            entity.HasIndex(request => request.IdempotencyKeyHash).IsUnique()
+                .HasFilter("\"OwnerId\" IS NULL");
             entity.HasIndex(request => request.GameServerId).IsUnique();
             entity.HasIndex(request => request.ProvisioningOperationId).IsUnique();
             entity.HasOne(request => request.GameServer).WithOne()
@@ -123,6 +133,8 @@ public sealed class GamesHudDbContext : DbContext
             entity.HasOne(request => request.ProvisioningOperation).WithOne()
                 .HasForeignKey<ManagedGameServerRequestRecord>(request => request.ProvisioningOperationId)
                 .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(request => request.Owner).WithMany()
+                .HasForeignKey(request => request.OwnerId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<ProvisioningOperationRecord>(entity =>

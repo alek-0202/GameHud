@@ -480,11 +480,13 @@ public sealed class PersistenceTests
     }
 
     [Fact]
-    public async Task ManagedSchemaDoesNotContainUsersAuthOrSecretColumns()
+    public async Task ManagedRecordsDoNotContainAuthOrSecretMaterial()
     {
         using var tempRoot = TemporaryDirectory.Create();
         await using var dbContext = CreateInitializedDbContext(tempRoot.Path);
+        var managedModelNamespace = typeof(ManagedGameServerRecord).Namespace;
         var modelText = JsonSerializer.Serialize(dbContext.Model.GetEntityTypes()
+            .Where(entityType => entityType.ClrType.Namespace == managedModelNamespace)
             .Select(entityType => new
             {
                 entityType.ClrType.Name,
