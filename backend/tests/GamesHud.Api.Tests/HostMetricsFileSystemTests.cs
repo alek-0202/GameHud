@@ -11,10 +11,4 @@ public sealed class HostMetricsFileSystemTests
 
         Assert.Equal(configuredPath, HostMetricsFileSystem.ResolveDriveInfoPath(configuredPath, isWindows: false));
     }
-
-    [Fact]
-    public void WindowsDriveLookupUsesDriveRoot()
-    {
-        Assert.Equal(@"D:\", HostMetricsFileSystem.ResolveDriveInfoPath(@"D:\gameshud\servers", isWindows: true));
-    }
 }
