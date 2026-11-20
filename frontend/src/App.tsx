@@ -4,11 +4,11 @@ import { ContainerDetailsPage } from './pages/ContainerDetailsPage'
 import { ContainersPage } from './pages/ContainersPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { GameCatalogPage } from './pages/GameCatalogPage'
+import { GameServerRoutePage } from './pages/GameServerRoutePage'
 import { GameServersPage } from './pages/GameServersPage'
 import { HostCapabilitiesPage } from './pages/HostCapabilitiesPage'
 import { PalworldAdvancedPage } from './pages/PalworldAdvancedPage'
 import { PalworldBackupsPage } from './pages/PalworldBackupsPage'
-import { PalworldLayout } from './pages/PalworldLayout'
 import { PalworldLogsPage } from './pages/PalworldLogsPage'
 import { PalworldOverviewPage } from './pages/PalworldOverviewPage'
 import { PalworldPlayersPage } from './pages/PalworldPlayersPage'
@@ -23,7 +23,7 @@ function App() {
         <Route index element={<DashboardPage />} />
         <Route path="games" element={<GameCatalogPage />} />
         <Route path="servers" element={<GameServersPage />} />
-        <Route path="servers/:serverId" element={<PalworldLayout />}>
+        <Route path="servers/:serverId" element={<GameServerRoutePage />}>
           <Route index element={<PalworldOverviewPage />} />
           <Route path="players" element={<PalworldPlayersPage />} />
           <Route path="settings" element={<PalworldSettingsPage />} />

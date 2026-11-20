@@ -228,6 +228,7 @@ Status: In progress
 - `GET /api/servers/{serverId}`
 - Server capabilities for overview, settings, players, backups, update and logs
 - Frontend Game Servers page backed by configured servers
+- GH-MC-01A LegacyExternal Docker game-server management UI with runtime validation and reusable lifecycle/log views (Completed)
 - GH-01 minimal game server domain model (Completed)
 - Explicit game server id, extensible game id, runtime and installation ownership
 - Legacy/external projection for the existing `Servers` collection and singular Palworld fallback

@@ -1,10 +1,12 @@
 using GamesHud.Api.GameServers.Contracts;
+using GamesHud.Api.GameServers.Controllers;
 using GamesHud.Api.GameServers.Definitions;
 using GamesHud.Api.GameServers.Domain;
 using GamesHud.Api.GameServers.Services;
 using GamesHud.Api.Palworld.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.Mvc;
 
 namespace GamesHud.Api.Tests;
 
@@ -31,8 +33,50 @@ public sealed class GameServerRegistryTests
 
         Assert.Equal("palworld", server.Id);
         Assert.Equal("palworld", server.GameType);
+        Assert.Equal(GameServerRuntime.DockerType, server.RuntimeType);
+        Assert.Equal(GameServerInstallationType.LegacyExternal, server.InstallationType);
         Assert.Equal("palworld", server.ContainerName);
         Assert.Contains(GameServerCapabilities.Players, server.Capabilities);
+    }
+
+    [Fact]
+    public void GetServersProjectsUnknownConfiguredGameAsExternalDockerRuntime()
+    {
+        var registry = CreateRegistry(new Dictionary<string, string?>
+        {
+            ["Servers:0:Id"] = "minecraft-lunchtime",
+            ["Servers:0:Type"] = "minecraft",
+            ["Servers:0:DisplayName"] = "Lunchtime",
+            ["Servers:0:ContainerName"] = "minecraft-lunchtime"
+        });
+
+        var server = Assert.Single(registry.GetServers());
+
+        Assert.Equal("minecraft-lunchtime", server.Id);
+        Assert.Equal("minecraft", server.GameType);
+        Assert.Equal(GameServerRuntime.DockerType, server.RuntimeType);
+        Assert.Equal(GameServerInstallationType.LegacyExternal, server.InstallationType);
+        Assert.Equal("minecraft-lunchtime", server.ContainerName);
+        Assert.Empty(server.Capabilities);
+    }
+
+    [Fact]
+    public void GetServerEndpointExposesNormalizedRuntimeAndInstallationOwnership()
+    {
+        var registry = CreateRegistry(new Dictionary<string, string?>
+        {
+            ["Servers:0:Id"] = "minecraft-lunchtime",
+            ["Servers:0:Type"] = "minecraft",
+            ["Servers:0:ContainerName"] = "minecraft-lunchtime"
+        });
+        var controller = new GameServersController(registry);
+
+        var result = Assert.IsType<OkObjectResult>(controller.GetServer("minecraft-lunchtime"));
+        var response = Assert.IsType<GameServerResponse>(result.Value);
+
+        Assert.Equal("docker", response.RuntimeType);
+        Assert.Equal("legacyExternal", response.InstallationType);
+        Assert.Equal("minecraft-lunchtime", response.ContainerName);
     }
 
     [Fact]
@@ -123,7 +167,7 @@ public sealed class GameServerRegistryTests
             .ToArray();
 
         Assert.Equal(
-            ["BrandingImage", "Capabilities", "ContainerName", "DisplayName", "GameType", "Id"],
+            ["BrandingImage", "Capabilities", "ContainerName", "DisplayName", "GameType", "Id", "InstallationType", "RuntimeType"],
             propertyNames);
         Assert.DoesNotContain(propertyNames, name =>
             name.Contains("Password", StringComparison.OrdinalIgnoreCase)

@@ -8,6 +8,9 @@ import { StatusBadge } from './StatusBadge'
 interface ServerCardProps {
   serverId?: string
   displayName?: string
+  gameType?: string
+  runtimeType?: string
+  installationType?: 'legacyExternal' | 'managed'
   config: PalworldConfig | null
   container: Container | null
   overview?: PalworldOverview | null
@@ -16,6 +19,9 @@ interface ServerCardProps {
 export function ServerCard({
   serverId = 'palworld',
   displayName,
+  gameType = 'palworld',
+  runtimeType = 'docker',
+  installationType = 'legacyExternal',
   config,
   container,
   overview = null,
@@ -26,6 +32,7 @@ export function ServerCard({
   const maxPlayers = overview?.maxPlayers ?? null
   const visiblePlayers = overview?.players.slice(0, 4) ?? []
   const remainingPlayers = Math.max(0, onlinePlayers - visiblePlayers.length)
+  const isPalworld = gameType.toLowerCase() === 'palworld'
 
   return (
     <article className="server-card">
@@ -37,38 +44,59 @@ export function ServerCard({
         <StatusBadge state={state} />
       </div>
 
-      <dl className="server-meta">
-        <div>
-          <dt>Players Online</dt>
-          <dd>{formatPlayerLimit(onlinePlayers, maxPlayers)}</dd>
-        </div>
-        <div>
-          <dt>Uptime</dt>
-          <dd>{formatDuration(overview?.uptimeSeconds ?? null)}</dd>
-        </div>
-        <div>
-          <dt>Version</dt>
-          <dd>{overview?.version ?? 'Unknown'}</dd>
-        </div>
-        <div>
-          <dt>Players</dt>
-          <dd>
-            {visiblePlayers.length === 0 ? (
-              'No players online'
-            ) : (
-              <span className="inline-player-list">
-                {visiblePlayers.map((player) => (
-                  <span className="player-chip" key={player.publicId ?? player.name}>
-                    <span>{getInitials(player.name)}</span>
-                    {player.name}
-                  </span>
-                ))}
-                {remainingPlayers > 0 && <span>+{remainingPlayers}</span>}
-              </span>
-            )}
-          </dd>
-        </div>
-      </dl>
+      {isPalworld ? (
+        <dl className="server-meta">
+          <div>
+            <dt>Players Online</dt>
+            <dd>{formatPlayerLimit(onlinePlayers, maxPlayers)}</dd>
+          </div>
+          <div>
+            <dt>Uptime</dt>
+            <dd>{formatDuration(overview?.uptimeSeconds ?? null)}</dd>
+          </div>
+          <div>
+            <dt>Version</dt>
+            <dd>{overview?.version ?? 'Unknown'}</dd>
+          </div>
+          <div>
+            <dt>Players</dt>
+            <dd>
+              {visiblePlayers.length === 0 ? (
+                'No players online'
+              ) : (
+                <span className="inline-player-list">
+                  {visiblePlayers.map((player) => (
+                    <span className="player-chip" key={player.publicId ?? player.name}>
+                      <span>{getInitials(player.name)}</span>
+                      {player.name}
+                    </span>
+                  ))}
+                  {remainingPlayers > 0 && <span>+{remainingPlayers}</span>}
+                </span>
+              )}
+            </dd>
+          </div>
+        </dl>
+      ) : (
+        <dl className="server-meta">
+          <div>
+            <dt>Game</dt>
+            <dd>{formatLabel(gameType)}</dd>
+          </div>
+          <div>
+            <dt>Runtime</dt>
+            <dd>{formatLabel(runtimeType)}</dd>
+          </div>
+          <div>
+            <dt>Installation</dt>
+            <dd>{installationType === 'legacyExternal' ? 'LegacyExternal' : 'Managed'}</dd>
+          </div>
+          <div>
+            <dt>Docker state</dt>
+            <dd>{container?.state || 'Unknown'}</dd>
+          </div>
+        </dl>
+      )}
 
       <div className="server-card-actions">
         <Link className="secondary-button" to={`/servers/${encodeURIComponent(serverId)}`}>
@@ -77,4 +105,12 @@ export function ServerCard({
       </div>
     </article>
   )
+}
+
+function formatLabel(value: string) {
+  const normalized = value.trim()
+
+  return normalized.length === 0
+    ? 'Unknown'
+    : `${normalized[0].toUpperCase()}${normalized.slice(1)}`
 }

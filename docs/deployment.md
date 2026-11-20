@@ -81,6 +81,11 @@ GAMESHUD_SCHEDULER_PALWORLD_RESTART_WAIT_SECONDS=60
 GAMESHUD_SCHEDULER_PALWORLD_RESTART_WARNING_0=10
 GAMESHUD_SCHEDULER_PALWORLD_RESTART_WARNING_1=5
 GAMESHUD_SCHEDULER_PALWORLD_RESTART_WARNING_2=1
+GAMESHUD_EXTERNAL_SERVER_ID=
+GAMESHUD_EXTERNAL_SERVER_TYPE=
+GAMESHUD_EXTERNAL_SERVER_DISPLAY_NAME=
+GAMESHUD_EXTERNAL_SERVER_CONTAINER=
+GAMESHUD_EXTERNAL_SERVER_CONNECTION_ADDRESS=
 GAMESHUD_PALWORLD_PATH=/path/to/palworld/data
 GAMESHUD_PALWORLD_BACKUP_PATH=/path/to/gameshud/palworld-backups
 GAMESHUD_PALWORLD_CONTAINER=palworld-server-example
@@ -135,6 +140,11 @@ Notifications__Discord__Events__Updates=${GAMESHUD_DISCORD_EVENT_UPDATES}
 Notifications__Discord__Events__PlayerJoinLeave=${GAMESHUD_DISCORD_EVENT_PLAYER_JOIN_LEAVE}
 Operations__Palworld__LifecycleTimeoutSeconds=${GAMESHUD_SCHEDULER_PALWORLD_LIFECYCLE_TIMEOUT_SECONDS}
 Operations__Palworld__RestartWaitSeconds=${GAMESHUD_SCHEDULER_PALWORLD_RESTART_WAIT_SECONDS}
+Servers__0__Id=${GAMESHUD_EXTERNAL_SERVER_ID}
+Servers__0__Type=${GAMESHUD_EXTERNAL_SERVER_TYPE}
+Servers__0__DisplayName=${GAMESHUD_EXTERNAL_SERVER_DISPLAY_NAME}
+Servers__0__ContainerName=${GAMESHUD_EXTERNAL_SERVER_CONTAINER}
+Servers__0__ConnectionAddress=${GAMESHUD_EXTERNAL_SERVER_CONNECTION_ADDRESS}
 Palworld__ContainerName=${GAMESHUD_PALWORLD_CONTAINER}
 Palworld__ConnectionAddress=${GAMESHUD_PALWORLD_CONNECTION_ADDRESS}
 Palworld__Backups__AutomaticEnabled=${GAMESHUD_PALWORLD_BACKUPS_AUTOMATIC_ENABLED}
@@ -162,6 +172,14 @@ The frontend does not receive the Palworld data directory.
 The frontend does not receive the Palworld backup directory.
 The frontend does not receive Palworld REST API credentials.
 The frontend does not receive Discord webhook URLs.
+
+## Optional External Game Server Registration
+
+The deployment template reserves `Servers__0` for one optional external Docker game server. Leave `GAMESHUD_EXTERNAL_SERVER_ID` and `GAMESHUD_EXTERNAL_SERVER_TYPE` empty when it is unused. A configured non-Palworld entry is exposed as `LegacyExternal`, and the UI resolves its registered id before targeting `GAMESHUD_EXTERNAL_SERVER_CONTAINER` through the existing Docker Core clients.
+
+This registration does not mount the external server data, join its Docker network, install a modpack, create or adopt a container, or add it to Managed provisioning. Use a stable container name and keep all addresses environment-specific. Additional entries may be supplied as `Servers__1__...`, `Servers__2__...` and so on in a private deployment override.
+
+The legacy Docker details, logs and lifecycle endpoints used by this UI remain a SEC-05 release gate, so GamesHud must stay private and must not be exposed publicly. The UI reports Docker process state and does not claim game-specific readiness.
 
 GamesHud creates a SQLite persistence database under the configured GamesHud data root at `<DataRoot>/system/gameshud.db`. This file is backend-only system state and is separate from Palworld data and backup mounts. Do not point it at the Palworld managed directory or backup directory. A production deployment should use a controlled persistent API-only data root before relying on persistence across container replacement.
 

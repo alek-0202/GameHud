@@ -45,6 +45,7 @@ Implemented:
 - Temporary personal Palworld settings editor isolated outside Docker Core
 - Temporary Palworld REST overview and players view isolated outside Docker Core
 - Server registry foundation with legacy Palworld fallback
+- LegacyExternal Docker game-server management UI with configured-container status, logs and manual lifecycle actions
 - Game catalog API backed by the game definition registry
 - Frontend Game Catalog page separated from configured servers
 - Palworld player administration through the backend REST integration
@@ -296,6 +297,24 @@ Optional multi-server configuration can be introduced with a `Servers` collectio
 }
 ```
 
+External Docker game servers use the same collection and remain `LegacyExternal`: GamesHud observes and manually controls their configured container, but does not provision, adopt, update or own it. The Docker runtime and installation ownership are returned by `GET /api/servers` and `GET /api/servers/{serverId}` so the frontend can reject unsupported runtimes.
+
+```json
+{
+  "Servers": [
+    {
+      "Id": "minecraft-lunchtime",
+      "Type": "minecraft",
+      "DisplayName": "Lunchtime",
+      "ContainerName": "minecraft-lunchtime",
+      "ConnectionAddress": "minecraft.example.test:25565"
+    }
+  ]
+}
+```
+
+The deployment template exposes one optional external registration through `GAMESHUD_EXTERNAL_SERVER_*`. Leaving its id or type empty preserves the existing singular Palworld fallback. Additional external servers can use further `Servers__N__...` entries in environment-specific Compose overrides. Container state is Docker process state only and must not be presented as Minecraft or game-specific readiness.
+
 ---
 
 ## API
@@ -435,6 +454,8 @@ DELETE /api/palworld/backups/{backupId}
 GET /api/palworld/update
 POST /api/palworld/update
 ```
+
+Configured non-Palworld `LegacyExternal` Docker servers use the generic server page. That page resolves the registered server first and then reuses the existing bounded Docker details, logs and manual start/stop/restart clients for its configured `ContainerName`. It does not add a new endpoint accepting arbitrary Docker ids.
 
 `GET` returns a typed settings list with metadata, current values and `hasValue` for protected password settings. It does not return plaintext passwords or raw INI content. Empty password values on `PUT` preserve the current password.
 

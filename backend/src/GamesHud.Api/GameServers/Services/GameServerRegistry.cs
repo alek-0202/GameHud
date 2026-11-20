@@ -121,12 +121,15 @@ public sealed class GameServerRegistry : IGameServerRegistry
         var capabilities = _plugins.TryGetValue(server.Type, out var plugin)
             ? plugin.Capabilities
             : Array.Empty<string>();
+        var gameServer = GameServerCompatibilityAdapter.ToDomain(server);
 
         return new GameServerDescriptor(
-            server.Id,
-            server.Type.Trim().ToLowerInvariant(),
-            ResolveDisplayName(server),
-            server.ContainerName.Trim(),
+            gameServer.Id.Value,
+            gameServer.GameId.Value,
+            gameServer.DisplayName,
+            gameServer.Runtime.Type,
+            gameServer.Installation.Type,
+            gameServer.Runtime.ExternalReference,
             string.IsNullOrWhiteSpace(server.BrandingImage) ? null : server.BrandingImage.Trim(),
             capabilities);
     }
@@ -185,16 +188,6 @@ public sealed class GameServerRegistry : IGameServerRegistry
         server.BrandingImage = server.BrandingImage.Trim();
 
         return server;
-    }
-
-    private static string ResolveDisplayName(GameServerOptions server)
-    {
-        if (!string.IsNullOrWhiteSpace(server.DisplayName))
-        {
-            return server.DisplayName.Trim();
-        }
-
-        return IsPalworld(server.Type) ? "Palworld" : server.Id;
     }
 
     private static bool IsPalworld(string type)

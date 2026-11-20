@@ -41,8 +41,20 @@ public sealed class GameServersController : ControllerBase
             server.Id,
             server.GameType,
             server.DisplayName,
+            server.RuntimeType,
+            MapInstallationType(server.InstallationType),
             server.ContainerName,
             server.BrandingImage,
             server.Capabilities);
+    }
+
+    private static string MapInstallationType(Domain.GameServerInstallationType installationType)
+    {
+        return installationType switch
+        {
+            Domain.GameServerInstallationType.LegacyExternal => "legacyExternal",
+            Domain.GameServerInstallationType.Managed => "managed",
+            _ => throw new ArgumentOutOfRangeException(nameof(installationType), installationType, null)
+        };
     }
 }

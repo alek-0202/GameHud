@@ -191,6 +191,8 @@ Use local environment variables for local testing. The backup path must be separ
 
 Optional multi-server development can use a `Servers` collection with `Id`, `Type`, `DisplayName`, `ContainerName`, `ManagedPath`, `BackupPath`, `ConnectionAddress`, and `RestApi`. If this collection is empty, GamesHud uses the singular `Palworld` configuration as a legacy server with id `palworld`.
 
+For a non-Palworld external Docker server, configure only the generic fields. The registry projects it as runtime `docker` and installation `legacyExternal`; the frontend resolves the server id before using the configured container name. Do not put host paths, credentials or Docker endpoints in the registration. Docker `running` means only that the container process is running, not that the game is ready.
+
 ---
 
 ## Backend Endpoints

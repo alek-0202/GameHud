@@ -46,7 +46,7 @@ function Sidebar() {
 
         <SidebarGroup title="Game Servers">
           <SidebarLink icon={Library} label="Game Catalog" to="/games" />
-          <SidebarLink icon={Gamepad2} label="Palworld" to="/servers/palworld" />
+          <SidebarLink icon={Gamepad2} label="My Servers" to="/servers" />
         </SidebarGroup>
 
         <SidebarGroup title="Infrastructure">
@@ -138,8 +138,8 @@ function getPageTitle(pathname: string) {
     return 'Game Catalog'
   }
 
-  if (pathname.startsWith('/servers/palworld')) {
-    return 'Palworld'
+  if (pathname.startsWith('/servers/')) {
+    return 'Game Server'
   }
 
   if (pathname.startsWith('/containers')) {

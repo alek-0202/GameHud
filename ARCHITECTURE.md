@@ -66,6 +66,8 @@ Docker is the first supported runtime, but the domain does not depend on Docker.
 
 The existing `Servers` configuration and singular `Palworld` fallback are compatibility sources. Servers projected from those sources use a Docker runtime and a `LegacyExternal` installation because GamesHud did not create their resources. Existing Palworld services continue to consume their current configuration while migration proceeds incrementally.
 
+The frontend resolves a configured server descriptor before choosing its management surface. Palworld continues through its plugin-specific layout. A non-Palworld server may use the generic external management page only when the backend descriptor reports runtime `docker`, installation `legacyExternal` and a non-empty configured container reference. That page reuses Docker Core details, bounded logs and explicit manual lifecycle clients; it does not add provisioning, adopt the container or treat Docker `running` as game readiness.
+
 Game server operational status is currently derived by overview and health services. It is not part of the domain model until a concrete domain consumer requires a normalized status.
 
 ### Game Definitions
@@ -366,6 +368,8 @@ Temporary Palworld configuration uses environment-specific values:
 - `Palworld__RestApi__*`
 
 The optional multi-server registry uses a `Servers` collection. If the collection is empty, GamesHud creates a legacy `palworld` server from the singular `Palworld` configuration. Server descriptors returned to the frontend must not include REST usernames, passwords, base URLs or filesystem paths.
+
+Server descriptors expose normalized runtime type and installation ownership so clients can fail closed before selecting a management surface. A container reference in a `LegacyExternal` descriptor is operational configuration, not Managed ownership proof.
 
 The client must never provide filesystem paths.
 
