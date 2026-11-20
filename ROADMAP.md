@@ -199,6 +199,7 @@ Status: Planned
 - SEC-02 secrets management and redaction (Completed)
 - SEC-03 authentication (Planned)
 - SEC-04 local Identity, cookie sessions and Managed API ownership (Completed)
+- SEC-04A one-time interactive first-account bootstrap CLI (Completed)
 - SEC-05 legacy administrative surface isolation and security logging (Planned)
 - SEC-06 API and deployment hardening (Planned)
 

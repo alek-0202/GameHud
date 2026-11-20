@@ -47,6 +47,7 @@ Implemented:
 - Server registry foundation with legacy Palworld fallback
 - LegacyExternal Docker game-server management UI with configured-container status, logs and manual lifecycle actions
 - Fixed Managed Minecraft installer for Lunchtime v2.6.0-r2 with durable `gh-mc01-v1` progress, approved artifact acquisition and real health-based readiness
+- One-time interactive CLI for safely bootstrapping the first local Identity account
 - Game catalog API backed by the game definition registry
 - Frontend Game Catalog page separated from configured servers
 - Palworld player administration through the backend REST integration

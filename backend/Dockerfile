@@ -4,12 +4,19 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
 COPY src/GamesHud.Api/GamesHud.Api.csproj src/GamesHud.Api/
+COPY src/GamesHud.Bootstrap/GamesHud.Bootstrap.csproj src/GamesHud.Bootstrap/
 RUN dotnet restore src/GamesHud.Api/GamesHud.Api.csproj
+RUN dotnet restore src/GamesHud.Bootstrap/GamesHud.Bootstrap.csproj
 
 COPY . .
 RUN dotnet publish src/GamesHud.Api/GamesHud.Api.csproj \
     --configuration Release \
     --output /app/publish \
+    --no-restore \
+    /p:UseAppHost=false
+RUN dotnet publish src/GamesHud.Bootstrap/GamesHud.Bootstrap.csproj \
+    --configuration Release \
+    --output /app/bootstrap \
     --no-restore \
     /p:UseAppHost=false
 
@@ -20,4 +27,5 @@ ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 
 COPY --from=build /app/publish .
+COPY --from=build /app/bootstrap /app/tools/bootstrap
 ENTRYPOINT ["dotnet", "GamesHud.Api.dll"]

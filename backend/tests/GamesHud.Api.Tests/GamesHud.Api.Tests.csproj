@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\GamesHud.Api\GamesHud.Api.csproj" />
+    <ProjectReference Include="..\..\src\GamesHud.Bootstrap\GamesHud.Bootstrap.csproj" />
   </ItemGroup>
 
 </Project>
