@@ -6,9 +6,37 @@ SEC-04 establishes the first authenticated, owner-scoped HTTP boundary for the M
 
 GamesHud uses local ASP.NET Core Identity with a minimal `ApplicationUser`. The browser session is an Identity application cookie in a same-origin BFF layout: the browser calls `/api` through the frontend origin. The cookie is HttpOnly, `SameSite=Strict`, path `/`, and `Secure` outside Development. API challenges and access denials return `401` and `403`; they never redirect to an HTML login page.
 
-There is no bearer token, external identity provider, public registration route, default account, seeded password, or production authentication bypass. `IAccountProvisioningService` is an internal application boundary for a future controlled tool. SEC-04 does not provide an operational first-account mechanism.
+There is no bearer token, external identity provider, public registration route, default account, seeded password, or production authentication bypass. `IAccountProvisioningService` remains an internal application boundary. SEC-04A adds a separate one-time administrative CLI for the first account only.
 
 Login failures always return `invalid_credentials`. Identity supplies password hashing and validation and locks a user for five minutes after five failed password attempts. Auth responses contain only the stable user id and email.
+
+## First-account bootstrap
+
+The production API image includes `GamesHud.Bootstrap.dll` under `/app/tools/bootstrap`. It uses the same dependency-injection registration, `UserManager<ApplicationUser>`, Identity options, persistence layout and `GamesHudDbContext` as the API. It adds no HTTP route and accepts no command-line arguments, environment variable, file or redirected standard input for credentials.
+
+Run the tool only from an interactive terminal after the API has started successfully and applied its existing migrations:
+
+```bash
+cd deploy
+docker compose exec -it gameshud-api \
+  dotnet /app/tools/bootstrap/GamesHud.Bootstrap.dll
+```
+
+The tool prompts for the email, which is also stored as the Identity username, followed by password and confirmation. Password input is not echoed. Do not place credentials after the command, in `.env`, in a shell variable, in a pipe or in a redirected file; the tool rejects command-line arguments and redirected input.
+
+Creation begins a serializable SQLite transaction before checking `AspNetUsers`. This makes competing bootstrap processes serialize against the same persisted database. The first valid attempt creates one account through Identity; every later attempt is refused when any user exists. Invalid Identity credentials leave the user table empty and may be retried interactively.
+
+Exit codes are:
+
+- `0`: first account created;
+- `1`: safe unexpected failure;
+- `2`: bootstrap refused because an account already exists;
+- `3`: invalid input or password confirmation mismatch;
+- `4`: configured Identity validation rejected the credentials;
+- `64`: non-interactive input or unsupported arguments;
+- `130`: cancellation.
+
+Messages never include the password, hash, token, connection string or exception detail. The CLI does not modify migrations, Data Protection keys, Managed ownership or provisioning contracts.
 
 ## SPA antiforgery flow
 
@@ -34,7 +62,7 @@ Owner foreign keys use `ON DELETE RESTRICT`; deleting an account cannot cascade-
 
 Identity cookies depend on stable ASP.NET Core Data Protection keys. `Authentication:DataProtectionKeysPath` selects a backend-controlled persistent directory. When it is empty, GamesHud uses `system/data-protection-keys` under the resolved backend `Storage:DataRoot`. Production must mount that location on persistent storage shared by every instance using the same cookie application name. Key material must never be stored in the repository or logged.
 
-HTTPS is required before public exposure because production cookies are always Secure. Deployment wiring was intentionally left unchanged in SEC-04. SEC-06 must activate and verify persistent Data Protection storage, HTTPS, rate limiting, security headers, and a controlled operational account-provisioning flow.
+HTTPS is required before public exposure because production cookies are always Secure. SEC-04A provides only first-account bootstrap; it does not complete SEC-06 deployment hardening, rate limiting, security headers, recovery, role administration or general account lifecycle management.
 
 SEC-04 protects only `POST /api/game-servers` and the two Managed reads. The legacy administrative surface remains anonymous and powerful. It must not be publicly exposed in a multi-user deployment. SEC-05 must isolate container lifecycle, logs, backups, Palworld administration, scheduler, update, persistence, and system operations, and add an actor-aware audit trail.
 

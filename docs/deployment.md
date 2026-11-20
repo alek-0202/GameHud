@@ -189,6 +189,20 @@ The legacy Docker details, logs and lifecycle endpoints used by this UI remain a
 
 GamesHud creates a SQLite persistence database under the configured GamesHud data root at `<DataRoot>/system/gameshud.db`. This file is backend-only system state and is separate from Palworld data and backup mounts. Do not point it at the Palworld managed directory or backup directory. A production deployment should use a controlled persistent API-only data root before relying on persistence across container replacement.
 
+## First Identity Account
+
+After a newly built API container has started successfully against an empty Identity user table, create the first account through the bundled interactive CLI:
+
+```bash
+cd deploy
+docker compose exec -it gameshud-api \
+  dotnet /app/tools/bootstrap/GamesHud.Bootstrap.dll
+```
+
+Enter the email and password only at the prompts. The password and confirmation are read without echo. Do not pass credentials as arguments, environment variables, shell variables, redirected files, heredocs or pipes; the tool accepts no arguments and requires an interactive terminal. This keeps the password out of shell history and Compose configuration.
+
+The command uses the API container's existing `Storage__DataRoot` and persistent `/managed/gameshud` mount, so it targets the same backend-derived SQLite database without accepting a database path. It refuses to create an account when any user already exists and serializes concurrent attempts through SQLite. It does not create an HTTP registration route, run Docker operations, alter Data Protection keys or change Managed ownership.
+
 Palworld backup archives and sidecar metadata continue to use the configured backend-only backup mount.
 
 ## Metrics Notes

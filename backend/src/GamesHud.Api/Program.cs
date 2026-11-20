@@ -26,7 +26,6 @@ using GamesHud.Api.Persistence.ManagedServers;
 using GamesHud.Api.Persistence.Provisioning;
 using GamesHud.Api.Secrets.Configuration;
 using GamesHud.Api.Secrets.Services;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.DataProtection;
@@ -51,8 +50,6 @@ builder.Services.Configure<PalworldOptions>(builder.Configuration.GetSection(Pal
 builder.Services.Configure<MetricsOptions>(builder.Configuration.GetSection(MetricsOptions.SectionName));
 builder.Services.Configure<NotificationOptions>(builder.Configuration.GetSection(NotificationOptions.SectionName));
 builder.Services.Configure<ScheduledOperationOptions>(builder.Configuration.GetSection(ScheduledOperationOptions.SectionName));
-builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection(StorageOptions.SectionName));
-builder.Services.Configure<PersistenceOptions>(builder.Configuration.GetSection(PersistenceOptions.SectionName));
 builder.Services.Configure<SecretStorageOptions>(builder.Configuration.GetSection(SecretStorageOptions.SectionName));
 builder.Services.Configure<RuntimeHealthOptions>(builder.Configuration.GetSection(RuntimeHealthOptions.SectionName));
 builder.Services.Configure<RuntimeImageAcquisitionOptions>(builder.Configuration.GetSection(RuntimeImageAcquisitionOptions.SectionName));
@@ -79,20 +76,7 @@ builder.Services.AddScoped<IGameStoragePlanner, GameStoragePlanner>();
 builder.Services.AddScoped<IManagedStorageTargetBuilder, ManagedStorageTargetBuilder>();
 builder.Services.AddSingleton<IManagedDirectoryOperations, SystemManagedDirectoryOperations>();
 builder.Services.AddSingleton<IManagedStorageProvider, ManagedStorageProvider>();
-builder.Services.AddSingleton<IPersistenceLayoutResolver, PersistenceLayoutResolver>();
-builder.Services.AddDbContext<GamesHudDbContext>((serviceProvider, options) =>
-{
-    var layout = serviceProvider.GetRequiredService<IPersistenceLayoutResolver>().ResolveLayout();
-    options.UseSqlite(PersistenceConnectionStringFactory.CreateSqliteConnectionString(layout.DatabasePath));
-});
-builder.Services.AddIdentityCore<ApplicationUser>(options =>
-{
-    options.User.RequireUniqueEmail = true;
-    options.Lockout.AllowedForNewUsers = true;
-    options.Lockout.MaxFailedAccessAttempts = 5;
-    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
-})
-    .AddEntityFrameworkStores<GamesHudDbContext>()
+builder.Services.AddGamesHudIdentityPersistence(builder.Configuration)
     .AddSignInManager()
     .AddDefaultTokenProviders();
 builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme).AddIdentityCookies();
@@ -129,8 +113,6 @@ builder.Services.AddAntiforgery(options =>
 });
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
-builder.Services.AddScoped<IAccountProvisioningService, AccountProvisioningService>();
-builder.Services.AddScoped<IPersistenceInitializer, PersistenceInitializer>();
 builder.Services.AddScoped<IPersistenceHealthService, PersistenceHealthService>();
 builder.Services.AddScoped<IPersistenceTransactionBoundary, EfCorePersistenceTransactionBoundary>();
 builder.Services.AddScoped<IManagedServerStore, ManagedServerStore>();
