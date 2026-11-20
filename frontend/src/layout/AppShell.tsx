@@ -4,6 +4,8 @@ import {
   Gamepad2,
   Gauge,
   LayoutDashboard,
+  Library,
+  MonitorCog,
   Settings,
   type LucideIcon,
 } from 'lucide-react'
@@ -43,7 +45,8 @@ function Sidebar() {
         </SidebarGroup>
 
         <SidebarGroup title="Game Servers">
-          <SidebarLink icon={Gamepad2} label="Palworld" to="/servers/palworld" />
+          <SidebarLink icon={Library} label="Game Catalog" to="/games" />
+          <SidebarLink icon={Gamepad2} label="My Servers" to="/servers" />
         </SidebarGroup>
 
         <SidebarGroup title="Infrastructure">
@@ -51,6 +54,7 @@ function Sidebar() {
         </SidebarGroup>
 
         <SidebarGroup title="System">
+          <SidebarLink icon={MonitorCog} label="Host" to="/host" />
           <SidebarLink icon={Settings} label="Settings" to="/settings" />
         </SidebarGroup>
       </nav>
@@ -127,15 +131,23 @@ function getPageTitle(pathname: string) {
   }
 
   if (pathname === '/servers') {
-    return 'Game Servers'
+    return 'My Servers'
   }
 
-  if (pathname.startsWith('/servers/palworld')) {
-    return 'Palworld'
+  if (pathname === '/games') {
+    return 'Game Catalog'
+  }
+
+  if (pathname.startsWith('/servers/')) {
+    return 'Game Server'
   }
 
   if (pathname.startsWith('/containers')) {
     return 'Containers'
+  }
+
+  if (pathname === '/host') {
+    return 'Host'
   }
 
   if (pathname === '/settings') {

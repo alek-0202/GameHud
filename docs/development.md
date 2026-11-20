@@ -15,7 +15,7 @@ git rev-parse --show-toplevel
 ## Prerequisites
 
 - .NET 8 SDK
-- Node.js
+- Node.js 22
 - npm
 - Docker, when testing Docker-backed endpoints or validating container builds locally
 
@@ -63,6 +63,8 @@ cd backend
 dotnet test
 ```
 
+The normal suite uses a fake typed Docker provider for managed runtime creation. It neither requires a Docker daemon nor mutates the developer host; any future real-Docker integration test must be explicitly isolated and skippable.
+
 Run:
 
 ```powershell
@@ -87,6 +89,43 @@ Metrics are configured through:
 - `Metrics__RetentionHours`
 - `Metrics:HostDiskPath`
 - `Metrics__HostDiskPath`
+
+Trusted public-image acquisition is configured through:
+
+- `RuntimeImageAcquisition:TimeoutSeconds` / `RuntimeImageAcquisition__TimeoutSeconds` (default `900`, maximum `3600`)
+- `RuntimeImageAcquisition:InspectTimeoutSeconds` / `RuntimeImageAcquisition__InspectTimeoutSeconds` (default `30`, maximum `120`)
+
+These values bound Docker pull and inspect calls. The acquisition target always comes from durable pinned intent; configuration cannot supply an image, digest, platform or registry credentials.
+
+Managed game storage planning is configured through:
+
+- `Storage:DataRoot`
+- `Storage__DataRoot`
+
+When no data root is configured, the backend uses an app-local fallback under `AppContext.BaseDirectory`. The storage planner derives deterministic server paths from a stable `gameServerId` and returns only advisory results. It does not create directories, copy saves, move existing data, create Docker volumes, change Compose files or persist allocation state.
+
+Persistence is configured through:
+
+- `Persistence:AutoMigrate`
+- `Persistence__AutoMigrate`
+
+The SQLite database path is derived internally from `Storage__DataRoot` as `<DataRoot>/system/gameshud.db`. Do not add a client-controlled database path or expose the absolute path or connection string through API contracts.
+
+EF Core migrations are the schema source of truth. Use the local tool manifest:
+
+```powershell
+dotnet tool restore
+dotnet tool run dotnet-ef migrations list --project backend/src/GamesHud.Api/GamesHud.Api.csproj --startup-project backend/src/GamesHud.Api/GamesHud.Api.csproj --context GamesHudDbContext
+```
+
+Do not use `EnsureCreated` for normal application setup.
+
+Secrets are configured through:
+
+- `Secrets:MasterKey`
+- `Secrets__MasterKey`
+
+`Secrets__MasterKey` is a bootstrap secret for the local encrypted provider. It must be a base64-encoded 32-byte key supplied from an environment-specific secret source. Leave it empty when secret-dependent features are not being exercised. Do not commit a real value to source, appsettings, examples or docs.
 
 Operational tools are configured through:
 
@@ -160,6 +199,8 @@ Use local environment variables for local testing. The backup path must be separ
 
 Optional multi-server development can use a `Servers` collection with `Id`, `Type`, `DisplayName`, `ContainerName`, `ManagedPath`, `BackupPath`, `ConnectionAddress`, and `RestApi`. If this collection is empty, GamesHud uses the singular `Palworld` configuration as a legacy server with id `palworld`.
 
+For a non-Palworld external Docker server, configure only the generic fields. The registry projects it as runtime `docker` and installation `legacyExternal`; the frontend resolves the server id before using the configured container name. Do not put host paths, credentials or Docker endpoints in the registration. Docker `running` means only that the container process is running, not that the game is ready.
+
 ---
 
 ## Backend Endpoints
@@ -212,6 +253,36 @@ GET http://localhost:5258/api/palworld/metrics?historyHours=24
 
 Metrics use one-shot Docker stats and short in-memory history. They do not expose Docker SDK models.
 
+Host capabilities:
+
+```text
+GET http://localhost:5258/api/system/capabilities
+```
+
+Host capability detection is read-only. It reports operating system, CPU, memory when available, primary storage, network inspection facts, Docker runtime reachability, readiness and friendly capability issues. It must not install Docker, open ports, change firewall rules, create directories, create containers or provision game servers.
+
+Persistence:
+
+```text
+GET http://localhost:5258/api/system/persistence
+```
+
+The persistence endpoint reports availability, provider and migration status only. It must not accept arbitrary database paths and must not expose filesystem paths, connection strings, table names or secrets.
+
+Secret store health:
+
+```text
+GET http://localhost:5258/api/system/secrets
+```
+
+The secret-store endpoint reports only readiness state. It must not expose secret ids, purposes, counts, paths, key details or stored material.
+
+Managed server persistence is internal infrastructure. There is no public technical CRUD endpoint for database records. Future create-server flows must use application services that reserve a validated plan transactionally before provisioning mutates Docker or the filesystem.
+
+GH-08 provides that internal application boundary through `IGameServerProvisioningService`. GH-09 retains the engine and adds centralized operation/step transitions, versioned relational checkpoints, recovery classification, reconciliation contracts, durable compensation progress and optimistic concurrency. `PreviewAsync` validates and plans without persistence. `StartProvisioningAsync` reserves a validated plan and runs only explicit no-host-mutation steps. Startup classifies incomplete operations but never resumes them automatically. No public provisioning endpoint or frontend create flow exists yet.
+
+Provisioning tests use fake host snapshots, fake steps/reconcilers and isolated SQLite databases. Crash tests recreate `DbContext` and services to prove persisted recovery decisions. They must not use Docker, create game directories, write game configuration or invoke SteamCMD. See [Provisioning State Machine](provisioning.md).
+
 Lifecycle actions:
 
 ```text
@@ -225,6 +296,41 @@ POST http://localhost:5258/api/containers/{containerId}/restart?timeoutSeconds=1
 Lifecycle actions are manual only and must be triggered explicitly. Stop and restart accept `timeoutSeconds`; the default is `10`, the minimum is `1`, and the maximum is `120`.
 
 Start returns a friendly success response when the container is already running. Stop returns a friendly success response when the container is already stopped.
+
+Game catalog:
+
+```text
+GET http://localhost:5258/api/games
+GET http://localhost:5258/api/games/{gameId}
+GET http://localhost:5258/api/games/{gameId}/compatibility
+POST http://localhost:5258/api/games/{gameId}/ports/plan
+POST http://localhost:5258/api/games/{gameId}/storage/plan
+```
+
+The game catalog endpoints return static game metadata from `GameDefinitionRegistry`. They do not return configured server instances, container names, paths, ports, runtime references or credentials.
+
+The compatibility endpoint combines static game requirements with the current host capability snapshot. It returns requirement checks, warnings and blocking issues only. It must not install software, create containers, reserve ports, create directories or change host configuration.
+
+The port plan endpoint combines static game port definitions with current host port observations. It returns default ports, current availability and candidate alternatives only. Alternative search is bounded to `preferredPort + 10` with the same protocol. Port availability is advisory until durable reservation exists.
+
+The storage plan endpoint accepts a body containing only `gameServerId`:
+
+```json
+{
+  "gameServerId": "palworld-preview"
+}
+```
+
+It combines static game storage definitions with the configured GamesHud data root and host free-space inspection. It returns relative managed paths, runtime targets, mount metadata, available bytes, required bytes and issues. It must not accept arbitrary host paths from clients and must not expose absolute backend filesystem paths in the simple game catalog response.
+
+Ports:
+
+```text
+GET http://localhost:5258/api/system/ports/tcp/8212
+GET http://localhost:5258/api/system/ports/udp/8211
+```
+
+Port checks are read-only and distinguish TCP from UDP. They must not open firewall rules, publish Docker ports, create containers, reserve ports or expose process names, PIDs, owners or container identifiers.
 
 Temporary Palworld integration:
 
@@ -279,11 +385,18 @@ The scheduler accepts only supported action types and never shell commands. Disc
 
 ## Frontend
 
-Install dependencies:
+Install dependencies for normal local development:
 
 ```powershell
 cd frontend
 npm install
+```
+
+Use the lockfile-only install when reproducing CI:
+
+```powershell
+cd frontend
+npm ci
 ```
 
 Run:
@@ -354,6 +467,8 @@ Use only a disposable test container for lifecycle homologation.
 
 ## Validation
 
+The complete CI contract, local equivalent commands and future required branch protection checks are documented in [Continuous Integration](ci.md).
+
 Backend validation:
 
 ```powershell
@@ -361,6 +476,8 @@ cd backend
 dotnet restore
 dotnet build
 dotnet test
+dotnet tool restore
+dotnet tool run dotnet-ef migrations list --project src/GamesHud.Api/GamesHud.Api.csproj --startup-project src/GamesHud.Api/GamesHud.Api.csproj --context GamesHudDbContext
 ```
 
 Frontend validation:

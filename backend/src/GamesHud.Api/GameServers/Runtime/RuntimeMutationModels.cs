@@ -1,0 +1,86 @@
+using GamesHud.Api.GameServers.Definitions;
+using GamesHud.Api.GameServers.Domain;
+using GamesHud.Api.Secrets.Models;
+using GamesHud.Api.Persistence.ManagedServers;
+
+namespace GamesHud.Api.GameServers.Runtime;
+
+public static class RuntimeRestartPolicies
+{
+    public const string UnlessStopped = "unless_stopped";
+}
+
+public static class RuntimeNetworkPolicies
+{
+    public const string GamesHudManaged = "gameshud_managed";
+}
+
+public sealed record RuntimePortBinding(
+    string ReservationId,
+    string DefinitionId,
+    string Protocol,
+    int ContainerPort,
+    int? HostPort,
+    bool Published,
+    string Exposure)
+{
+    public RuntimePortBinding(string reservationId, string definitionId, string protocol, int port, string exposure)
+        : this(reservationId, definitionId, protocol, port,
+            exposure == GameServers.Ports.PortExposures.Public ? port : null,
+            exposure == GameServers.Ports.PortExposures.Public,
+            exposure) { }
+
+    public int Port => HostPort ?? ContainerPort;
+}
+
+public sealed record RuntimeStorageMount(
+    string ReservationId,
+    string DefinitionId,
+    string SourcePath,
+    string RuntimeTarget,
+    bool ReadOnly,
+    string? ApiPath = null,
+    string? HostRoot = null);
+public sealed record RuntimeResourceLimits(int CpuCount, ulong MemoryBytes);
+
+public sealed record RuntimeMutationSpecification(
+    GameServerId GameServerId,
+    GameId GameId,
+    string OperationId,
+    string RuntimeType,
+    TrustedRuntimeImage Image,
+    IReadOnlyCollection<RuntimePortBinding> Ports,
+    IReadOnlyCollection<RuntimeStorageMount> Mounts,
+    IReadOnlyCollection<SecretReference> SecretReferences,
+    IReadOnlyCollection<TrustedRuntimeEnvironmentVariable> Environment,
+    RuntimeResourceLimits Resources,
+    string RestartPolicy,
+    string NetworkPolicy,
+    VerifiedRuntimeImage? VerifiedImage = null);
+
+public sealed class ValidatedRuntimeMutationSpecification
+{
+    internal ValidatedRuntimeMutationSpecification(RuntimeMutationSpecification value) => Value = value;
+    public RuntimeMutationSpecification Value { get; }
+}
+
+public sealed record RuntimePolicyViolation(string Code, string SafeMessage);
+
+public sealed record RuntimeMutationPolicyResult(
+    bool Allowed,
+    ValidatedRuntimeMutationSpecification? Specification,
+    IReadOnlyCollection<RuntimePolicyViolation> Violations);
+
+public static class RuntimePolicyErrorCodes
+{
+    public const string RuntimePolicyDenied = "runtime_policy_denied";
+    public const string UnknownRuntime = "unknown_runtime";
+    public const string UntrustedRuntimeImage = "untrusted_runtime_image";
+    public const string InvalidMount = "invalid_mount";
+    public const string ExternalStorageNotAllowed = "external_storage_not_allowed";
+    public const string PortReservationMismatch = "port_reservation_mismatch";
+    public const string UnsafeRuntimeConfiguration = "unsafe_runtime_configuration";
+    public const string ResourceLimitInvalid = "resource_limit_invalid";
+    public const string RuntimeEnvironmentInvalid = "runtime_environment_invalid";
+    public const string RuntimeEnvironmentMismatch = "runtime_environment_mismatch";
+}

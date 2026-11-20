@@ -1,28 +1,228 @@
 using GamesHud.Api.Configuration;
+using GamesHud.Api.Authentication;
 using GamesHud.Api.Docker.Services;
+using GamesHud.Api.GameServers.Definitions;
+using GamesHud.Api.GameServers.Artifacts;
+using GamesHud.Api.GameServers.Configuration;
+using GamesHud.Api.GameServers.Ports;
+using GamesHud.Api.GameServers.Provisioning;
+using GamesHud.Api.GameServers.Requirements;
+using GamesHud.Api.GameServers.Runtime;
 using GamesHud.Api.GameServers.Services;
+using GamesHud.Api.GameServers.Storage;
+using GamesHud.Api.HostCapabilities.Services;
 using GamesHud.Api.Metrics.Configuration;
 using GamesHud.Api.Metrics.Services;
 using GamesHud.Api.Operations.Notifications;
 using GamesHud.Api.Operations.Scheduling;
 using GamesHud.Api.Palworld.Backups.Services;
 using GamesHud.Api.Palworld.Configuration;
+using GamesHud.Api.Palworld.ManagedConfiguration;
 using GamesHud.Api.Palworld.Services;
 using GamesHud.Api.Palworld.Updates.Services;
+using GamesHud.Api.Persistence;
+using GamesHud.Api.Persistence.Configuration;
+using GamesHud.Api.Persistence.ManagedServers;
+using GamesHud.Api.Persistence.Provisioning;
+using GamesHud.Api.Secrets.Configuration;
+using GamesHud.Api.Secrets.Services;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
+
+var authenticationOptions = new GamesHud.Api.Authentication.AuthenticationOptions();
+builder.Configuration.GetSection(GamesHud.Api.Authentication.AuthenticationOptions.SectionName)
+    .Bind(authenticationOptions);
+var storageOptions = new StorageOptions();
+builder.Configuration.GetSection(StorageOptions.SectionName).Bind(storageOptions);
+var dataProtectionKeysPath = string.IsNullOrWhiteSpace(authenticationOptions.DataProtectionKeysPath)
+    ? Path.Combine(ManagedStoragePathBuilder.ResolveDataRoot(storageOptions.DataRoot), "system", "data-protection-keys")
+    : Path.GetFullPath(authenticationOptions.DataProtectionKeysPath.Trim());
+Directory.CreateDirectory(dataProtectionKeysPath);
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath))
+    .SetApplicationName("GamesHud");
 
 builder.Services.Configure<DockerOptions>(builder.Configuration.GetSection(DockerOptions.SectionName));
 builder.Services.Configure<PalworldOptions>(builder.Configuration.GetSection(PalworldOptions.SectionName));
 builder.Services.Configure<MetricsOptions>(builder.Configuration.GetSection(MetricsOptions.SectionName));
 builder.Services.Configure<NotificationOptions>(builder.Configuration.GetSection(NotificationOptions.SectionName));
 builder.Services.Configure<ScheduledOperationOptions>(builder.Configuration.GetSection(ScheduledOperationOptions.SectionName));
+builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection(StorageOptions.SectionName));
+builder.Services.Configure<PersistenceOptions>(builder.Configuration.GetSection(PersistenceOptions.SectionName));
+builder.Services.Configure<SecretStorageOptions>(builder.Configuration.GetSection(SecretStorageOptions.SectionName));
+builder.Services.Configure<RuntimeHealthOptions>(builder.Configuration.GetSection(RuntimeHealthOptions.SectionName));
+builder.Services.Configure<RuntimeImageAcquisitionOptions>(builder.Configuration.GetSection(RuntimeImageAcquisitionOptions.SectionName));
+builder.Services.Configure<ProvisioningExecutorOptions>(builder.Configuration.GetSection(ProvisioningExecutorOptions.SectionName));
+builder.Services.Configure<GamesHud.Api.Authentication.AuthenticationOptions>(
+    builder.Configuration.GetSection(GamesHud.Api.Authentication.AuthenticationOptions.SectionName));
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<PalworldGameDefinition>();
+builder.Services.AddSingleton<MinecraftGameDefinition>();
+builder.Services.AddSingleton<GameDefinition>(serviceProvider =>
+    serviceProvider.GetRequiredService<PalworldGameDefinition>());
+builder.Services.AddSingleton<GameDefinition>(serviceProvider =>
+    serviceProvider.GetRequiredService<MinecraftGameDefinition>());
+builder.Services.AddSingleton<IGameDefinitionRegistry, GameDefinitionRegistry>();
 builder.Services.AddSingleton<IGameServerPlugin, PalworldGameServerPlugin>();
 builder.Services.AddSingleton<IGameServerRegistry, GameServerRegistry>();
+builder.Services.AddSingleton<IGameRequirementEvaluator, GameRequirementEvaluator>();
+builder.Services.AddSingleton<IPortAllocator, PortAllocator>();
+builder.Services.AddSingleton<IDockerPublishedPortProvider, DockerPublishedPortProvider>();
+builder.Services.AddSingleton<IPortAvailabilityService, PortAvailabilityService>();
+builder.Services.AddScoped<IPortPlanner, PortPlanner>();
+builder.Services.AddSingleton<IManagedStoragePathBuilder, ManagedStoragePathBuilder>();
+builder.Services.AddScoped<IGameStoragePlanner, GameStoragePlanner>();
+builder.Services.AddScoped<IManagedStorageTargetBuilder, ManagedStorageTargetBuilder>();
+builder.Services.AddSingleton<IManagedDirectoryOperations, SystemManagedDirectoryOperations>();
+builder.Services.AddSingleton<IManagedStorageProvider, ManagedStorageProvider>();
+builder.Services.AddSingleton<IPersistenceLayoutResolver, PersistenceLayoutResolver>();
+builder.Services.AddDbContext<GamesHudDbContext>((serviceProvider, options) =>
+{
+    var layout = serviceProvider.GetRequiredService<IPersistenceLayoutResolver>().ResolveLayout();
+    options.UseSqlite(PersistenceConnectionStringFactory.CreateSqliteConnectionString(layout.DatabasePath));
+});
+builder.Services.AddIdentityCore<ApplicationUser>(options =>
+{
+    options.User.RequireUniqueEmail = true;
+    options.Lockout.AllowedForNewUsers = true;
+    options.Lockout.MaxFailedAccessAttempts = 5;
+    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
+})
+    .AddEntityFrameworkStores<GamesHudDbContext>()
+    .AddSignInManager()
+    .AddDefaultTokenProviders();
+builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme).AddIdentityCookies();
+builder.Services.Configure<CookieAuthenticationOptions>(IdentityConstants.ApplicationScheme, options =>
+{
+    options.Cookie.Name = builder.Environment.IsDevelopment() ? "GamesHud.Auth" : "__Host-GamesHud.Auth";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
+    options.Cookie.Path = "/";
+    options.Events.OnRedirectToLogin = context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        return Task.CompletedTask;
+    };
+    options.Events.OnRedirectToAccessDenied = context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+        return Task.CompletedTask;
+    };
+});
+builder.Services.AddAuthorization();
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "X-CSRF-TOKEN";
+    options.Cookie.Name = builder.Environment.IsDevelopment()
+        ? "GamesHud.Antiforgery" : "__Host-GamesHud.Antiforgery";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
+    options.Cookie.Path = "/";
+});
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
+builder.Services.AddScoped<IAccountProvisioningService, AccountProvisioningService>();
+builder.Services.AddScoped<IPersistenceInitializer, PersistenceInitializer>();
+builder.Services.AddScoped<IPersistenceHealthService, PersistenceHealthService>();
+builder.Services.AddScoped<IPersistenceTransactionBoundary, EfCorePersistenceTransactionBoundary>();
+builder.Services.AddScoped<IManagedServerStore, ManagedServerStore>();
+builder.Services.AddSingleton<IProvisioningStateMachine, ProvisioningStateMachine>();
+builder.Services.AddScoped<IProvisioningOperationStore, ProvisioningOperationStore>();
+builder.Services.AddScoped<IProvisioningRecoveryService, ProvisioningRecoveryService>();
+builder.Services.AddScoped<IProvisioningReconciliationService, ProvisioningReconciliationService>();
+builder.Services.AddScoped<IProvisioningContextLoader, ProvisioningContextLoader>();
+builder.Services.AddScoped<IProvisioningOperationExecutor, ProvisioningOperationExecutor>();
+builder.Services.AddSingleton<IProvisioningExecutionSignal, ProvisioningExecutionSignal>();
+builder.Services.AddScoped<IProvisioningPlanBuilder, ProvisioningPlanBuilder>();
+builder.Services.AddSingleton<PalworldProvisioningConfigurationCodec>();
+builder.Services.AddSingleton<IGameProvisioningConfigurationCodec>(services =>
+    services.GetRequiredService<PalworldProvisioningConfigurationCodec>());
+builder.Services.AddSingleton<MinecraftProvisioningConfigurationCodec>();
+builder.Services.AddSingleton<IGameProvisioningConfigurationCodec>(services =>
+    services.GetRequiredService<MinecraftProvisioningConfigurationCodec>());
+builder.Services.AddScoped<IGameProvisioningConfigurationStore, GameProvisioningConfigurationStore>();
+builder.Services.AddScoped<IMinecraftProvisioningIntentReader, MinecraftProvisioningIntentReader>();
+builder.Services.AddScoped<IRuntimeImageIntentStore, RuntimeImageIntentStore>();
+builder.Services.AddScoped<IProvisioningEngine, ProvisioningEngine>();
+builder.Services.AddScoped<IGameServerProvisioningService, GameServerProvisioningService>();
+builder.Services.AddScoped<IManagedGameServerApplicationService, ManagedGameServerApplicationService>();
+builder.Services.AddScoped<IManagedGameServerQueryService, ManagedGameServerQueryService>();
+builder.Services.AddSingleton<IRuntimeMutationPolicy, RuntimeMutationPolicy>();
+builder.Services.AddScoped<IRuntimeSpecificationBuilder, RuntimeSpecificationBuilder>();
+builder.Services.AddScoped<IRuntimeReconciliationSpecificationBuilder>(services =>
+    (RuntimeSpecificationBuilder)services.GetRequiredService<IRuntimeSpecificationBuilder>());
+builder.Services.AddSingleton<IDockerManagedRuntimeClient, DockerManagedRuntimeClient>();
+builder.Services.AddSingleton<IManagedRuntimeStorageValidator, ManagedRuntimeStorageValidator>();
+builder.Services.AddSingleton<DockerGameRuntimeAdapter>();
+builder.Services.AddSingleton<IGameRuntimeAdapter>(services => services.GetRequiredService<DockerGameRuntimeAdapter>());
+builder.Services.AddSingleton<IManagedRuntimeInspector>(services => services.GetRequiredService<DockerGameRuntimeAdapter>());
+builder.Services.AddScoped<IRuntimeMutationExecutor, RuntimeMutationExecutor>();
+builder.Services.AddSingleton<IDockerImageAcquisitionClient, DockerImageAcquisitionClient>();
+builder.Services.AddSingleton<IRuntimeImageAcquisitionAdapter, DockerRuntimeImageAcquisitionAdapter>();
+builder.Services.AddScoped<IProvisioningStep, CreateRuntimeProvisioningStep>();
+builder.Services.AddScoped<IProvisioningStep, AcquireImageProvisioningStep>();
+builder.Services.AddScoped<IProvisioningStepReconciler, AcquireImageReconciler>();
+builder.Services.AddHttpClient<IMinecraftArtifactAcquisitionService, MinecraftArtifactAcquisitionService>(client =>
+    client.Timeout = TimeSpan.FromMinutes(30))
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+builder.Services.AddScoped<IProvisioningStep, AcquireMinecraftArtifactProvisioningStep>();
+builder.Services.AddScoped<IProvisioningStepReconciler, AcquireMinecraftArtifactReconciler>();
+builder.Services.AddScoped<IProvisioningStepReconciler, CreateRuntimeReconciler>();
+builder.Services.AddScoped<IProvisioningStep, StartRuntimeProvisioningStep>();
+builder.Services.AddScoped<IProvisioningStepReconciler, StartRuntimeReconciler>();
+builder.Services.AddSingleton<IRuntimeHealthDelay, RuntimeHealthDelay>();
+builder.Services.AddScoped<IProvisioningStep, VerifyRuntimeHealthProvisioningStep>();
+builder.Services.AddScoped<IProvisioningStep, PrepareStorageProvisioningStep>();
+builder.Services.AddScoped<IProvisioningStepReconciler, PrepareStorageReconciler>();
+builder.Services.AddScoped<IPalworldManagedConfigurationTargetBuilder, PalworldManagedConfigurationTargetBuilder>();
+builder.Services.AddSingleton<IPalworldManagedConfigurationSerializer, PalworldManagedConfigurationSerializer>();
+builder.Services.AddSingleton<IPalworldManagedConfigurationFileSystem, SystemPalworldManagedConfigurationFileSystem>();
+builder.Services.AddSingleton<IPalworldManagedConfigurationFileStore, PalworldManagedConfigurationFileStore>();
+builder.Services.AddScoped<IPalworldManagedConfigurationIntentReader, PalworldManagedConfigurationIntentReader>();
+builder.Services.AddScoped<ConfigurePalworldGameProvisioningStep>();
+builder.Services.AddScoped<ConfigurePalworldGameReconciler>();
+builder.Services.AddScoped<ConfigureMinecraftGameProvisioningStep>();
+builder.Services.AddScoped<ConfigureMinecraftGameReconciler>();
+builder.Services.AddScoped<IProvisioningStep, ConfigureManagedGameProvisioningStep>();
+builder.Services.AddScoped<IProvisioningStepReconciler, ConfigureManagedGameReconciler>();
+foreach (var stepId in ProvisioningStepIds.ExecutableFoundation.Where(id =>
+    id != ProvisioningStepIds.CreateRuntime && id != ProvisioningStepIds.PrepareStorage
+    && id != ProvisioningStepIds.ConfigureGame && id != ProvisioningStepIds.StartRuntime
+    && id != ProvisioningStepIds.VerifyHealth))
+{
+    builder.Services.AddScoped<IProvisioningStep>(_ => new NoHostMutationProvisioningStep(stepId));
+}
+builder.Services.AddHostedService<ProvisioningExecutor>();
+builder.Services.AddSingleton<ISecretStoreLayoutResolver, SecretStoreLayoutResolver>();
+builder.Services.AddSingleton<ISecretKeyProvider, ConfigurationSecretKeyProvider>();
+builder.Services.AddSingleton<ISecretProtector, AesGcmSecretProtector>();
+builder.Services.AddSingleton<ISecretStoreHealthService, SecretStoreHealthService>();
+builder.Services.AddSingleton<ISecretStore, FileSecretStore>();
 builder.Services.AddScoped<IContainerService, DockerContainerService>();
 builder.Services.AddSingleton<IHostMetricsFileSystem, HostMetricsFileSystem>();
-builder.Services.AddSingleton<IHostMetricsService, LinuxHostMetricsService>();
+builder.Services.AddSingleton<IHostSystemInfoProvider, RuntimeHostSystemInfoProvider>();
+builder.Services.AddSingleton<LinuxHostMetricsService>();
+builder.Services.AddSingleton<UnsupportedHostMetricsService>();
+builder.Services.AddSingleton<IHostMetricsService>(serviceProvider =>
+    serviceProvider.GetRequiredService<IHostSystemInfoProvider>().IsLinux
+        ? serviceProvider.GetRequiredService<LinuxHostMetricsService>()
+        : serviceProvider.GetRequiredService<UnsupportedHostMetricsService>());
+builder.Services.AddSingleton<IHostSystemInspector, HostSystemInspector>();
+builder.Services.AddSingleton<IHostStorageInfoProvider, RuntimeHostStorageInfoProvider>();
+builder.Services.AddSingleton<IHostResourceInspector, HostResourceInspector>();
+builder.Services.AddSingleton<IHostNetworkInfoProvider, RuntimeHostNetworkInfoProvider>();
+builder.Services.AddSingleton<IHostNetworkInspector, HostNetworkInspector>();
+builder.Services.AddScoped<IDockerRuntimeClient, DockerRuntimeClient>();
+builder.Services.AddScoped<IHostRuntimeInspector, HostRuntimeInspector>();
+builder.Services.AddScoped<IHostCapabilityService, HostCapabilityService>();
 builder.Services.AddScoped<IDockerMetricsService, DockerMetricsService>();
 builder.Services.AddScoped<IMetricsService, MetricsService>();
 builder.Services.AddScoped<IPalworldMetricsService, PalworldMetricsService>();
@@ -49,7 +249,7 @@ builder.Services.AddHostedService<OperationalScheduler>();
 builder.Services
     .AddHttpClient<IPalworldRestService, PalworldRestService>()
     .ConfigureHttpClient(client => client.Timeout = Timeout.InfiniteTimeSpan);
-builder.Services.AddControllers();
+builder.Services.AddControllersWithViews();
 
 if (builder.Environment.IsDevelopment())
 {
@@ -67,14 +267,22 @@ if (builder.Environment.IsDevelopment())
 
 var app = builder.Build();
 
+await using (var scope = app.Services.CreateAsyncScope())
+{
+    await scope.ServiceProvider.GetRequiredService<IPersistenceInitializer>().InitializeAsync();
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.UseCors("LocalVite");
 }
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy" }));
 app.MapControllers();
 
-app.Run();
+await app.RunAsync();
 
 public partial class Program;

@@ -80,6 +80,26 @@ interface GameServerCardProps {
 }
 
 function GameServerCard({ server, containers }: GameServerCardProps) {
+  if (server.gameType.toLowerCase() !== 'palworld') {
+    const container = findContainerByName(containers, server.containerName)
+
+    return (
+      <ServerCard
+        config={null}
+        container={container}
+        displayName={server.displayName}
+        gameType={server.gameType}
+        installationType={server.installationType}
+        runtimeType={server.runtimeType}
+        serverId={server.id}
+      />
+    )
+  }
+
+  return <PalworldGameServerCard containers={containers} server={server} />
+}
+
+function PalworldGameServerCard({ server, containers }: GameServerCardProps) {
   const overviewState = usePalworldOverview(20000, server.id)
   const overview = overviewState.status === 'success' ? overviewState.overview : null
   const container = findContainerByName(containers, overview?.containerName ?? server.containerName)
@@ -90,7 +110,10 @@ function GameServerCard({ server, containers }: GameServerCardProps) {
         config={null}
         container={container}
         displayName={server.displayName}
+        gameType={server.gameType}
+        installationType={server.installationType}
         overview={overview}
+        runtimeType={server.runtimeType}
         serverId={server.id}
       />
       {overviewState.status !== 'success' && overviewState.status !== 'loading' && (

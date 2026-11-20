@@ -3,15 +3,19 @@ import { AppShell } from './layout/AppShell'
 import { ContainerDetailsPage } from './pages/ContainerDetailsPage'
 import { ContainersPage } from './pages/ContainersPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { GameCatalogPage } from './pages/GameCatalogPage'
+import { GameServerRoutePage } from './pages/GameServerRoutePage'
 import { GameServersPage } from './pages/GameServersPage'
+import { HostCapabilitiesPage } from './pages/HostCapabilitiesPage'
 import { PalworldAdvancedPage } from './pages/PalworldAdvancedPage'
 import { PalworldBackupsPage } from './pages/PalworldBackupsPage'
-import { PalworldLayout } from './pages/PalworldLayout'
 import { PalworldLogsPage } from './pages/PalworldLogsPage'
 import { PalworldOverviewPage } from './pages/PalworldOverviewPage'
 import { PalworldPlayersPage } from './pages/PalworldPlayersPage'
 import { PalworldSettingsPage } from './pages/PalworldSettingsPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { ManagedGameServerPage } from './pages/ManagedGameServerPage'
+import { MinecraftInstallPage } from './pages/MinecraftInstallPage'
 import './App.css'
 
 function App() {
@@ -19,8 +23,11 @@ function App() {
     <Routes>
       <Route element={<AppShell />}>
         <Route index element={<DashboardPage />} />
+        <Route path="games" element={<GameCatalogPage />} />
+        <Route path="games/minecraft/install" element={<MinecraftInstallPage />} />
+        <Route path="managed-servers/:serverId" element={<ManagedGameServerPage />} />
         <Route path="servers" element={<GameServersPage />} />
-        <Route path="servers/:serverId" element={<PalworldLayout />}>
+        <Route path="servers/:serverId" element={<GameServerRoutePage />}>
           <Route index element={<PalworldOverviewPage />} />
           <Route path="players" element={<PalworldPlayersPage />} />
           <Route path="settings" element={<PalworldSettingsPage />} />
@@ -30,6 +37,7 @@ function App() {
         </Route>
         <Route path="containers" element={<ContainersPage />} />
         <Route path="containers/:containerId" element={<ContainerDetailsPage />} />
+        <Route path="host" element={<HostCapabilitiesPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate replace to="/" />} />
       </Route>

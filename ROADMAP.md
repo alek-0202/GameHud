@@ -2,6 +2,8 @@
 
 Versions and scope may evolve, but the architectural order should be preserved: generic Docker Core first, operational safeguards next, private deployment foundation, then authentication, public exposure and plugins.
 
+Security milestone details are tracked in [Threat Model](docs/security/threat-model.md).
+
 ---
 
 ## Status Legend
@@ -193,6 +195,12 @@ Status: Planned
 - Session management
 - Administrator role
 - Protection for Docker lifecycle actions
+- SEC-01 threat model (Completed)
+- SEC-02 secrets management and redaction (Completed)
+- SEC-03 authentication (Planned)
+- SEC-04 local Identity, cookie sessions and Managed API ownership (Completed)
+- SEC-05 legacy administrative surface isolation and security logging (Planned)
+- SEC-06 API and deployment hardening (Planned)
 
 ---
 
@@ -220,12 +228,88 @@ Status: In progress
 - `GET /api/servers/{serverId}`
 - Server capabilities for overview, settings, players, backups, update and logs
 - Frontend Game Servers page backed by configured servers
+- GH-MC-01A LegacyExternal Docker game-server management UI with runtime validation and reusable lifecycle/log views (Completed)
+- GH-01 minimal game server domain model (Completed)
+- Explicit game server id, extensible game id, runtime and installation ownership
+- Legacy/external projection for the existing `Servers` collection and singular Palworld fallback
+- Deterministic duplicate server id rejection
+- GH-02 game definition system (Completed)
+- Code-backed Palworld definition with static metadata, Docker runtime support and implemented capabilities
+- Separate game definition registry with deterministic duplicate and unknown-id behavior
+- GH-03 game catalog (Completed)
+- `GET /api/games` and `GET /api/games/{gameId}` backed by `GameDefinitionRegistry`
+- Frontend Game Catalog page separated from configured game servers
+- GH-04 host capability detection (Completed)
+- `GET /api/system/capabilities` for read-only OS, CPU, memory, storage, network and Docker runtime inspection
+- Host capabilities are separate from game requirements and do not perform provisioning
+- GH-05 game requirements engine (Completed)
+- Palworld requirements declared from the official server guide
+- `GET /api/games/{gameId}/compatibility` combines static game requirements with read-only host capabilities
+- Frontend Game Catalog can check host fit on demand without creating or provisioning servers
+- GH-06 port management foundation (Completed)
+- Game definitions can declare logical ports with protocol, exposure and alternative policy
+- Palworld declares game, query and private REST/admin ports
+- `GET /api/system/ports/{protocol}/{port}` checks host port availability without mutation
+- `POST /api/games/{gameId}/ports/plan` previews preferred and alternative port candidates
+- Port availability remains advisory until durable reservation exists
+- GH-07 storage and volume manager foundation (Completed)
+- Game definitions can declare logical storage entries with purpose, runtime target, persistence and backup eligibility
+- Palworld declares persistent game data at runtime target `/palworld` without a host path
+- `Storage__DataRoot` configures the GamesHud managed data root with an app-local fallback
+- `POST /api/games/{gameId}/storage/plan` previews deterministic managed layout for a supplied `gameServerId`
+- Storage planning is advisory and does not create directories, Docker volumes, bind mounts, compose changes or durable records
+- GH-07.5 persistence foundation (Completed)
+- EF Core + SQLite stores technical persistence metadata under `<DataRoot>/system/gameshud.db`
+- EF migrations are versioned and startup initialization is centralized behind a persistence initializer
+- `GET /api/system/persistence` reports provider and migration health without exposing paths or connection strings
+- The foundation does not persist secrets, register game servers, reserve ports/storage or adopt legacy Palworld resources
+- GH-07.6 product database schema (Completed)
+- Managed game server records, port reservations, storage reservations and provisioning operation records are persisted
+- Port reservations enforce durable `protocol + port` uniqueness while allowing TCP/UDP to share a number
+- Storage reservations enforce unique managed relative paths under the GamesHud data root
+- Reservation writes are atomic and remain separate from Docker, filesystem and provisioning mutation
+- GH-08 provisioning engine foundation (Completed)
+- Internal request-to-validated-plan-to-reservation pipeline reuses host requirements and port/storage planners
+- Typed steps persist operation progress, safe failure, cancellation and terminal state
+- Compensation and incomplete-operation query foundations exist without automatic startup recovery
+- All production host-facing steps are explicit no-mutation implementations; no server runtime is created
+- GH-09 provisioning state machine (Completed)
+- Operation and individual step transitions are centralized, persisted and exhaustively tested
+- Versioned pipelines preserve stable step order, attempts, retry policy and side-effect classification across restart
+- Startup classifies incomplete operations without automatically retrying mutation or executing recovery
+- Reconciliation and durable reverse-compensation contracts exist with optimistic checkpoint concurrency
+- SEC-02 secrets management foundation (Completed)
+- Provider-neutral secret ids, references, purposes and backend-only secret values exist before provisioning
+- The local provider stores authenticated encrypted material under `<DataRoot>/system/secrets`
+- The bootstrap key is external configuration only, and missing/invalid keys fail closed without plaintext fallback
+- `GET /api/system/secrets` reports minimal readiness without exposing ids, purposes, counts, paths or material
+- SEC-03 runtime mutation security policy (Completed)
+- Typed unvalidated/validated runtime specifications and deny-by-default policy
+- Backend-controlled runtime images, managed reservation mount/port enforcement and opaque secret references
+- Typed no-mutation runtime adapter boundary integrated before `create_runtime`
+- GH-10 runtime mutation execution foundation (Completed)
+- Stable mutation/resource identities, typed provider outcomes and safe exception/cancellation translation
+- Unknown runtime outcomes route to GH-09 reconciliation without blind retry
+- GH-11 managed storage preparation (Completed)
+- Typed Managed targets, DataRoot containment and symlink/reparse inspection before directory creation
+- Idempotent directory preparation and real storage reconciliation without destructive compensation
 
 Remaining:
 
 - Durable server registration UI
 - Non-Palworld plugin implementation
 - Migration of all temporary Palworld features onto server-scoped contracts
+- GH-12 Managed Docker runtime creation (Completed: create-only, stopped, reconciliable)
+- GH-13 Managed runtime start and generic readiness (Completed: typed start, reconciliation, bounded read-only health)
+- ARCH-02 Trusted runtime environment contract (Completed: definition-owned non-secret environment, SEC-03 validation, Docker mapping and drift reconciliation)
+- GH-14A Durable game provisioning configuration (Completed: typed/versioned intent, semantic secret references, transactional persistence and fail-closed reconstruction)
+- GH-14 Palworld Managed configuration (Completed: durable intent materialization, late secret resolution, hardened atomic file write and tri-state reconciliation)
+- ARCH-03 Durable runtime image identity foundation (Completed: immutable digest/platform intent, distinct verified local image id, versioned V2 pipeline and durable reconciliation application)
+- GH-15 Trusted Docker image acquisition (Completed: inspect-before-pull, public digest-only acquisition, final identity verification and crash reconciliation)
+- GH-15A Pinned Palworld image activation (Completed: new Managed Palworld operations select `gh15-v2` using the human-approved `v2.7.3` `linux/amd64` platform manifest digest while persisted V1 operations remain V1)
+- ARCH-04 Durable Managed provisioning orchestrator and Docker host contract (Completed: worker-owned execution, DB discovery, reconciliation/resume, atomic finalization, API/host paths and container/host ports)
+- GH-16 End-to-end Managed Palworld (Completed: real internal V2 pipeline with SQLite/filesystem integration, boundary fakes, recovery hardening and durable final-state proof)
+- GH-16B Controlled Docker integration validation (Prepared, execution pending explicit approval: exact digest pull, local image identity, bind visibility, HEALTHCHECK, port bindings and restart persistence)
 
 ---
 
@@ -255,9 +339,32 @@ Temporary note:
 
 ---
 
+## Operations Foundation
+
+Status: In progress
+
+- OPS-01 CI pipeline (Completed)
+- GitHub Actions validation for pushes and pull requests on `develop` and `main`
+- Separate backend build/test, frontend build and EF Core migration checks
+- Read-only workflow permissions and isolated tests without production secrets, Docker, Palworld or VPS access
+- Documented local CI equivalents and future branch protection check names
+- OPS-02 dependency and secret scanning (Completed)
+- High/Critical gates for direct and transitive NuGet and npm advisories
+- Weekly full-history secret scanning with pinned, checksum-verified Gitleaks
+- Zero known npm and NuGet vulnerability findings at the OPS-02 baseline
+- Weekly Dependabot PRs for NuGet, npm and GitHub Actions without auto-merge
+- OPS-03 release versioning and integrity (Planned)
+- OPS-04 backup and restore hardening (Planned)
+
+---
+
 ## Deferred
 
 - Real-time logs
 - SignalR/WebSockets
 - Multi-user permissions
 - Additional game plugins
+- ARCH-01 GamesHud Agent architecture
+# GH-17 — Managed Game Server Provisioning API
+
+Implemented: asynchronous create, durable owner-scoped SHA-256 idempotency, authenticated owner-scoped server/provisioning projections, ordered step progress, and sanitized failures. SEC-04 adds local Identity cookie sessions, antiforgery, and historical ownerless isolation. Rate limiting, isolation of the legacy administrative surface, deployment hardening, and production activation remain gated; production activation also requires a successful opt-in GH-16B run against real Docker.

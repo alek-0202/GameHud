@@ -1,16 +1,17 @@
+using GamesHud.Api.GameServers.Definitions;
+
 namespace GamesHud.Api.GameServers.Services;
 
 public sealed class PalworldGameServerPlugin : IGameServerPlugin
 {
-    public string GameType => "palworld";
+    private readonly PalworldGameDefinition _definition;
 
-    public IReadOnlyCollection<string> Capabilities { get; } =
-    [
-        GameServerCapabilities.Overview,
-        GameServerCapabilities.Settings,
-        GameServerCapabilities.Players,
-        GameServerCapabilities.Backups,
-        GameServerCapabilities.Update,
-        GameServerCapabilities.Logs
-    ];
+    public PalworldGameServerPlugin(PalworldGameDefinition definition)
+    {
+        _definition = definition;
+    }
+
+    public string GameType => _definition.GameId.ToString();
+
+    public IReadOnlyCollection<string> Capabilities => _definition.Capabilities;
 }

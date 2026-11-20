@@ -344,6 +344,14 @@
   font-weight: 800;
 }
 
+.section-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
 .state-message,
 .empty-message {
   padding: var(--space-4);
@@ -434,6 +442,403 @@
   background:
     linear-gradient(135deg, rgb(56 189 248 / 0.055), transparent 18rem),
     var(--color-card);
+}
+
+.game-catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: var(--space-4);
+}
+
+.game-catalog-card {
+  display: grid;
+  align-content: start;
+  gap: var(--space-5);
+  min-width: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(135deg, rgb(52 211 153 / 0.07), transparent 18rem),
+    linear-gradient(315deg, rgb(96 165 250 / 0.07), transparent 16rem),
+    var(--color-card);
+  box-shadow: var(--shadow-panel);
+}
+
+.game-catalog-card-header,
+.game-catalog-identity {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.game-catalog-card-header {
+  justify-content: space-between;
+}
+
+.game-catalog-identity {
+  align-items: center;
+}
+
+.game-catalog-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid rgb(52 211 153 / 0.32);
+  border-radius: var(--radius-md);
+  background: rgb(52 211 153 / 0.1);
+  color: var(--color-success);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.game-catalog-card h3 {
+  margin-top: var(--space-1);
+  overflow-wrap: anywhere;
+  color: var(--color-text-primary);
+  font-size: 1.45rem;
+  line-height: 1.15;
+}
+
+.game-catalog-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.game-catalog-meta div {
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: rgb(9 11 16 / 0.28);
+}
+
+.game-catalog-meta dt {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.game-catalog-meta dd {
+  margin: var(--space-1) 0 0;
+  overflow-wrap: anywhere;
+  color: var(--color-text-primary);
+  font-size: 0.94rem;
+  font-weight: 800;
+}
+
+.game-catalog-capabilities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.game-catalog-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.85rem;
+  padding: 0 var(--space-3);
+  border: 1px solid rgb(96 165 250 / 0.26);
+  border-radius: var(--radius-md);
+  background: var(--color-info-muted);
+  color: #bfdbfe;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.game-catalog-chip-muted {
+  border-color: var(--color-border);
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+}
+
+.game-compatibility-panel,
+.game-port-panel,
+.game-storage-panel {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.game-compatibility-summary,
+.game-compatibility-check {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.game-compatibility-summary strong {
+  display: block;
+  margin-top: var(--space-1);
+  overflow-wrap: anywhere;
+  color: var(--color-text-primary);
+  font-size: 1rem;
+}
+
+.game-compatibility-checks {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.game-compatibility-check {
+  justify-content: flex-start;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.game-compatibility-check > div {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+}
+
+.game-compatibility-check strong {
+  overflow-wrap: anywhere;
+  color: var(--color-text-primary);
+  font-size: 0.94rem;
+}
+
+.game-compatibility-check dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.game-compatibility-check dt {
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.game-compatibility-check dd {
+  margin: var(--space-1) 0 0;
+  overflow-wrap: anywhere;
+  color: var(--color-text-secondary);
+  font-size: 0.84rem;
+}
+
+.game-compatibility-check p,
+.game-compatibility-message {
+  color: var(--color-text-secondary);
+  font-size: 0.86rem;
+}
+
+.game-compatibility-message-error {
+  color: #fecaca;
+}
+
+.game-port-panel > p,
+.game-storage-panel > p {
+  color: var(--color-text-muted);
+  font-size: 0.84rem;
+}
+
+.game-port-list,
+.game-storage-list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.game-port-row,
+.game-storage-row {
+  display: grid;
+  grid-template-columns: minmax(7rem, 0.8fr) minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.game-port-row strong,
+.game-port-row span,
+.game-storage-row strong,
+.game-storage-row span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.game-port-row strong,
+.game-storage-row strong {
+  color: var(--color-text-primary);
+  font-size: 0.94rem;
+}
+
+.game-port-row span,
+.game-storage-row span {
+  margin-top: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.game-port-row dl,
+.game-storage-row dl,
+.game-storage-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.game-port-row dt,
+.game-storage-row dt,
+.game-storage-summary dt {
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.game-port-row dd,
+.game-storage-row dd,
+.game-storage-summary dd {
+  margin: var(--space-1) 0 0;
+  overflow-wrap: anywhere;
+  color: var(--color-text-secondary);
+  font-size: 0.84rem;
+}
+
+.host-capabilities-layout {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.host-readiness-panel {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(135deg, rgb(52 211 153 / 0.08), transparent 18rem),
+    var(--color-card);
+  box-shadow: var(--shadow-panel);
+}
+
+.host-readiness-panel h3 {
+  margin-top: var(--space-1);
+  color: var(--color-text-primary);
+  font-size: 1.45rem;
+  line-height: 1.15;
+}
+
+.host-readiness-panel p {
+  margin-top: var(--space-2);
+}
+
+.host-capability-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.host-capability-card {
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+  min-width: 0;
+  min-height: 13rem;
+  padding: var(--space-5);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-card);
+  box-shadow: var(--shadow-panel);
+}
+
+.host-card-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.host-card-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid rgb(96 165 250 / 0.3);
+  border-radius: var(--radius-md);
+  background: var(--color-info-muted);
+  color: var(--color-info);
+}
+
+.host-card-heading div {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.host-card-heading span {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.host-card-heading strong {
+  overflow-wrap: anywhere;
+  color: var(--color-text-primary);
+  font-size: 1.06rem;
+}
+
+.host-capability-card ul,
+.host-issue-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+}
+
+.host-capability-card li {
+  list-style: none;
+  overflow-wrap: anywhere;
+  color: var(--color-text-secondary);
+  font-size: 0.88rem;
+}
+
+.host-issue-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+}
+
+.host-issue-row div {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.host-issue-row strong {
+  color: var(--color-text-primary);
+  font-size: 0.94rem;
+}
+
+.host-issue-row p {
+  font-size: 0.88rem;
 }
 
 .dashboard-server-section,
@@ -1087,6 +1492,24 @@ tbody tr:last-child td {
   border-color: var(--color-accent);
   outline: 2px solid rgb(56 189 248 / 0.22);
   outline-offset: 1px;
+}
+
+.minecraft-install-form {
+  max-width: 920px;
+}
+
+.minecraft-install-form small {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+  text-transform: none;
+}
+
+.minecraft-step-list {
+  display: grid;
+  gap: 0.55rem;
+  margin: 1rem 0 0;
+  padding-left: 1.4rem;
 }
 
 input[type='checkbox'] {
@@ -2237,6 +2660,7 @@ td > input {
   .server-overview-grid,
   .metric-chart-grid,
   .dashboard-server-stats,
+  .host-capability-grid,
   .palworld-status-grid,
   .palworld-world-grid,
   .notification-grid,
@@ -2282,12 +2706,16 @@ td > input {
   }
 
   .server-meta,
+  .game-compatibility-check dl,
+  .game-port-row,
+  .game-storage-row,
   .server-overview-grid,
   .palworld-status-grid,
   .palworld-world-grid,
   .palworld-version-grid,
   .dashboard-health-grid,
   .dashboard-server-stats,
+  .host-capability-grid,
   .compact-players-list,
   .metric-chart-grid,
   .notification-grid,
@@ -2325,6 +2753,13 @@ td > input {
   .sidebar-nav,
   .overview-grid,
   .backup-summary-grid,
+  .game-catalog-meta,
+  .game-compatibility-check dl,
+  .game-port-row,
+  .game-port-row dl,
+  .game-storage-row,
+  .game-storage-row dl,
+  .game-storage-summary,
   .server-overview-grid,
   .resource-usage-grid,
   .palworld-status-grid,
@@ -2334,6 +2769,7 @@ td > input {
   .server-meta,
   .compact-players-list,
   .metric-chart-grid,
+  .host-capability-grid,
   .notification-grid,
   .settings-status-list,
   .settings-grid,
@@ -2350,6 +2786,9 @@ td > input {
   }
 
   .section-header,
+  .host-readiness-panel,
+  .host-issue-row,
+  .game-catalog-card-header,
   .dashboard-server-card-main,
   .palworld-overview-hero-main,
   .palworld-section-heading,
@@ -2372,6 +2811,7 @@ td > input {
   .logs-actions,
   .backup-actions,
   .palworld-update-actions,
+  .section-actions,
   .lifecycle-block-overview .lifecycle-actions,
   .settings-category-header,
   .settings-category-actions,

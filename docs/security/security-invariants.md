@@ -1,0 +1,81 @@
+# Security Invariants
+
+These invariants are permanent GamesHud security rules. Future implementation tasks may refine controls, but must not weaken these rules without an explicit architecture decision.
+
+## Invariants
+
+- GamesHud must not be exposed publicly until authentication, authorization and public deployment hardening exist.
+- The frontend must never access Docker Engine, the Docker socket, host filesystem mounts or backend-only secrets directly.
+- The Docker socket must never be exposed over TCP or sent to the frontend.
+- Client input must never become an arbitrary host filesystem path.
+- Game definitions and plugins must not contain host-specific secrets or personal paths.
+- Normal API responses must never return plaintext secrets, tokens, webhook URLs, private keys or Palworld REST credentials.
+- Docker SDK and external service models must be mapped into GamesHud contracts before reaching clients.
+- Mutating operations must be explicit and must not be hidden behind read-only planning, inspection or catalog endpoints.
+- Planning endpoints must not create directories, reserve durable state, open firewall rules, publish ports, create containers, create volumes or mutate host state.
+- Provisioning must only mutate resources included in a validated plan.
+- Provisioning failure must never silently claim success.
+- A provisioning mutation in an unknown execution state must never be blindly retried.
+- External side effects must be reconciled before retry when completion cannot be proven from durable state.
+- Terminal provisioning state must never transition back to running implicitly.
+- GamesHud must never automatically delete, overwrite, adopt or migrate External resources.
+- Managed resource deletion must require durable ownership proof and auditability.
+- Backups must be stored outside the managed game data path.
+- Restore, delete, update and destructive player actions must require strong server-side confirmation or stronger future authorization controls.
+- Scheduler actions must remain allowlisted; arbitrary shell, Docker exec, compose and user-defined commands are not valid schedule actions.
+- Future command execution must not interpolate untrusted input into shell commands.
+- Future Agent commands must require mutual authentication, command authorization and replay protection.
+- Secrets persistence must use a dedicated secret model before secrets are stored in durable application state.
+- Secret material must never be persisted as normal application data or plaintext database fields.
+- Durable resource records must reference stored secrets by opaque secret references, not provider paths or plaintext-derived identifiers.
+- Secret storage failure must never downgrade to plaintext, in-memory or unencrypted storage.
+- Secrets must never be intentionally logged.
+- Encryption keys and bootstrap secrets must never be hardcoded, committed or stored next to ciphertext as protection.
+- Public or multi-user operation must have audit logging for destructive and privileged actions.
+- Runtime mutation is deny-by-default and client input must never become provider options directly.
+- Only a validated runtime specification may cross the runtime adapter boundary.
+- Runtime images must be backend-controlled game-definition metadata.
+- Only managed reservations owned by the same game server and operation may become mounts or port bindings.
+- Game containers must never receive the Docker socket, privileged mode, host namespaces, arbitrary devices, capabilities, security options, commands, entrypoints or client-provided environment dictionaries.
+- Plaintext secrets must never enter persisted or logged runtime specifications; use opaque `SecretReference` values.
+- Runtime adapters must not expose arbitrary command, argument or generic options execution surfaces.
+- Runtime provider invocation must pass through the mutation execution boundary.
+- Provider exceptions must not cross the runtime boundary as raw public or persisted errors.
+- Cancellation after provider invocation does not prove that a mutation is absent.
+- Compensation requires proven Managed ownership and a known applied effect.
+- Provider resource identities must be backend-controlled and stable for reconciliation.
+- Managed storage paths must be derived exclusively by the backend from definitions, reservations, server identity and configured DataRoot.
+- Filesystem provisioning mutations are restricted to validated Managed targets contained by DataRoot.
+- LegacyExternal storage must never be prepared, adopted or compensated automatically.
+- Existing filesystem resources must not be automatically adopted without durable ownership proof.
+- Destructive storage compensation requires stronger proof than existence; generic recursive deletion is forbidden.
+- Filesystem reconciliation must precede retry after an uncertain mutation outcome.
+- GH-12 Managed container creation must use the verified local image id and must never pull or substitute another image.
+- GH-15 may pull only the public repository digest and platform stored in the operation's immutable V2 intent.
+- Docker pull progress never proves acquisition; a matching final inspect is required before persisting local identity.
+- Registry credentials, Docker auth configuration and local credential helpers are outside the public-image acquisition boundary.
+- V2 approved image intent must be a fully pinned registry digest plus platform, persisted transactionally with its exact Managed owner.
+- Approved image intent is immutable; its verified local image id may be recorded only by the bounded acquisition checkpoint with optimistic concurrency.
+- V2 create, start and reconciliation must use and verify the persisted local image id for the same operation, server, game and runtime owner.
+- An absent external effect permits only the specifically authorized next attempt within persisted `MaxAttempts`; ambiguity never permits retry.
+- Unknown mutation state retains the active operation slot, including when the operation status is `Failed` or explicitly cancelled.
+- Image cleanup must require explicit Managed ownership proof; generic unused-image deletion is forbidden.
+- Managed container identity must be a deterministic backend name plus backend ownership labels; name similarity alone never permits adoption.
+- Container creation must leave the resource stopped, and an uncertain create must be reconciled before another create attempt.
+- Internal or administrative game ports must never be automatically published on the host.
+- Only Managed runtimes with proven deterministic identity, ownership, trusted image, and critical configuration may be started.
+- Runtime start is a distinct typed mutation; it must not expose arbitrary Docker configuration or be blindly replayed.
+- Unknown runtime start outcomes require reconciliation before retry.
+- A running container is not automatically game-healthy.
+- Runtime health verification is read-only, bounded, and never triggers implicit lifecycle mutation.
+- Foreign and LegacyExternal containers are never started or adopted by Managed provisioning.
+- Runtime environment is backend-controlled and derived only from trusted `GameDefinition` metadata.
+- Client requests cannot add or override runtime environment.
+- Runtime environment carries non-secret configuration only; GamesHud secrets never use this mechanism.
+- A validated runtime specification contains an immutable approved environment set, and the Docker adapter accepts only that validated set.
+- Existing runtime environment drift prevents automatic adoption and reconciliation success.
+- LegacyExternal environment is never mutated.
+- Durable game configuration contains validated intent and opaque semantic secret references only, never `SecretValue` or plaintext credentials.
+- Configuration kind and schema are backend-controlled; malformed, cross-game, cross-server, and unsupported-version state fails closed.
+- Durable configuration intent is created transactionally with initial Managed provisioning and is the recovery source of truth.
+- Configuration payloads and secret identifiers are never logged; LegacyExternal receives no Managed configuration record.

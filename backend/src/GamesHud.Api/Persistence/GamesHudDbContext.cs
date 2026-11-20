@@ -1,0 +1,469 @@
+using GamesHud.Api.Persistence.Models;
+using GamesHud.Api.Authentication;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
+
+namespace GamesHud.Api.Persistence;
+
+public sealed class GamesHudDbContext : IdentityUserContext<ApplicationUser>
+{
+    public GamesHudDbContext(DbContextOptions<GamesHudDbContext> options)
+        : base(options)
+    {
+    }
+
+    public DbSet<PersistenceMetadataRecord> PersistenceMetadata => Set<PersistenceMetadataRecord>();
+
+    public DbSet<ManagedGameServerRecord> ManagedGameServers => Set<ManagedGameServerRecord>();
+
+    public DbSet<PortReservationRecord> PortReservations => Set<PortReservationRecord>();
+
+    public DbSet<StorageReservationRecord> StorageReservations => Set<StorageReservationRecord>();
+
+    public DbSet<ProvisioningOperationRecord> ProvisioningOperations => Set<ProvisioningOperationRecord>();
+
+    public DbSet<ProvisioningStepRecord> ProvisioningSteps => Set<ProvisioningStepRecord>();
+
+    public DbSet<ManagedGameConfigurationRecord> ManagedGameConfigurations => Set<ManagedGameConfigurationRecord>();
+    public DbSet<RuntimeImageIntentRecord> RuntimeImageIntents => Set<RuntimeImageIntentRecord>();
+    public DbSet<ProvisioningReconciliationRecord> ProvisioningReconciliations => Set<ProvisioningReconciliationRecord>();
+    public DbSet<ManagedGameServerRequestRecord> ManagedGameServerRequests => Set<ManagedGameServerRequestRecord>();
+
+    public override int SaveChanges()
+    {
+        ApplyUtcTimestamps();
+
+        return base.SaveChanges();
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        ApplyUtcTimestamps();
+
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        ApplyUtcTimestamps();
+
+        return base.SaveChangesAsync(cancellationToken);
+    }
+
+    public override Task<int> SaveChangesAsync(
+        bool acceptAllChangesOnSuccess,
+        CancellationToken cancellationToken = default)
+    {
+        ApplyUtcTimestamps();
+
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        RuntimeImagePersistence.Configure(modelBuilder);
+        base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<PersistenceMetadataRecord>(entity =>
+        {
+            entity.ToTable("persistence_metadata");
+            entity.HasKey(metadata => metadata.Id);
+            entity.Property(metadata => metadata.Id)
+                .HasMaxLength(120)
+                .IsRequired();
+            entity.Property(metadata => metadata.Value)
+                .HasMaxLength(500)
+                .IsRequired();
+            entity.Property(metadata => metadata.CreatedAt)
+                .IsRequired();
+            entity.Property(metadata => metadata.UpdatedAt)
+                .IsRequired();
+        });
+
+        modelBuilder.Entity<ManagedGameServerRecord>(entity =>
+        {
+            entity.ToTable("managed_game_servers");
+            entity.HasKey(server => server.Id);
+            entity.Property(server => server.Id)
+                .HasMaxLength(80)
+                .IsRequired();
+            entity.Property(server => server.GameId)
+                .HasMaxLength(120)
+                .IsRequired();
+            entity.Property(server => server.DisplayName)
+                .HasMaxLength(200)
+                .IsRequired();
+            entity.Property(server => server.InstallationType)
+                .HasMaxLength(40)
+                .IsRequired();
+            entity.Property(server => server.RuntimeType)
+                .HasMaxLength(80)
+                .IsRequired();
+            entity.Property(server => server.LifecycleState)
+                .HasMaxLength(80)
+                .IsRequired();
+            entity.Property(server => server.CreatedAtUtc)
+                .IsRequired();
+            entity.Property(server => server.UpdatedAtUtc)
+                .IsRequired();
+            entity.Property(server => server.OwnerId).HasMaxLength(450);
+            entity.HasIndex(server => server.OwnerId);
+            entity.HasOne(server => server.Owner).WithMany()
+                .HasForeignKey(server => server.OwnerId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ManagedGameServerRequestRecord>(entity =>
+        {
+            entity.ToTable("managed_game_server_requests");
+            entity.HasKey(request => request.Id);
+            entity.Property(request => request.Id).HasMaxLength(32).IsRequired();
+            entity.Property(request => request.IdempotencyKeyHash).HasMaxLength(64).IsRequired();
+            entity.Property(request => request.RequestFingerprint).HasMaxLength(64).IsRequired();
+            entity.Property(request => request.GameServerId).HasMaxLength(80).IsRequired();
+            entity.Property(request => request.ProvisioningOperationId).HasMaxLength(32).IsRequired();
+            entity.Property(request => request.CreatedAtUtc).IsRequired();
+            entity.Property(request => request.OwnerId).HasMaxLength(450);
+            entity.HasIndex(request => new { request.OwnerId, request.IdempotencyKeyHash }).IsUnique();
+            entity.HasIndex(request => request.IdempotencyKeyHash).IsUnique()
+                .HasFilter("\"OwnerId\" IS NULL");
+            entity.HasIndex(request => request.GameServerId).IsUnique();
+            entity.HasIndex(request => request.ProvisioningOperationId).IsUnique();
+            entity.HasOne(request => request.GameServer).WithOne()
+                .HasForeignKey<ManagedGameServerRequestRecord>(request => request.GameServerId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(request => request.ProvisioningOperation).WithOne()
+                .HasForeignKey<ManagedGameServerRequestRecord>(request => request.ProvisioningOperationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(request => request.Owner).WithMany()
+                .HasForeignKey(request => request.OwnerId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ProvisioningOperationRecord>(entity =>
+        {
+            entity.ToTable("provisioning_operations");
+            entity.HasKey(operation => operation.Id);
+            entity.Property(operation => operation.Id)
+                .HasMaxLength(32)
+                .IsRequired();
+            entity.Property(operation => operation.GameServerId)
+                .HasMaxLength(80)
+                .IsRequired();
+            entity.Property(operation => operation.Type)
+                .HasMaxLength(80)
+                .IsRequired();
+            entity.Property(operation => operation.Status)
+                .HasMaxLength(80)
+                .IsRequired();
+            entity.Property(operation => operation.ActiveSlot)
+                .HasMaxLength(40);
+            entity.Property(operation => operation.CurrentStep)
+                .HasMaxLength(120)
+                .IsRequired();
+            entity.Property(operation => operation.PipelineVersion)
+                .HasMaxLength(40)
+                .IsRequired();
+            entity.Property(operation => operation.Version)
+                .IsConcurrencyToken()
+                .IsRequired();
+            entity.Property(operation => operation.StartedAtUtc)
+                .IsRequired();
+            entity.Property(operation => operation.UpdatedAtUtc)
+                .IsRequired();
+            entity.Property(operation => operation.CompletedAtUtc);
+            entity.Property(operation => operation.ErrorCode)
+                .HasMaxLength(120);
+            entity.Property(operation => operation.ErrorMessageSafe)
+                .HasMaxLength(500);
+            entity.HasIndex(operation => operation.GameServerId);
+            entity.HasIndex(operation => new
+            {
+                operation.GameServerId,
+                operation.Type,
+                operation.ActiveSlot
+            })
+                .IsUnique();
+            entity.HasOne(operation => operation.GameServer)
+                .WithMany(server => server.ProvisioningOperations)
+                .HasForeignKey(operation => operation.GameServerId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ManagedGameConfigurationRecord>(entity =>
+        {
+            entity.ToTable("managed_game_configurations", table =>
+                table.HasCheckConstraint("CK_managed_game_configurations_schema_version", "\"SchemaVersion\" > 0"));
+            entity.HasKey(configuration => configuration.Id);
+            entity.Property(configuration => configuration.Id).HasMaxLength(32).IsRequired();
+            entity.Property(configuration => configuration.GameServerId).HasMaxLength(80).IsRequired();
+            entity.Property(configuration => configuration.GameId).HasMaxLength(120).IsRequired();
+            entity.Property(configuration => configuration.ConfigurationKind).HasMaxLength(120).IsRequired();
+            entity.Property(configuration => configuration.SchemaVersion).IsRequired();
+            entity.Property(configuration => configuration.Payload).HasMaxLength(8000).IsRequired();
+            entity.Property(configuration => configuration.Version).IsConcurrencyToken().IsRequired();
+            entity.Property(configuration => configuration.CreatedAtUtc).IsRequired();
+            entity.Property(configuration => configuration.UpdatedAtUtc).IsRequired();
+            entity.HasIndex(configuration => new { configuration.GameServerId, configuration.ConfigurationKind }).IsUnique();
+            entity.HasOne(configuration => configuration.GameServer)
+                .WithMany(server => server.Configurations)
+                .HasForeignKey(configuration => configuration.GameServerId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ProvisioningStepRecord>(entity =>
+        {
+            entity.ToTable("provisioning_steps");
+            entity.HasKey(step => step.Id);
+            entity.Property(step => step.Id).HasMaxLength(32).IsRequired();
+            entity.Property(step => step.OperationId).HasMaxLength(32).IsRequired();
+            entity.Property(step => step.StepId).HasMaxLength(120).IsRequired();
+            entity.Property(step => step.Sequence).IsRequired();
+            entity.Property(step => step.Status).HasMaxLength(40).IsRequired();
+            entity.Property(step => step.Attempt).IsRequired();
+            entity.Property(step => step.RetryClassification).HasMaxLength(40).IsRequired();
+            entity.Property(step => step.SideEffectClassification).HasMaxLength(40).IsRequired();
+            entity.Property(step => step.MaxAttempts).IsRequired();
+            entity.Property(step => step.FailureType).HasMaxLength(40);
+            entity.Property(step => step.ErrorCode).HasMaxLength(120);
+            entity.Property(step => step.SafeErrorMessage).HasMaxLength(500);
+            entity.HasIndex(step => new { step.OperationId, step.StepId }).IsUnique();
+            entity.HasIndex(step => new { step.OperationId, step.Sequence }).IsUnique();
+            entity.HasOne(step => step.Operation)
+                .WithMany(operation => operation.Steps)
+                .HasForeignKey(step => step.OperationId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<PortReservationRecord>(entity =>
+        {
+            entity.ToTable("port_reservations");
+            entity.HasKey(reservation => reservation.Id);
+            entity.Property(reservation => reservation.Id)
+                .HasMaxLength(32)
+                .IsRequired();
+            entity.Property(reservation => reservation.GameServerId)
+                .HasMaxLength(80)
+                .IsRequired();
+            entity.Property(reservation => reservation.PortDefinitionId)
+                .HasMaxLength(120)
+                .IsRequired();
+            entity.Property(reservation => reservation.Protocol)
+                .HasMaxLength(10)
+                .IsRequired();
+            entity.Property(reservation => reservation.Port)
+                .IsRequired();
+            entity.Property(reservation => reservation.ContainerPort)
+                .IsRequired();
+            entity.Property(reservation => reservation.HostPort);
+            entity.Property(reservation => reservation.Published)
+                .IsRequired();
+            entity.Property(reservation => reservation.Exposure)
+                .HasMaxLength(40)
+                .IsRequired();
+            entity.Property(reservation => reservation.Status)
+                .HasMaxLength(80)
+                .IsRequired();
+            entity.Property(reservation => reservation.ProvisioningOperationId)
+                .HasMaxLength(32)
+                .IsRequired();
+            entity.Property(reservation => reservation.CreatedAtUtc)
+                .IsRequired();
+            entity.Property(reservation => reservation.UpdatedAtUtc)
+                .IsRequired();
+            entity.HasIndex(reservation => new
+            {
+                reservation.Protocol,
+                reservation.HostPort
+            })
+                .IsUnique();
+            entity.HasIndex(reservation => new
+            {
+                reservation.GameServerId,
+                reservation.PortDefinitionId
+            })
+                .IsUnique();
+            entity.HasOne(reservation => reservation.GameServer)
+                .WithMany(server => server.PortReservations)
+                .HasForeignKey(reservation => reservation.GameServerId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(reservation => reservation.ProvisioningOperation)
+                .WithMany(operation => operation.PortReservations)
+                .HasForeignKey(reservation => reservation.ProvisioningOperationId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<StorageReservationRecord>(entity =>
+        {
+            entity.ToTable("storage_reservations");
+            entity.HasKey(reservation => reservation.Id);
+            entity.Property(reservation => reservation.Id)
+                .HasMaxLength(32)
+                .IsRequired();
+            entity.Property(reservation => reservation.GameServerId)
+                .HasMaxLength(80)
+                .IsRequired();
+            entity.Property(reservation => reservation.StorageDefinitionId)
+                .HasMaxLength(120)
+                .IsRequired();
+            entity.Property(reservation => reservation.RelativePath)
+                .HasMaxLength(500)
+                .IsRequired();
+            entity.Property(reservation => reservation.ApiPath)
+                .HasMaxLength(1000)
+                .IsRequired();
+            entity.Property(reservation => reservation.HostPath)
+                .HasMaxLength(1000)
+                .IsRequired();
+            entity.Property(reservation => reservation.Ownership)
+                .HasMaxLength(40)
+                .IsRequired();
+            entity.Property(reservation => reservation.Status)
+                .HasMaxLength(80)
+                .IsRequired();
+            entity.Property(reservation => reservation.ProvisioningOperationId)
+                .HasMaxLength(32)
+                .IsRequired();
+            entity.Property(reservation => reservation.CreatedAtUtc)
+                .IsRequired();
+            entity.Property(reservation => reservation.UpdatedAtUtc)
+                .IsRequired();
+            entity.HasIndex(reservation => reservation.RelativePath)
+                .IsUnique();
+            entity.HasIndex(reservation => new
+            {
+                reservation.GameServerId,
+                reservation.StorageDefinitionId
+            })
+                .IsUnique();
+            entity.HasOne(reservation => reservation.GameServer)
+                .WithMany(server => server.StorageReservations)
+                .HasForeignKey(reservation => reservation.GameServerId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(reservation => reservation.ProvisioningOperation)
+                .WithMany(operation => operation.StorageReservations)
+                .HasForeignKey(reservation => reservation.ProvisioningOperationId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+    }
+
+    private void ApplyUtcTimestamps()
+    {
+        var now = DateTimeOffset.UtcNow;
+        RuntimeImagePersistence.ValidateChanges(this, now);
+
+        foreach (var entry in ChangeTracker.Entries<PersistenceMetadataRecord>())
+        {
+            if (entry.State == EntityState.Added)
+            {
+                entry.Entity.CreatedAt = ToUtc(entry.Entity.CreatedAt, now);
+                entry.Entity.UpdatedAt = ToUtc(entry.Entity.UpdatedAt, now);
+            }
+            else if (entry.State == EntityState.Modified)
+            {
+                entry.Entity.CreatedAt = ToUtc(entry.Entity.CreatedAt, now);
+                entry.Entity.UpdatedAt = now;
+            }
+        }
+
+        foreach (var entry in ChangeTracker.Entries<ManagedGameServerRecord>())
+        {
+            ApplyCreatedUpdatedTimestamps(
+                entry.State,
+                () => entry.Entity.CreatedAtUtc,
+                value => entry.Entity.CreatedAtUtc = value,
+                () => entry.Entity.UpdatedAtUtc,
+                value => entry.Entity.UpdatedAtUtc = value,
+                now);
+        }
+
+        foreach (var entry in ChangeTracker.Entries<PortReservationRecord>())
+        {
+            ApplyCreatedUpdatedTimestamps(
+                entry.State,
+                () => entry.Entity.CreatedAtUtc,
+                value => entry.Entity.CreatedAtUtc = value,
+                () => entry.Entity.UpdatedAtUtc,
+                value => entry.Entity.UpdatedAtUtc = value,
+                now);
+        }
+
+        foreach (var entry in ChangeTracker.Entries<StorageReservationRecord>())
+        {
+            ApplyCreatedUpdatedTimestamps(
+                entry.State,
+                () => entry.Entity.CreatedAtUtc,
+                value => entry.Entity.CreatedAtUtc = value,
+                () => entry.Entity.UpdatedAtUtc,
+                value => entry.Entity.UpdatedAtUtc = value,
+                now);
+        }
+
+        foreach (var entry in ChangeTracker.Entries<ProvisioningOperationRecord>())
+        {
+            if (entry.State == EntityState.Added)
+            {
+                entry.Entity.StartedAtUtc = ToUtc(entry.Entity.StartedAtUtc, now);
+                entry.Entity.UpdatedAtUtc = ToUtc(entry.Entity.UpdatedAtUtc, now);
+                entry.Entity.CompletedAtUtc = entry.Entity.CompletedAtUtc?.ToUniversalTime();
+            }
+            else if (entry.State == EntityState.Modified)
+            {
+                entry.Entity.StartedAtUtc = ToUtc(entry.Entity.StartedAtUtc, now);
+                entry.Entity.UpdatedAtUtc = now;
+                entry.Entity.CompletedAtUtc = entry.Entity.CompletedAtUtc?.ToUniversalTime();
+            }
+        }
+
+        foreach (var entry in ChangeTracker.Entries<ManagedGameConfigurationRecord>())
+        {
+            ApplyCreatedUpdatedTimestamps(entry.State, () => entry.Entity.CreatedAtUtc,
+                value => entry.Entity.CreatedAtUtc = value, () => entry.Entity.UpdatedAtUtc,
+                value => entry.Entity.UpdatedAtUtc = value, now);
+        }
+
+        foreach (var entry in ChangeTracker.Entries<ProvisioningStepRecord>())
+        {
+            if (entry.State is EntityState.Added or EntityState.Modified)
+            {
+                entry.Entity.StartedAtUtc = entry.Entity.StartedAtUtc?.ToUniversalTime();
+                entry.Entity.CompletedAtUtc = entry.Entity.CompletedAtUtc?.ToUniversalTime();
+                entry.Entity.CompensationStartedAtUtc = entry.Entity.CompensationStartedAtUtc?.ToUniversalTime();
+                entry.Entity.CompensationCompletedAtUtc = entry.Entity.CompensationCompletedAtUtc?.ToUniversalTime();
+            }
+        }
+
+        foreach (var entry in ChangeTracker.Entries<ManagedGameServerRequestRecord>())
+        {
+            if (entry.State == EntityState.Added)
+                entry.Entity.CreatedAtUtc = ToUtc(entry.Entity.CreatedAtUtc, now);
+        }
+    }
+
+    private static void ApplyCreatedUpdatedTimestamps(
+        EntityState state,
+        Func<DateTimeOffset> getCreatedAt,
+        Action<DateTimeOffset> setCreatedAt,
+        Func<DateTimeOffset> getUpdatedAt,
+        Action<DateTimeOffset> setUpdatedAt,
+        DateTimeOffset now)
+    {
+        if (state == EntityState.Added)
+        {
+            setCreatedAt(ToUtc(getCreatedAt(), now));
+            setUpdatedAt(ToUtc(getUpdatedAt(), now));
+        }
+        else if (state == EntityState.Modified)
+        {
+            setCreatedAt(ToUtc(getCreatedAt(), now));
+            setUpdatedAt(now);
+        }
+    }
+
+    private static DateTimeOffset ToUtc(DateTimeOffset value, DateTimeOffset fallback)
+    {
+        if (value == default)
+        {
+            return fallback;
+        }
+
+        return value.ToUniversalTime();
+    }
+}

@@ -41,12 +41,183 @@ The Docker Core owns generic infrastructure features only:
 - Recent logs snapshots
 - Manual container lifecycle actions
 - Host, Docker summary and container metrics
+- Read-only host capability detection
 - Safe operational schedules for supported actions
 - Optional backend-only operational notifications
 - Future image, network and volume views
 - Future backup and restore foundations
 
 The Docker Core must not contain behavior specific to Palworld, Minecraft, Terraria, Discord Bot or any other game or application.
+
+---
+
+## Game Server Domain
+
+The game server domain separates four concepts:
+
+- A game identifies a game type, such as `palworld`.
+- A game server identifies one configured server instance, such as `amigos-e-amigos`.
+- A runtime identifies how that instance currently runs and contains the runtime's external reference.
+- An installation identifies whether GamesHud owns the installed resources.
+
+These concepts must not be treated as interchangeable. A game server is not a Docker container and is not a Palworld configuration.
+
+Docker is the first supported runtime, but the domain does not depend on Docker.DotNet. Runtime-specific operations remain behind infrastructure services.
+
+The existing `Servers` configuration and singular `Palworld` fallback are compatibility sources. Servers projected from those sources use a Docker runtime and a `LegacyExternal` installation because GamesHud did not create their resources. Existing Palworld services continue to consume their current configuration while migration proceeds incrementally.
+
+The frontend resolves a configured server descriptor before choosing its management surface. Palworld continues through its plugin-specific layout. A non-Palworld server may use the generic external management page only when the backend descriptor reports runtime `docker`, installation `legacyExternal` and a non-empty configured container reference. That page reuses Docker Core details, bounded logs and explicit manual lifecycle clients; it does not add provisioning, adopt the container or treat Docker `running` as game readiness.
+
+Game server operational status is currently derived by overview and health services. It is not part of the domain model until a concrete domain consumer requires a normalized status.
+
+### Game Definitions
+
+`GameDefinition` contains static, versioned product knowledge about a game: its game id, display metadata, supported runtime types and declared capabilities. It does not represent a configured server, runtime state, allocated resources, local paths or credentials.
+
+Definitions are initially code-backed and registered explicitly through dependency injection. `PalworldGameDefinition` is the first definition and declares only capabilities already implemented by GamesHud plus its read-only host requirements and port metadata. There is no external plugin SDK, assembly discovery or dynamic plugin loading.
+
+The registries have separate responsibilities:
+
+- `GameServerRegistry` resolves configured server instances.
+- `GameDefinitionRegistry` resolves games known by the product.
+
+A `GameServer` stores only its `GameId`. Consumers may use that id to resolve a definition without embedding the full definition in the server instance.
+
+The Game Catalog API exposes definitions from `GameDefinitionRegistry` through dedicated HTTP contracts:
+
+- `GET /api/games`
+- `GET /api/games/{gameId}`
+- `GET /api/games/{gameId}/compatibility`
+- `POST /api/games/{gameId}/ports/plan`
+- `POST /api/games/{gameId}/storage/plan`
+
+The catalog represents static game knowledge only. It does not expose configured server instances, credentials, runtime references, local paths, allocated ports, container names or provisioning state.
+
+Game requirements are static definition metadata and are separate from host capability detection. The compatibility evaluator combines a `GameDefinition` with the current `HostCapabilitySnapshot` and returns a GamesHud assessment containing passed checks, warnings, blocking failures or unknown checks. Unknown host facts are reported as unknown or warnings and must not be silently treated as passing. The compatibility endpoint is read-only and must not install software, create containers, reserve ports, create directories, edit firewall rules or provision game servers.
+
+Game port definitions are static network requirements. They describe logical ports, default number, protocol, purpose, whether the port is required, whether an alternative may be chosen and intended exposure. Exposure is metadata only; it must not open firewall rules or publish Docker ports.
+
+Port availability is a current host observation. TCP and UDP must be evaluated separately because they can share the same numeric port. Docker published ports may be used as diagnostic context, but Docker state is not the source of truth because non-Docker processes can use host ports.
+
+Port allocation is candidate selection. It may choose the preferred port or a bounded alternative. The current bounded alternative window is `preferredPort + 10`, using the same protocol. In-process coordination can reduce duplicate choices while the API process is running. Durable reservation is a future persistence responsibility; availability remains advisory until that exists.
+
+### Game Storage
+
+Game storage has four separate states:
+
+- A storage definition is static game metadata declared by `GameDefinition`.
+- A storage plan is an advisory calculation for one stable `GameServerId`.
+- Allocated storage will be durable reserved state in a future persistence task.
+- Managed or persisted storage is actual host/runtime data that already exists.
+
+GH-07 implements definitions and planning only. It must not create permanent server directories, copy saves, move existing Palworld data, create Docker volumes, change Compose files, reserve durable records or adopt existing data.
+
+Storage definitions describe logical purposes such as game data, backups and logs. They may include a runtime target such as `/palworld`, persistence flags, backup eligibility and optional minimum bytes. They must not include host-specific paths or credentials.
+
+Managed storage paths are derived from `Storage:DataRoot` / `Storage__DataRoot`. When no root is configured, the backend uses a safe app-local fallback under `AppContext.BaseDirectory`. Server layout is deterministic:
+
+```text
+<DataRoot>/servers/<gameServerId>/<storageDefinitionId>
+```
+
+`gameServerId` is normalized into a stable safe segment. Display names never influence paths. Path safety rejects traversal, absolute path injection, UNC shares, drive escapes, embedded separators and unsupported characters, then confirms containment with `Path.GetFullPath` and `Path.Combine`.
+
+Storage planning is runtime-neutral. The first runtime consumer can map the returned mount model to bind mounts, but the storage domain must not depend on Docker.DotNet. Absolute host paths are backend-internal; public catalog responses expose only relative managed paths and runtime targets.
+
+Space inspection is read-only and advisory. Available bytes can be `unknown` when the host cannot inspect the configured root. Existing managed server paths are reported as collisions; GamesHud must not overwrite, merge with or silently adopt them.
+
+---
+
+## Persistence
+
+GamesHud uses EF Core with SQLite for the first local persistence foundation. The database is an internal system file under:
+
+```text
+<DataRoot>/system/gameshud.db
+```
+
+`DataRoot` is resolved from `Storage:DataRoot` / `Storage__DataRoot`, with the same app-local fallback used by storage planning when the option is empty. The database path is constructed server-side and must not be supplied by clients or returned through normal API contracts.
+
+Persistence is an infrastructure concern. Domain models must not depend on EF Core, `DbContext`, `DbSet`, EF annotations, SQLite APIs, SQL strings or migration classes. GH-07.5 introduced technical metadata only. GH-07.6 adds the minimum product schema for managed game server records, port reservations, storage reservations and future provisioning operations.
+
+EF Core migrations are the source of truth for schema changes. Normal startup runs initialization through a dedicated persistence initializer, not scattered `Database.Migrate()` calls in controllers or feature services and not `EnsureCreated`. GamesHud fails startup when persistence initialization fails.
+
+`GET /api/system/persistence` reports whether persistence is available, the provider and migration status. It must not expose the absolute database path, connection string, table names or secrets.
+
+Database transactions cover only database writes. They do not make Docker operations, filesystem writes, backup extraction, container lifecycle changes or future provisioning atomic. Future provisioning needs durable step state, idempotency and compensation or rollback rules.
+
+The persistent relationship model is:
+
+```mermaid
+erDiagram
+  ManagedGameServer ||--o{ PortReservation : owns
+  ManagedGameServer ||--o{ StorageReservation : owns
+  ManagedGameServer ||--o{ ProvisioningOperation : records
+  ProvisioningOperation ||--o{ PortReservation : creates
+  ProvisioningOperation ||--o{ StorageReservation : creates
+  ProvisioningOperation ||--|{ ProvisioningStep : checkpoints
+```
+
+Reservations are durable claims, not proof that runtime resources exist. A DB port reservation does not bind a socket or publish a Docker port. A DB storage reservation does not create a directory or mount. Future provisioning must mutate only resources from validated reserved plans and must record progress through operation state.
+
+### Provisioning State Machine
+
+GH-08 adds an internal, game-neutral application pipeline and GH-09 makes its state durable and recoverable:
+
+```text
+Request -> Validated Plan -> Durable Reservation -> Safe Step Execution
+```
+
+The request contains only game/server identity and display name. Host compatibility, runtime, ports and managed storage are resolved from registered `GameDefinition` metadata and existing planners. Only the validated plan may feed future mutation boundaries.
+
+Reservation atomically creates the managed server, resource claims, a `Pending` operation and the complete `gh09-v1` step sequence. The engine requests transitions through a centralized state machine, while a dedicated operation store checkpoints operation and step state together. Step attempts, retry/side-effect classifications, safe failures and compensation progress survive restart.
+
+Recovery classifies persisted state as resume, reconcile, manual intervention or terminal. Startup only logs classifications. A `Running` or unknown mutation is never retried blindly because database and future external effects cannot share one transaction. The reconciler is a future adapter contract; GH-09 has no Docker/filesystem implementation. An operation `Version` concurrency token detects competing checkpoints, but it is not a distributed lease.
+
+Host-facing steps remain explicit no-mutation implementations, so a successful foundation operation does not mean a runtime is ready. See [Provisioning State Machine](docs/provisioning.md).
+
+SEC-03 inserts a deny-by-default runtime mutation boundary at `create_runtime`. A specification is built from the validated plan, backend-controlled game definition and durable reservations, then becomes a `ValidatedRuntimeMutationSpecification` only after policy approval. `IGameRuntimeAdapter` accepts only the validated type. The current adapter performs no mutation. The persisted `gh09-v1` pipeline is unchanged.
+
+GH-10 inserts `IRuntimeMutationExecutor` between the validated specification and the typed runtime adapter. Its closed execution context provides stable operation/step/mutation identity, safe structured outcomes and backend-controlled resource identity. Provider exceptions or cancellation after invocation become unknown outcomes requiring GH-09 reconciliation, never blind retry. The no-mutation adapter remains the only registered provider.
+
+GH-11 makes `prepare_storage` the first real provisioning mutation. It reloads durable Managed reservations, builds a typed validated target under `DataRoot`, checks containment and existing symlink/reparse components, then calls a narrowly scoped directory provider. Preparation is idempotent and has real GH-09 reconciliation. Compensation is non-destructive.
+
+The database enforces unique managed server ids, unique `protocol + port`, unique managed storage relative paths and a single active operation slot per server and operation type. Delete behavior is restricted so deleting a database row cannot be confused with deleting an external resource.
+
+ARCH-03 introduces a version registry while preserving `gh09-v1` as the production default. The registered `gh15-v2` pipeline inserts a fail-closed `acquire_image` step before runtime creation. Its reservation transaction persists an immutable approved `registry/repository@sha256` identity and platform alongside the server, operation, steps, reservations and game configuration. A separate optimistic checkpoint records the verified local image id; V2 create and start consume that local id. No image acquisition or deletion is implemented by this foundation.
+
+ARCH-03 also makes reconciliation outcomes durable. A trusted reconciler observation and its append-only audit record are applied in one transaction: an existing effect advances the step, an absent effect may authorize one bounded retry, and ambiguity remains `Failed/unknown`. Any unresolved mutation keeps the unique active slot even when the operation is failed. Persisted pipeline versions are reconstructed from their own metadata, so historical V1 behavior does not change. See [Durable Runtime Image Identity](docs/runtime-image-identity.md).
+
+GH-15 implements the `gh15-v2` acquisition boundary without changing either pipeline definition. The boundary receives the persisted pinned image, inspects it locally, pulls the exact public repository digest and platform only after proven absence, and treats a final inspect as the sole proof of success. It persists the observed local image id before `create_runtime` may run. Provider progress is sanitized and bounded; cancellation or timeout after dispatch remains an unknown effect. Palworld V2 activation is still gated on human approval of a real catalog digest.
+
+Persisted timestamps are UTC. Secret material is not persisted as normal application data and must not be stored in plaintext database fields. No user, role, organization or tenant model exists yet. The current Palworld compatibility sources remain `LegacyExternal`; GamesHud must not import or adopt legacy paths, containers, ports or settings simply because they exist.
+
+---
+
+## Secrets
+
+GamesHud has a provider-neutral secret foundation for future managed provisioning. Application code should use `SecretReference` values instead of storage-specific identifiers or plaintext-derived values.
+
+The backend model separates:
+
+- `SecretId`: opaque GUID identity;
+- `SecretReference`: durable application reference;
+- `SecretPurpose`: classification such as game password, REST credential, webhook or integration token;
+- `SecretValue`: backend-only plaintext wrapper that does not reveal plaintext through `ToString()` or JSON serialization.
+
+`ISecretStore` is the use-case boundary for store, retrieve, replace and delete operations. Callers must not know the provider path, encryption algorithm, key source or storage format.
+
+The initial local provider stores encrypted secret files under:
+
+```text
+<DataRoot>/system/secrets
+```
+
+It uses .NET authenticated encryption (`AesGcm`) with an external 32-byte base64 bootstrap key from `Secrets__MasterKey`. The key must not be committed, hardcoded or stored next to ciphertext. Missing or invalid key configuration makes the store unavailable and secret operations fail closed; there is no plaintext or in-memory fallback.
+
+`GET /api/system/secrets` reports only minimal readiness. It must not return secret ids, purposes, counts, filesystem paths, key details or stored material.
+
+This foundation does not create authentication, authorization, Vault/KMS integration, Agent credentials, secret CRUD UI or provisioning. It also does not migrate current legacy Palworld `ServerPassword`, `AdminPassword`, REST credentials or Discord webhook configuration into the secret store.
 
 ---
 
@@ -79,7 +250,7 @@ Examples of plugin responsibilities:
 - Game-specific backup and restore workflows
 - Controlled restart or update workflows
 
-The first plugin type is Palworld. This is not a full plugin SDK and must stay small until another real game server requires more surface area.
+The first plugin type is Palworld. Its current compatibility plugin consumes `PalworldGameDefinition` so capability metadata has one source. This is not a full plugin SDK and must stay small until another real game server requires more surface area.
 
 ## Temporary Palworld Integration
 
@@ -198,6 +369,8 @@ Temporary Palworld configuration uses environment-specific values:
 
 The optional multi-server registry uses a `Servers` collection. If the collection is empty, GamesHud creates a legacy `palworld` server from the singular `Palworld` configuration. Server descriptors returned to the frontend must not include REST usernames, passwords, base URLs or filesystem paths.
 
+Server descriptors expose normalized runtime type and installation ownership so clients can fail closed before selecting a management surface. A container reference in a `LegacyExternal` descriptor is operational configuration, not Managed ownership proof.
+
 The client must never provide filesystem paths.
 
 The Docker socket is high privilege and must be accessible only to the backend process. Frontend code must never access Docker Engine, Docker sockets, credentials or certificates directly.
@@ -236,6 +409,14 @@ Not implemented yet:
 - SignalR or WebSockets
 
 Read-only endpoints must not alter container state. Lifecycle endpoints are explicit manual actions limited to start, stop and restart.
+
+The game catalog endpoints are separate from Docker Core and configured server instances:
+
+- `GET /api/games`
+- `GET /api/games/{gameId}`
+- `GET /api/games/{gameId}/compatibility`
+- `POST /api/games/{gameId}/ports/plan`
+- `POST /api/games/{gameId}/storage/plan`
 
 The temporary Palworld config endpoints are separate from Docker Core:
 
@@ -280,6 +461,43 @@ The metrics endpoints are part of the generic operational surface:
 - `GET /api/system/metrics`
 - `GET /api/containers/{containerId}/metrics`
 
+The host capability endpoint is read-only and must not mutate the host:
+
+- `GET /api/system/capabilities`
+- `GET /api/system/ports/{protocol}/{port}`
+
+Host capabilities describe what the current machine exposes to GamesHud, including OS, CPU, memory, primary storage, network inspection and Docker runtime reachability. They are not game requirements by themselves. Game-specific compatibility belongs to the game requirements evaluator and the game compatibility endpoint.
+
+---
+
+## Security Architecture
+
+The initial product threat model is documented in [Threat Model](docs/security/threat-model.md). Permanent security rules are documented in [Security Invariants](docs/security/security-invariants.md).
+
+Current security posture:
+
+- GamesHud is private/local only.
+- Authentication and authorization do not exist yet.
+- Public exposure is not allowed.
+- Docker socket access is backend-only and high privilege.
+- The API has authority over Docker lifecycle actions, mounted Palworld paths, Palworld REST operations, backups, updates, scheduler actions and notifications.
+- Read-only planning and inspection endpoints must not mutate host, Docker, firewall or durable state.
+
+Important current risks:
+
+- If the API is exposed beyond the intended private boundary, reachable clients can perform privileged operations.
+- Docker socket compromise can be equivalent to host compromise in many practical deployments.
+- Container details and logs may disclose infrastructure metadata or secrets and require authentication and response minimization before public or multi-user use.
+- Palworld backup restore and update flows are intentionally powerful temporary operations and must remain strongly confirmed and server-side validated.
+
+Security gates before future features:
+
+- Public access requires authentication, authorization, audit logging and API hardening.
+- Generic provisioning requires durable ownership, validated plans, explicit rollback boundaries, idempotency and deny-by-default Docker/runtime policies.
+- Managed delete/adoption requires durable ownership proof.
+- Secret persistence requires a dedicated secret model and response redaction.
+- Agent work requires a separate architecture review with mutual authentication, command authorization, replay protection and signed update strategy.
+
 ---
 
 ## Deployment Architecture
@@ -319,7 +537,7 @@ For the temporary Palworld REST integration, `gameshud-api` also joins the exter
 - The Docker socket must never be exposed over TCP.
 - GamesHud must not enable Docker remote API.
 - No Docker credentials or host-level secrets may be sent to the frontend.
-- No database is introduced until there is real durable application state beyond filesystem backups.
+- The SQLite persistence database is backend-only system state under `Storage__DataRoot`; it must not store secrets before SEC-02 and must not imply ownership of external resources.
 - Palworld backups must use a separate backend-only mount from the managed Palworld data path.
 
 ### VPS Operational Boundaries
@@ -337,6 +555,35 @@ GamesHud development, deployment, testing, and maintenance must never:
 - Use Portainer for destructive tests.
 
 Lifecycle homologation must use a disposable container created specifically for GamesHud.
+
+### Managed Runtime Creation
+
+The provisioning engine never receives Docker SDK request types. SEC-03 produces a `ValidatedRuntimeMutationSpecification`; GH-10 executes it through the typed runtime adapter; GH-12 alone translates it to Docker.DotNet `CreateContainerParameters`. This boundary supports only creation and always leaves the container stopped. Stable name and ownership labels provide reconciliation identity without persisting a provider ID or changing the database schema.
+
+The GH-12 runtime adapter uses the existing configured/default Docker endpoint, verifies the trusted image locally, inspects deterministic identity before creation, and fails closed on collision or ambiguity. It does not adopt LegacyExternal resources and exposes no start, delete, pull, exec, network-create, or volume-create capability. Image acquisition belongs only to the separate GH-15 boundary.
+
+GH-13 adds start as a second typed mutation without changing create semantics. Start proves the same Managed identity and critical configuration before `StartContainerAsync`, then proves `Running` afterward. Generic runtime readiness is a separate read-only step with bounded polling; container running state is not game-specific health. No LegacyExternal or foreign runtime participates in managed start/readiness.
+
+ARCH-02 adds trusted runtime environment metadata to `GameDefinition`. It is immutable, non-secret,
+backend-owned configuration required by a trusted image, never an HTTP or client input surface. The runtime
+builder copies only the entries for the selected runtime, SEC-03 validates exact equality with the definition,
+and only the Docker adapter serializes approved entries to `KEY=value`. Critical configuration reconciliation
+compares the complete environment without logging it; absence, modification, or extra entries are drift.
+Palworld currently declares exactly `DISABLE_GENERATE_SETTINGS=true` so its trusted image preserves the
+managed configuration file under the existing `/palworld` mount. Secrets are not runtime environment configuration.
+
+GH-MC-01B adds the separate durable `gh-mc01-v1` sequence for Managed Minecraft without changing `gh09-v1`
+or `gh15-v2`. Its `minecraft.lunchtime.initial` schema 1 persists installation choices and immutable artifact
+identity before mutation. Artifact acquisition is a typed, fixed-manifest step with bounded streaming, safe ZIP
+inspection, isolated staging, atomic publication and marker-based recovery. Runtime construction uses only the
+pinned linux/amd64 image manifest, a dedicated `/data` mount, an exact internal port, a durably reserved host port,
+and separate Java heap/container memory limits. Running is not readiness: Minecraft requires Docker health
+`healthy`. LegacyExternal container management is not an adoption or management path for this Managed server.
+
+GH-14A adds one generic durable configuration record per Managed GameServer and configuration kind. Trusted
+game codecs own typed validation and versioned serialization; the core persists the resulting intent with opaque,
+semantic `SecretReference` roles in the same transaction as initial provisioning reservations. Palworld uses
+`palworld.initial` schema v1. Persisted intent, not a game file, is the recovery source of truth.
 
 ---
 
@@ -361,5 +608,8 @@ Do not add Repository, Unit of Work, CQRS, Mediator, event bus or full Clean Arc
 - [API Guidelines](docs/api-guidelines.md): backend rules.
 - [Frontend Guidelines](docs/frontend-guidelines.md): frontend rules.
 - [Development Guide](docs/development.md): local setup and commands.
+- [Continuous Integration](docs/ci.md): automated checks, isolation and branch protection readiness.
+- [Dependency And Secret Security](docs/security/dependency-security.md): OPS-02 scanning policy, remediation baseline and update rules.
 - [Deployment Guide](docs/deployment.md): private Compose deployment and homologation.
+- [Secrets Management](docs/security/secrets-management.md): SEC-02 secret model, local provider and limits.
 - [Roadmap](ROADMAP.md): planned delivery order and feature status.

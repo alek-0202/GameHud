@@ -1,0 +1,293 @@
+using GamesHud.Api.GameServers.Definitions;
+using GamesHud.Api.GameServers.Configuration;
+using GamesHud.Api.GameServers.Domain;
+using GamesHud.Api.GameServers.Requirements;
+using GamesHud.Api.Persistence.ManagedServers;
+using GamesHud.Api.Secrets.Models;
+
+namespace GamesHud.Api.GameServers.Provisioning;
+
+public static class ProvisioningStepIds
+{
+    public const string ValidateHost = "validate_host";
+    public const string PlanResources = "plan_resources";
+    public const string ReserveResources = "reserve_resources";
+    public const string PrepareStorage = "prepare_storage";
+    public const string ConfigureGame = "configure_game";
+    public const string AcquireImage = "acquire_image";
+    public const string AcquireGameArtifact = "acquire_game_artifact";
+    public const string CreateRuntime = "create_runtime";
+    public const string StartRuntime = "start_runtime";
+    public const string VerifyHealth = "verify_health";
+    public const string Complete = "complete";
+
+    public static readonly IReadOnlyCollection<string> All =
+    [
+        ValidateHost,
+        PlanResources,
+        ReserveResources,
+        PrepareStorage,
+        ConfigureGame,
+        CreateRuntime,
+        StartRuntime,
+        VerifyHealth,
+        Complete
+    ];
+
+    public static readonly IReadOnlyCollection<string> ExecutableFoundation =
+    [PrepareStorage, ConfigureGame, CreateRuntime, StartRuntime, VerifyHealth, Complete];
+}
+
+public static class ProvisioningPipeline
+{
+    public const string Version = "gh09-v1";
+
+    public static readonly IReadOnlyCollection<ProvisioningStepDefinition> Steps =
+    [
+        new(ProvisioningStepIds.ValidateHost, 1, ProvisioningRetryClassifications.SafeToRetry, ProvisioningSideEffectClassifications.ReadOnly, 2),
+        new(ProvisioningStepIds.PlanResources, 2, ProvisioningRetryClassifications.SafeToRetry, ProvisioningSideEffectClassifications.ReadOnly, 2),
+        new(ProvisioningStepIds.ReserveResources, 3, ProvisioningRetryClassifications.RequiresInspection, ProvisioningSideEffectClassifications.Reservation, 1),
+        new(ProvisioningStepIds.PrepareStorage, 4, ProvisioningRetryClassifications.RequiresInspection, ProvisioningSideEffectClassifications.Mutation, 1),
+        new(ProvisioningStepIds.ConfigureGame, 5, ProvisioningRetryClassifications.RequiresInspection, ProvisioningSideEffectClassifications.Mutation, 1),
+        new(ProvisioningStepIds.CreateRuntime, 6, ProvisioningRetryClassifications.RequiresInspection, ProvisioningSideEffectClassifications.Mutation, 1),
+        new(ProvisioningStepIds.StartRuntime, 7, ProvisioningRetryClassifications.RequiresInspection, ProvisioningSideEffectClassifications.Mutation, 1),
+        new(ProvisioningStepIds.VerifyHealth, 8, ProvisioningRetryClassifications.SafeToRetry, ProvisioningSideEffectClassifications.ReadOnly, 2),
+        new(ProvisioningStepIds.Complete, 9, ProvisioningRetryClassifications.SafeToRetry, ProvisioningSideEffectClassifications.ReadOnly, 1)
+    ];
+}
+
+public static class ProvisioningRetryClassifications
+{
+    public const string SafeToRetry = "safe_to_retry";
+    public const string RequiresInspection = "requires_inspection";
+    public const string NonRetryable = "non_retryable";
+}
+
+public static class ProvisioningSideEffectClassifications
+{
+    public const string ReadOnly = "read_only";
+    public const string Reservation = "reservation";
+    public const string Mutation = "mutation";
+}
+
+public static class ProvisioningFailureTypes
+{
+    public const string Permanent = "permanent";
+    public const string Transient = "transient";
+    public const string Unknown = "unknown";
+}
+
+public static class ProvisioningRecoveryDecisions
+{
+    public const string Resume = "resume";
+    public const string Reconcile = "reconcile";
+    public const string ManualIntervention = "manual_intervention";
+    public const string Terminal = "terminal";
+}
+
+public static class ProvisioningReconciliationOutcomes
+{
+    public const string EffectExists = "effect_exists";
+    public const string EffectAbsent = "effect_absent";
+    public const string Ambiguous = "ambiguous";
+}
+
+public sealed record ProvisioningStepDefinition(
+    string Id,
+    int Sequence,
+    string RetryClassification,
+    string SideEffectClassification,
+    int MaxAttempts);
+
+public static class ProvisioningErrorCodes
+{
+    public const string InvalidRequest = "invalid_request";
+    public const string InvalidGameServerId = "invalid_game_server_id";
+    public const string GameNotFound = "game_not_found";
+    public const string HostIncompatible = "host_incompatible";
+    public const string PortConflict = "port_conflict";
+    public const string StorageConflict = "storage_conflict";
+    public const string DuplicateServer = "duplicate_server";
+    public const string OperationInProgress = "operation_in_progress";
+    public const string ReservationFailed = "reservation_failed";
+    public const string StepFailed = "step_failed";
+    public const string ProvisioningCancelled = "provisioning_cancelled";
+}
+
+public static class ProvisioningStepResultStatuses
+{
+    public const string Succeeded = "succeeded";
+    public const string Failed = "failed";
+    public const string Skipped = "skipped";
+}
+
+public sealed record CreateGameServerProvisioningRequest(
+    string GameServerId,
+    string GameId,
+    string DisplayName,
+    MinecraftProvisioningOptions? Minecraft = null);
+
+public sealed record MinecraftProvisioningOptions(
+    int JavaMemoryMiB,
+    int HostPort,
+    bool EulaAccepted);
+
+public sealed record ValidatedProvisioningPort(
+    string DefinitionId,
+    string Protocol,
+    int ContainerPort,
+    int? HostPort,
+    bool Published,
+    string Exposure)
+{
+    public ValidatedProvisioningPort(string definitionId, string protocol, int port, string exposure)
+        : this(definitionId, protocol, port,
+            exposure == Ports.PortExposures.Public ? port : null,
+            exposure == Ports.PortExposures.Public,
+            exposure) { }
+}
+
+public sealed record ValidatedProvisioningStorage(
+    string DefinitionId,
+    string RelativePath,
+    string? ApiPath = null,
+    string? HostPath = null);
+
+public sealed record ValidatedProvisioningPlan(
+    GameServerId GameServerId,
+    GameId GameId,
+    string DisplayName,
+    string RuntimeType,
+    string HostCompatibilityStatus,
+    IReadOnlyCollection<GameCompatibilityIssue> HostWarnings,
+    IReadOnlyCollection<ValidatedProvisioningPort> Ports,
+    IReadOnlyCollection<ValidatedProvisioningStorage> Storage,
+    IReadOnlyCollection<SecretReference> SecretReferences,
+    IReadOnlyCollection<string> RequiredSteps,
+    ValidatedGameProvisioningConfiguration? GameConfiguration = null);
+
+public sealed record ProvisioningFailure(string Code, string SafeMessage);
+
+public sealed record ProvisioningPlanBuildResult(
+    ValidatedProvisioningPlan? Plan,
+    GameDefinition? Definition,
+    ProvisioningFailure? Failure)
+{
+    public bool Succeeded => Plan is not null && Definition is not null && Failure is null;
+}
+
+public sealed record ProvisioningPreviewResult(
+    bool IsValid,
+    ValidatedProvisioningPlan? Plan,
+    ProvisioningFailure? Failure);
+
+public sealed record ProvisioningExecutionResult(
+    bool Succeeded,
+    string? OperationId,
+    string Status,
+    ProvisioningFailure? Failure);
+
+public sealed record IdempotentProvisioningExecutionResult(
+    bool Succeeded,
+    bool Created,
+    string? GameServerId,
+    string? OperationId,
+    string? RequestFingerprint,
+    string Status,
+    ProvisioningFailure? Failure);
+
+public sealed record ProvisioningOperationSnapshot(
+    string OperationId,
+    string GameServerId,
+    string Status,
+    string CurrentStep,
+    string? ErrorCode,
+    string? ErrorMessageSafe,
+    DateTimeOffset StartedAtUtc,
+    DateTimeOffset? CompletedAtUtc,
+    string PipelineVersion,
+    int Version,
+    bool IsActive,
+    IReadOnlyCollection<ProvisioningStepSnapshot> Steps);
+
+public sealed record ProvisioningStepSnapshot(
+    string StepId,
+    int Sequence,
+    string Status,
+    int Attempt,
+    string RetryClassification,
+    string SideEffectClassification,
+    int MaxAttempts,
+    DateTimeOffset? StartedAtUtc,
+    DateTimeOffset? CompletedAtUtc,
+    string? FailureType,
+    string? ErrorCode,
+    string? SafeErrorMessage,
+    DateTimeOffset? CompensationStartedAtUtc,
+    DateTimeOffset? CompensationCompletedAtUtc,
+    int? ReconciledRetryAttempt = null);
+
+public sealed record ProvisioningRecoveryDecision(
+    string OperationId,
+    string Decision,
+    string ReasonCode,
+    string SafeMessage,
+    string? StepId = null);
+
+public sealed record ProvisioningStepResult(
+    string Status,
+    string? ErrorCode = null,
+    string? SafeMessage = null,
+    string? FailureType = null)
+{
+    public static ProvisioningStepResult Success() => new(ProvisioningStepResultStatuses.Succeeded);
+
+    public static ProvisioningStepResult Skipped(string message) =>
+        new(ProvisioningStepResultStatuses.Skipped, SafeMessage: message);
+
+    public static ProvisioningStepResult Failure(
+        string code,
+        string message,
+        string failureType = ProvisioningFailureTypes.Permanent) =>
+        new(ProvisioningStepResultStatuses.Failed, code, message, failureType);
+}
+
+public sealed record ProvisioningStepExecution(string StepId, string Status);
+
+// Signals that cancellation was observed before a mutation provider was dispatched.
+public sealed class ProvisioningCancelledBeforeMutationException : OperationCanceledException
+{
+    public ProvisioningCancelledBeforeMutationException(CancellationToken cancellationToken)
+        : base("Provisioning was cancelled before mutation dispatch.", cancellationToken) { }
+}
+
+public sealed class ProvisioningContext
+{
+    private readonly List<ProvisioningStepExecution> _executions = [];
+
+    public ProvisioningContext(
+        string operationId,
+        GameDefinition gameDefinition,
+        ValidatedProvisioningPlan validatedPlan,
+        ManagedServerReservationResult reservedResources,
+        bool userRequestedCancellation = true)
+    {
+        OperationId = operationId;
+        GameServerId = validatedPlan.GameServerId;
+        GameDefinition = gameDefinition;
+        ValidatedPlan = validatedPlan;
+        ReservedResources = reservedResources;
+        UserRequestedCancellation = userRequestedCancellation;
+    }
+
+    public string OperationId { get; }
+    public bool UserRequestedCancellation { get; }
+    public GameServerId GameServerId { get; }
+    public GameDefinition GameDefinition { get; }
+    public ValidatedProvisioningPlan ValidatedPlan { get; }
+    public ManagedServerReservationResult ReservedResources { get; }
+    public IReadOnlyCollection<ProvisioningStepExecution> Executions => _executions;
+
+    public void Record(string stepId, string status) =>
+        _executions.Add(new ProvisioningStepExecution(stepId, status));
+}

@@ -1,0 +1,171 @@
+# Provisioning State Machine
+
+## Durable execution ownership
+
+The create command validates and reserves the complete provisioning intent transactionally, signals the local executor, and returns the operation identity. The caller cancellation token no longer owns execution after commit. A `BackgroundService` discovers active operations at startup and on a bounded polling interval; its in-memory channel is only a wake-up optimization.
+
+The first executor version supports one GamesHud API instance. Multiple executor instances require a future durable lease and must not be enabled against the same database.
+
+Recovery always uses the operation's persisted `gh09-v1` or `gh15-v2` pipeline version. It reconstructs context from durable server state, applies trusted reconciliation for uncertain mutations, and resumes only proven or policy-authorized work. `ambiguous` remains blocked with its active slot retained.
+
+When every step is complete, one transaction marks the operation `succeeded`, changes the server to `running`, records completion, and releases the active slot. A known terminal failure changes the server to `provisioning_failed`; an unknown external effect changes it to `provisioning_blocked`. Shutdown cancellation leaves interrupted work recoverable on the next startup.
+
+Current trusted game metadata still supplies resource, environment, port and storage definitions during reconstruction. Historical runtime image authority does not: V1 uses its legacy identity and V2 reloads its durable approved and verified identity.
+
+GH-08 introduced the internal provisioning engine. GH-09 made its operation and step state explicit and durable. ARCH-04 added the worker-owned execution and recovery loop. GH-16 proves the complete Managed Palworld path internally without adding an HTTP create-server API.
+
+## Flow
+
+```text
+CreateGameServerProvisioningRequest
+-> Validate host and game requirements
+-> Build ValidatedProvisioningPlan
+-> Reserve server, ports, storage, operation and versioned steps atomically
+-> Checkpoint step Running
+-> Execute the safe/fake step
+-> Checkpoint its outcome
+-> Persist terminal operation state or durable compensation progress
+```
+
+Planning, reservation and runtime state remain distinct:
+
+```text
+plan != reservation
+reservation != host mutation
+operation succeeded != runtime ready
+```
+
+The managed server remains `pending_provisioning` after this foundation succeeds because no runtime exists yet. GH-12 and GH-13 will introduce real game provisioning and health semantics.
+
+## Contracts
+
+`CreateGameServerProvisioningRequest` accepts only `GameServerId`, `GameId` and `DisplayName`. Clients cannot supply host paths, images, mounts, Docker flags, privileged mode or shell commands.
+
+`ValidatedProvisioningPlan` contains only backend-approved decisions: normalized identities, selected runtime from the game definition, host compatibility status and warnings, selected ports, managed relative storage paths, opaque `SecretReference` values and required step ids. It contains no `SecretValue` and no client-supplied host mutation data.
+
+GH-14A also carries a trusted `ValidatedGameProvisioningConfiguration`. The persistence transaction records this
+versioned intent with the server and operation. Recovery loads it through the matching game codec; it never trusts
+the generated game file or silently defaults corrupted persisted state.
+
+`ProvisioningContext` is typed and carries the operation id, game definition, validated plan, durable reservation result and typed step executions. It does not use `dynamic` or an untyped state dictionary.
+
+## Versioned Pipelines
+
+The stable step ids for pipeline `gh09-v1` are `validate_host`, `plan_resources`, `reserve_resources`, `prepare_storage`, `configure_game`, `create_runtime`, `start_runtime`, `verify_health` and `complete`. Class names, display names and list indexes are not persisted identities. `gh09-v1` remains the production default.
+
+ARCH-03 registers `gh15-v2`, which inserts `acquire_image` between `configure_game` and `create_runtime` and gives mutation steps bounded reconciliation-authorized retry capacity. GH-15 implements the step with inspect-before-pull and final verification. GH-15A activates V2 for new Managed Palworld operations using the approved v2.7.3 `linux/amd64` platform digest. Persisted `gh09-v1` operations remain V1 with nine steps and their legacy runtime image authority.
+
+Reservation stores every expected step, its sequence and its retry/side-effect metadata. Validation, planning and reservation have already completed at that point, so their rows start as `Succeeded` with attempt 1; executable foundation steps start as `Pending` with attempt 0. Recovery reads this persisted pipeline instead of reconstructing history from the current code list. A pipeline version mismatch requires manual intervention.
+
+The engine remains game-neutral. Game-specific requirements, ports, storage and runtime choices come from `GameDefinition` and existing planners. There is no Palworld, Docker, SteamCMD, INI or REST branch in the state machine or recovery service.
+
+## Operation State
+
+```mermaid
+stateDiagram-v2
+  [*] --> Pending
+  Pending --> Running
+  Pending --> Cancelled
+  Running --> Running: next checkpoint
+  Running --> Succeeded
+  Running --> Failed
+  Running --> Cancelled
+  Running --> Compensating
+  Compensating --> Compensating: next compensation
+  Compensating --> Failed: compensation complete
+  Compensating --> Cancelled
+  Compensating --> CompensationFailed
+  Failed --> Running: explicit retry only
+  CompensationFailed --> Compensating: explicit retry only
+```
+
+`Succeeded` and `Cancelled` have no outbound transitions. `Failed` and `CompensationFailed` can move only through an explicit controlled retry path. The centralized `IProvisioningStateMachine` rejects every other transition; persistence never silently repairs inconsistent state.
+
+## Step State
+
+```mermaid
+stateDiagram-v2
+  [*] --> Pending
+  Pending --> Running
+  Pending --> Skipped
+  Running --> Succeeded
+  Running --> Failed
+  Running --> Skipped
+  Failed --> Running: explicit safe retry
+  Succeeded --> Compensating
+  Compensating --> Compensated
+  Compensating --> CompensationFailed
+  CompensationFailed --> Compensating: explicit retry only
+```
+
+Operation and step state have separate semantics. Each step stores sequence, status, attempt count, UTC execution timestamps, safe failure type/code/message and compensation timestamps. The first execution changes attempt to 1; a permitted explicit retry increments it again. Arbitrary output, exception text and secret material are not stored.
+
+## Retry Policy
+
+Steps declare one of `safe_to_retry`, `requires_inspection` or `non_retryable`, a bounded `MaxAttempts`, and one of `read_only`, `reservation` or `mutation` for side effects. There is no global retry count and GH-09 enables no automatic mutation retry. A failed read-only step may transition back to `Running` only through an explicit retry while attempts remain. Mutation and reservation steps in an unknown state require reconciliation first.
+
+Failures are minimally classified as `permanent`, `transient` or `unknown`. This metadata supports decisions; it does not create an exception hierarchy or self-healing loop.
+
+## Checkpoints
+
+Before calling a step, the engine atomically checkpoints operation `Running`, the current step and step `Running`. After the call, it atomically checkpoints the typed outcome before advancing. Operation and step changes in one checkpoint share the existing database transaction.
+
+The database transaction cannot include a future external side effect. A process may therefore stop after an external mutation succeeds but before `Succeeded` is stored. Persisted `Running` or `Failed/unknown` on a reservation or mutation step means the effect is uncertain and must never be blindly repeated.
+
+## Recovery
+
+`IProvisioningRecoveryService` loads active/incomplete operations and returns a structured decision:
+
+| Decision | Meaning |
+| --- | --- |
+| `resume` | The persisted next step has not started, or an interrupted read-only step is explicitly retryable. |
+| `reconcile` | A reservation or mutation may have produced an external effect. |
+| `manual_intervention` | Pipeline versions differ, compensation is incomplete, or state cannot be proven safe. |
+| `terminal` | No recovery action is required. |
+
+At startup and after channel wake-up, `ProvisioningExecutor` discovers incomplete operations from the database. It reconstructs the durable context, applies trusted reconciliation when required, resumes only authorized work and finalizes completed operations atomically. The current executor is intentionally single-instance and sequential.
+
+`IProvisioningStepReconciler` is the game/runtime adapter boundary. A reconciler may report effect present, absent or ambiguous. GH-12 implements real Docker inspection for `create_runtime`.
+
+ARCH-03 adds the internal reconciliation application service. It invokes the registered reconciler itself, then atomically stores an append-only audit record and the resulting checkpoint. An existing effect advances the step to `Succeeded`; a proven absent effect authorizes exactly the next bounded attempt; an ambiguous effect remains `Failed/unknown` and keeps the active slot. A caller cannot inject an outcome or bypass ownership, pipeline, step-order and optimistic-version checks.
+
+## Cancellation And Compensation
+
+An explicit user cancellation before execution persists `Cancelled`. Explicit cancellation after a mutation starts remains terminal while retaining unknown-effect protection. Request, host-shutdown or worker interruption after provider invocation is persisted as `Failed/unknown` for reconciliation; it does not claim that the provider cancelled the external effect. A non-read-only unknown step retains the active slot in either case.
+
+On a typed failure, completed compensating steps run in reverse sequence. Each step is checkpointed `Compensating` before cleanup and `Compensated` after success. A cleanup exception persists both step and operation as `CompensationFailed`, retains the active slot and requires manual intervention. Restart during compensation is classified but not resumed automatically. Full owned-resource rollback remains future work.
+
+## Concurrency
+
+Each operation has an integer `Version` concurrency token. Every checkpoint supplies the expected version and increments it atomically, so two workers cannot silently advance the same operation from the same snapshot. The unique active operation slot still prevents concurrent operations of the same type for one server.
+
+This is sufficient for the current single-process architecture and detects optimistic conflicts in SQLite. It is not a distributed lease, worker ownership protocol or lock; those remain future Agent/distributed-execution work.
+
+No public provisioning status or mutation endpoint and no frontend workflow are added in GH-09. GH-10 owns progress presentation.
+
+## Runtime Mutation Boundary
+
+SEC-03 replaces the `create_runtime` no-op with a policy-gated no-mutation step. It reconstructs mounts and ports from durable managed reservations for the same server and operation, selects the trusted image from `GameDefinition`, and sends only an approved `ValidatedRuntimeMutationSpecification` to the typed adapter. A denial cannot reach the adapter. The current adapter creates nothing and returns a safe skipped outcome.
+
+Pipeline `gh09-v1` remains compatible because no persisted step id, sequence, retry classification or side-effect classification changed. Unknown future runtime effects remain subject to GH-09 reconciliation before retry.
+
+GH-10 places a mutation executor after policy approval. The engine checkpoints `create_runtime` as `Running` before the executor can invoke the adapter. Success, known failure and unknown outcomes are classified without exposing provider exceptions. Unknown outcomes persist as `Failed/unknown`, retain the active slot and route through the existing `IProvisioningStepReconciler`. No pipeline-version bump or schema migration is required.
+
+GH-11 implements the existing `prepare_storage` mutation step. After its `Running` checkpoint, the step validates durable Managed reservations and creates only their deterministic directories under `DataRoot`. Safe existing directories are idempotent success; uncertain effects are `Failed/unknown` and reconcile through the existing state machine. The step order, retry metadata and `gh09-v1` version remain unchanged.
+
+GH-12 implements `create_runtime` with Docker.DotNet. It creates one backend-named and backend-labelled Managed container from the locally available trusted image, durable port reservations, and prepared Managed storage. Internal ports are exposed only inside the container and are not published. Docker default networking is used without network creation; privileged mode and host namespaces are unavailable; image command/entrypoint are preserved; no environment or plaintext secrets are injected. The container is never started by this step. Compensation is deliberately non-destructive, leaving a created/stopped Managed container for reconciliation and inspection.
+
+GH-13 replaces the existing `start_runtime` and `verify_health` no-ops without changing their ids, order, retry metadata, or pipeline `gh09-v1`. Start is the only new mutation and succeeds only after the owned runtime is inspected as running. Verify health is read-only and may fail after start succeeded; it never rewrites the start checkpoint or invokes stop/restart/remove. Compensation remains non-mutating, so a runtime may remain running after readiness failure for explicit inspection.
+
+GH-14 replaces only the `configure_game` no-op for Managed Palworld. It reloads `palworld.initial` version 1 from
+durable persistence, resolves optional semantic secret references at the final boundary, and atomically materializes
+the fixed `PalWorldSettings.ini` below the owned `data` reservation. Existing equal content is idempotent; drift,
+invalid content, relevant temp artifacts, and unsafe paths fail closed and reconcile as ambiguous. The step performs
+no Docker mutation and depends on the trusted `DISABLE_GENERATE_SETTINGS=true` runtime environment. See
+[Palworld Managed Configuration](palworld-managed-configuration.md).
+
+ARCH-03 adds the durable pinned-image identity and reconciliation foundation used by `gh15-v2`. The approved registry digest/platform intent is persisted transactionally and remains immutable; a distinct verified local image id is recorded through an optimistic acquisition checkpoint. V2 create and start reconstruction use that local id and fail closed when it is absent or mismatched. `gh09-v1` behavior is unchanged, no image is acquired, and V2 is not the production default. See [Durable Runtime Image Identity](runtime-image-identity.md).
+
+GH-15 replaces the V2 `acquire_image` placeholder with a typed Docker.DotNet adapter. It inspects the durable approved digest first, pulls only after proven absence, passes the approved platform and no registry authentication, and always requires a matching final inspect before persisting `VerifiedLocalImageId`. Progress messages are bounded and sanitized and never prove success. Cancellation before dispatch is safe; timeout or interruption after dispatch becomes `Failed/unknown` and reconciles by inspecting the same durable reference. No image removal, prune or compensation exists.
+
+GH-16 validates the production pipeline with SQLite and a real temporary filesystem. Scheduling commits and returns before mutations; another scope runs storage preparation, Palworld INI materialization, digest acquisition, specification policy, stopped create, start, Docker-health readiness and atomic finalization. Host capability, port availability, secret values and Docker image/container APIs are controlled fakes. Recovery coverage interrupts after configuration, pull, create, start and during health; ambiguous mutation evidence remains blocked. See [Managed Palworld E2E](managed-palworld-e2e.md).

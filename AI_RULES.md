@@ -49,6 +49,23 @@ Local configuration belongs in ignored files or environment variables.
 
 ---
 
+## 2.1 Git Branch and Synchronization Rules
+
+`main` represents production. `develop` is the integration and development branch.
+
+Before an implementation task, the AI must:
+
+- Identify the repository root.
+- Inspect the working tree and current branch.
+- Stop and report when local uncommitted changes exist.
+- Never discard, restore, clean, reset or stash local changes automatically.
+- Fetch the remote and update `develop` using fast-forward only.
+- Implement on `develop`, unless the user explicitly requests another non-production branch.
+
+The AI must not implement directly on `main`, merge into `main`, commit, push or deploy unless explicitly requested.
+
+---
+
 ## 3. Plan Before Implementation
 
 Before changing files, the AI must provide a brief technical plan containing:
@@ -149,6 +166,20 @@ Use:
 
 The AI must not expose stack traces, internal exceptions, secrets or unnecessary infrastructure details through public API responses.
 
+Permanent security invariants are documented in [Security Invariants](docs/security/security-invariants.md). In particular:
+
+- Client input must never become an arbitrary host filesystem path.
+- Planning endpoints must remain read-only and must not provision host, Docker, firewall or durable resources.
+- GamesHud must never automatically delete, overwrite, adopt or migrate External resources.
+- Normal API responses must never return plaintext secrets, tokens, webhook URLs, private keys or Palworld REST credentials.
+- Secret material must never be persisted as normal application data, and secret storage failure must never downgrade to plaintext or in-memory storage.
+- Encryption keys and bootstrap secrets must never be hardcoded, committed or stored next to ciphertext as protection.
+- Scheduler and future provisioning flows must never accept arbitrary shell, Docker exec, compose or user-defined commands.
+- Managed resource deletion must require durable ownership proof and auditability.
+- Future runtime adapters may accept only policy-approved validated specifications; they must not expose arbitrary command, argument or generic provider-option APIs.
+- Runtime provider exceptions and ambiguous cancellation must be translated to safe unknown outcomes and reconciled before retry.
+- Filesystem provisioning may mutate only typed validated Managed targets under `Storage__DataRoot`; arbitrary paths, LegacyExternal adoption and generic recursive deletion are forbidden.
+
 ---
 
 ## 8. Dependency Management
@@ -164,6 +195,7 @@ Before adding a dependency, the AI must verify that:
 The AI must document every package added and why it was necessary.
 
 Dependencies must not be upgraded broadly unless the task explicitly requires it.
+Never use forced upgrades or unreviewed major-version upgrades to resolve dependency vulnerabilities. Identify the advisory, dependency chain, compatible fixed version and breaking risk first.
 
 ---
 
@@ -186,7 +218,7 @@ Core rules:
 - Avoid unnecessary interfaces unless they provide concrete value.
 - Keep public API behavior predictable and documented.
 
-Do not introduce a database unless the feature requires persistent state.
+Do not introduce a database unless the feature requires persistent state. GH-07.5 introduced the approved EF Core + SQLite persistence foundation under `Storage__DataRoot`; GH-07.6 added managed server, reservation and operation records. Do not expand persistence into Docker provisioning, users, tenants or secrets without a roadmap task.
 
 ---
 
@@ -360,7 +392,7 @@ Compose:
 - Prefer a Compose-owned GamesHud network.
 - Do not use Portainer networks or unrelated Palworld project networks.
 - The approved temporary Palworld REST integration uses the external `gameshud-palworld` network on `gameshud-api` only.
-- Do not create a database or persistent volumes until required by real state.
+- Do not create new persistent deployment volumes until required by real state. The GH-07.5 SQLite database is backend-only GamesHud system state under `Storage__DataRoot` and must not be stored in Palworld data or backup mounts.
 - Prefer `docker compose up -d --build` for updates.
 - Do not run `docker compose down` unnecessarily.
 
@@ -388,3 +420,20 @@ The chat command `/push` means:
 - Do not create a pull request unless explicitly requested.
 
 If unrelated changes, failing validations, missing credentials, or remote push errors are detected, stop and report the blocker instead of forcing the push.
+
+## 19. Managed Runtime Start And Health
+
+- Managed runtime start must remain a distinct typed mutation and may target only a container with proven GamesHud ownership, trusted identity, and expected critical configuration.
+- A running container is not automatically game-healthy. Generic runtime readiness and future game-specific health must remain distinct.
+- Unknown start outcomes require reconciliation before retry.
+- Health verification must be read-only, bounded, cancellable, and must never trigger implicit stop, restart, remove, recreate, or adoption.
+- Managed provisioning must never start or inspect LegacyExternal Palworld as its managed runtime.
+- Runtime environment must come only from trusted backend `GameDefinition` metadata, contain non-secret
+  configuration, pass exact SEC-03 validation, and reach Docker only through a validated specification.
+- Client requests cannot add or override runtime environment. Passwords, tokens, keys, `SecretReference`, and
+  `SecretValue` must never use the runtime environment mechanism.
+- LegacyExternal environment must never be changed or adopted by Managed provisioning.
+- Managed game configuration persistence stores only trusted, validated, versioned intent. It must never store
+  `SecretValue`, plaintext credentials, raw client JSON, generated game configuration, or host/runtime paths.
+- Configuration kinds and codecs are backend-controlled; corrupted, cross-game, wrong-version, or conflicting
+  payloads fail closed. LegacyExternal servers never receive durable Managed configuration.

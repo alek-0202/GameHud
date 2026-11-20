@@ -45,6 +45,21 @@ appsettings.*.Local.json
 deploy/palworld-data/
 deploy/palworld-backups/
 
+# Runtime persistence and secret-store data
+gameshud-data/
+**/system/secrets/
+*.db
+*.db-shm
+*.db-wal
+
+# Private keys and certificate containers
+*.key
+*.pem
+*.pfx
+*.p12
+*.jks
+*.keystore
+
 # OS files
 .DS_Store
 Thumbs.db

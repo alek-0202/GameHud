@@ -1,7 +1,12 @@
+using GamesHud.Api.GameServers.Contracts;
+using GamesHud.Api.GameServers.Controllers;
+using GamesHud.Api.GameServers.Definitions;
+using GamesHud.Api.GameServers.Domain;
 using GamesHud.Api.GameServers.Services;
 using GamesHud.Api.Palworld.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.Mvc;
 
 namespace GamesHud.Api.Tests;
 
@@ -28,8 +33,146 @@ public sealed class GameServerRegistryTests
 
         Assert.Equal("palworld", server.Id);
         Assert.Equal("palworld", server.GameType);
+        Assert.Equal(GameServerRuntime.DockerType, server.RuntimeType);
+        Assert.Equal(GameServerInstallationType.LegacyExternal, server.InstallationType);
         Assert.Equal("palworld", server.ContainerName);
         Assert.Contains(GameServerCapabilities.Players, server.Capabilities);
+    }
+
+    [Fact]
+    public void GetServersProjectsUnknownConfiguredGameAsExternalDockerRuntime()
+    {
+        var registry = CreateRegistry(new Dictionary<string, string?>
+        {
+            ["Servers:0:Id"] = "minecraft-lunchtime",
+            ["Servers:0:Type"] = "minecraft",
+            ["Servers:0:DisplayName"] = "Lunchtime",
+            ["Servers:0:ContainerName"] = "minecraft-lunchtime"
+        });
+
+        var server = Assert.Single(registry.GetServers());
+
+        Assert.Equal("minecraft-lunchtime", server.Id);
+        Assert.Equal("minecraft", server.GameType);
+        Assert.Equal(GameServerRuntime.DockerType, server.RuntimeType);
+        Assert.Equal(GameServerInstallationType.LegacyExternal, server.InstallationType);
+        Assert.Equal("minecraft-lunchtime", server.ContainerName);
+        Assert.Empty(server.Capabilities);
+    }
+
+    [Fact]
+    public void GetServerEndpointExposesNormalizedRuntimeAndInstallationOwnership()
+    {
+        var registry = CreateRegistry(new Dictionary<string, string?>
+        {
+            ["Servers:0:Id"] = "minecraft-lunchtime",
+            ["Servers:0:Type"] = "minecraft",
+            ["Servers:0:ContainerName"] = "minecraft-lunchtime"
+        });
+        var controller = new GameServersController(registry);
+
+        var result = Assert.IsType<OkObjectResult>(controller.GetServer("minecraft-lunchtime"));
+        var response = Assert.IsType<GameServerResponse>(result.Value);
+
+        Assert.Equal("docker", response.RuntimeType);
+        Assert.Equal("legacyExternal", response.InstallationType);
+        Assert.Equal("minecraft-lunchtime", response.ContainerName);
+    }
+
+    [Fact]
+    public void GetGameServersProjectsLegacyPalworldAsExternalDockerRuntime()
+    {
+        var registry = CreateRegistry(
+            [],
+            new PalworldOptions
+            {
+                ContainerName = "palworld-live",
+                ManagedPath = "/private/palworld",
+                BackupPath = "/private/backups",
+                RestApi = new PalworldRestApiOptions
+                {
+                    BaseUrl = "http://private-rest:8212",
+                    Username = "admin",
+                    Password = "secret"
+                }
+            });
+
+        var server = Assert.Single(registry.GetGameServers());
+
+        Assert.Equal(new GameServerId("palworld"), server.Id);
+        Assert.Equal(new GameId("palworld"), server.GameId);
+        Assert.Equal(GameServerRuntime.DockerType, server.Runtime.Type);
+        Assert.Equal("palworld-live", server.Runtime.ExternalReference);
+        Assert.Equal(GameServerInstallationType.LegacyExternal, server.Installation.Type);
+    }
+
+    [Fact]
+    public void GetGameServersProjectsEveryConfiguredServer()
+    {
+        var registry = CreateRegistry(new Dictionary<string, string?>
+        {
+            ["Servers:0:Id"] = "amigos",
+            ["Servers:0:Type"] = "palworld",
+            ["Servers:0:DisplayName"] = "Amigos",
+            ["Servers:0:ContainerName"] = "palworld-amigos",
+            ["Servers:1:Id"] = "solo",
+            ["Servers:1:Type"] = "palworld",
+            ["Servers:1:DisplayName"] = "Solo",
+            ["Servers:1:ContainerName"] = "palworld-solo"
+        });
+
+        var servers = registry.GetGameServers();
+
+        Assert.Equal(2, servers.Count);
+        Assert.Contains(servers, server => server.Id == new GameServerId("amigos"));
+        Assert.Contains(servers, server => server.Id == new GameServerId("solo"));
+        Assert.All(servers, server =>
+            Assert.Equal(GameServerInstallationType.LegacyExternal, server.Installation.Type));
+    }
+
+    [Fact]
+    public void DuplicateServerIdsFailClearlyAndCaseInsensitively()
+    {
+        var registry = CreateRegistry(new Dictionary<string, string?>
+        {
+            ["Servers:0:Id"] = "amigos",
+            ["Servers:0:Type"] = "palworld",
+            ["Servers:0:ContainerName"] = "palworld-a",
+            ["Servers:1:Id"] = "AMIGOS",
+            ["Servers:1:Type"] = "palworld",
+            ["Servers:1:ContainerName"] = "palworld-b"
+        });
+
+        var exception = Assert.Throws<GameServerConfigurationException>(() => registry.GetGameServers());
+
+        Assert.Contains("amigos", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void UnknownDomainServerThrowsNotFoundException()
+    {
+        var registry = CreateRegistry([], new PalworldOptions { ContainerName = "palworld" });
+
+        Assert.Throws<GameServerNotFoundException>(() =>
+            registry.GetGameServer(new GameServerId("missing")));
+    }
+
+    [Fact]
+    public void PublicServerContractRemainsLimitedToExistingFields()
+    {
+        var propertyNames = typeof(GameServerResponse)
+            .GetProperties()
+            .Select(property => property.Name)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(
+            ["BrandingImage", "Capabilities", "ContainerName", "DisplayName", "GameType", "Id", "InstallationType", "RuntimeType"],
+            propertyNames);
+        Assert.DoesNotContain(propertyNames, name =>
+            name.Contains("Password", StringComparison.OrdinalIgnoreCase)
+            || name.Contains("Path", StringComparison.OrdinalIgnoreCase)
+            || name.Contains("Rest", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -78,6 +221,6 @@ public sealed class GameServerRegistryTests
         return new GameServerRegistry(
             configuration,
             Options.Create(legacyOptions ?? new PalworldOptions()),
-            [new PalworldGameServerPlugin()]);
+            [new PalworldGameServerPlugin(new PalworldGameDefinition())]);
     }
 }

@@ -13,6 +13,8 @@ Implemented:
 - .NET 8 backend API
 - React + Vite + TypeScript frontend
 - xUnit test project
+- GitHub Actions CI for backend, frontend and EF Core migrations
+- GitHub Actions dependency and full-history secret scanning
 - Repository documentation and architecture rules
 - `GET /health`
 - `GET /api/containers`
@@ -31,9 +33,22 @@ Implemented:
 - Local Docker Compose deployment foundation
 - Host, Docker and Palworld metrics
 - Short in-memory metrics history
+- Read-only host capability detection for OS, CPU, memory, storage, network and Docker runtime readiness
+- Game requirements model and read-only compatibility check between registered game definitions and host capabilities
+- Game port requirements, read-only host port checks and advisory port planning
+- Game storage definitions, configurable managed data root and advisory storage planning
+- EF Core + SQLite persistence foundation under the GamesHud data root
+- Durable managed server schema for server records, port reservations, storage reservations and provisioning operation records
+- Internal provisioning engine foundation with validated plans, durable progress and no host mutation
+- Durable pinned runtime-image intent and public digest-only Docker acquisition with final local identity verification; new Managed Palworld operations select V2 from the approved catalog artifact
+- `GET /api/system/persistence` health and migration status without path or connection string exposure
 - Temporary personal Palworld settings editor isolated outside Docker Core
 - Temporary Palworld REST overview and players view isolated outside Docker Core
 - Server registry foundation with legacy Palworld fallback
+- LegacyExternal Docker game-server management UI with configured-container status, logs and manual lifecycle actions
+- Fixed Managed Minecraft installer for Lunchtime v2.6.0-r2 with durable `gh-mc01-v1` progress, approved artifact acquisition and real health-based readiness
+- Game catalog API backed by the game definition registry
+- Frontend Game Catalog page separated from configured servers
 - Palworld player administration through the backend REST integration
 - Palworld mod inventory only, without install/enable/disable automation
 - Temporary Palworld backup management isolated outside Docker Core
@@ -83,6 +98,8 @@ Backend:
 - .NET 8
 - ASP.NET Core Web API
 - Docker.DotNet
+- EF Core
+- SQLite
 
 Frontend:
 
@@ -133,6 +150,8 @@ dotnet test
 dotnet run --project src/GamesHud.Api/GamesHud.Api.csproj
 ```
 
+The normal backend test suite does not require a Docker daemon and does not create or start containers. Managed provisioning creates a stopped container, starts it in a distinct typed step, and then performs bounded read-only runtime readiness verification. Start success and health success are separate outcomes.
+
 The API runs locally at:
 
 ```text
@@ -169,6 +188,48 @@ Metrics:
 - `Metrics__SnapshotIntervalSeconds`
 - `Metrics__RetentionHours`
 - `Metrics__HostDiskPath`
+
+Storage:
+
+- `Storage__DataRoot`
+- `Storage__ManagedApiRoot`
+- `Storage__ManagedHostRoot`
+
+`ManagedApiRoot` is where the API writes managed server data. `ManagedHostRoot` is the corresponding source path in the Docker daemon filesystem. New reservations persist both resolved paths, so later configuration changes do not reinterpret in-progress operations.
+
+Managed provisioning executor:
+
+- `ProvisioningExecutor__PollIntervalSeconds` (default `15`, bounded from `5` to `300`)
+
+Provisioning commands commit durable state and return before filesystem or Docker work starts. A single-instance hosted executor uses an in-memory wake-up signal plus periodic database discovery. The database remains authoritative after a lost signal or API restart.
+
+Managed runtime readiness:
+
+- `RuntimeHealth__TimeoutSeconds` (default `60`)
+- `RuntimeHealth__PalworldTimeoutSeconds` (default `600`, maximum `1800`)
+- `RuntimeHealth__MinecraftTimeoutSeconds` (default `1200`, maximum `1800`)
+- `RuntimeHealth__PollIntervalSeconds` (default `2`)
+
+Trusted runtime image acquisition:
+
+- `RuntimeImageAcquisition__TimeoutSeconds` (default `900`, maximum `3600`)
+- `RuntimeImageAcquisition__InspectTimeoutSeconds` (default `30`, maximum `120`)
+
+Managed Palworld V2 is pinned to release `v2.7.3` for `linux/amd64`. Runtime authority is the approved platform manifest `docker.io/thijsvanloef/palworld-server-docker@sha256:aee17c5ea7b52c0fdbc2f86c446c02bfdab8788eed3867ea7c34261874ab2ec9`. The OCI index digest `sha256:be3ad49e373045a7b60478fd8b7f7411c1e293713dfa4733e563e798f276d688` is audit evidence only. Tag or `latest` changes do not change this selection; a future update requires an explicit catalog approval change.
+
+When this value is empty or unset, GamesHud uses a safe app-local fallback under the backend application base directory. Storage planning uses this root to compute deterministic managed server paths, but it does not create directories, copy files, move existing data or reserve durable state.
+
+Persistence:
+
+- `Persistence__AutoMigrate`
+
+GamesHud stores its SQLite database at `<DataRoot>/system/gameshud.db`, where `DataRoot` is resolved from `Storage__DataRoot`. Startup runs EF Core migrations through the persistence initializer. The database is separate from game server storage under `<DataRoot>/servers`, and API responses must not expose the absolute database path or connection string.
+
+Managed server persistence records durable GamesHud claims for future provisioning. Reservations do not create directories, bind ports, publish Docker ports, create containers or prove an external resource exists.
+
+Managed Palworld provisioning materializes its durable initial intent as `PalWorldSettings.ini` during the typed `configure_game` step without invoking Docker or adopting existing drift.
+
+Managed Minecraft is intentionally limited to the approved Lunchtime server pack and pinned itzg image. See [Managed Minecraft: Lunchtime](docs/minecraft-managed.md) for immutable identities, ZIP safety, recovery, limitations, and the VPS activation checklist. The installer does not accept uploads, arbitrary URLs, image names, commands, paths, or Docker identifiers.
 
 Operations:
 
@@ -244,6 +305,24 @@ Optional multi-server configuration can be introduced with a `Servers` collectio
 }
 ```
 
+External Docker game servers use the same collection and remain `LegacyExternal`: GamesHud observes and manually controls their configured container, but does not provision, adopt, update or own it. The Docker runtime and installation ownership are returned by `GET /api/servers` and `GET /api/servers/{serverId}` so the frontend can reject unsupported runtimes.
+
+```json
+{
+  "Servers": [
+    {
+      "Id": "minecraft-lunchtime",
+      "Type": "minecraft",
+      "DisplayName": "Lunchtime",
+      "ContainerName": "minecraft-lunchtime",
+      "ConnectionAddress": "minecraft.example.test:25565"
+    }
+  ]
+}
+```
+
+The deployment template exposes one optional external registration through `GAMESHUD_EXTERNAL_SERVER_*`. Leaving its id or type empty preserves the existing singular Palworld fallback. Additional external servers can use further `Servers__N__...` entries in environment-specific Compose overrides. Container state is Docker process state only and must not be presented as Minecraft or game-specific readiness.
+
 ---
 
 ## API
@@ -312,6 +391,49 @@ GET /api/palworld/metrics?historyHours=24
 
 Metrics are lightweight snapshots. Docker stats are read as one-shot snapshots, and short history is kept in memory.
 
+Host capabilities:
+
+```text
+GET /api/system/capabilities
+```
+
+Host capability detection inspects the machine running GamesHud without installing software, opening ports, changing firewall rules, creating directories or creating containers. It reports host facts and runtime readiness only.
+Docker runtime capability data includes the daemon operating system and architecture separately from the API process platform. Pinned `linux/amd64` provisioning is rejected unless the executing daemon reports that platform.
+
+Persistence:
+
+```text
+GET /api/system/persistence
+```
+
+The persistence endpoint reports SQLite availability and migration status only. It does not accept a database path and does not return absolute paths, connection strings or secrets.
+
+Game catalog:
+
+```text
+GET /api/games
+GET /api/games/{gameId}
+GET /api/games/{gameId}/compatibility
+POST /api/games/{gameId}/ports/plan
+POST /api/games/{gameId}/storage/plan
+```
+
+The game catalog is sourced from `GameDefinitionRegistry` and lists games known by GamesHud. Configured server instances are sourced separately from `GameServerRegistry`.
+
+Game compatibility is computed from static `GameDefinition` requirements and the current `HostCapabilitySnapshot`. Compatibility responses report requirement checks, blocking issues and warnings. They do not create servers, reserve ports, install runtimes, create directories or mutate host state.
+
+Game port planning is computed from static `GameDefinition` port metadata and current host port availability. It can suggest an alternative candidate in a small bounded range, but availability is advisory until durable reservation exists. It does not open firewall rules, publish Docker ports, create containers or provision servers.
+
+Game storage planning is computed from static `GameDefinition` storage metadata and a configured GamesHud data root. Clients provide only a stable `gameServerId`; they must not provide arbitrary host paths. The plan reports relative managed layout, runtime-neutral mount metadata, required and available bytes, collision warnings and issues. It does not create directories, Docker volumes, bind mounts, compose changes, backups or persistent server records. Absolute host paths remain backend-internal.
+
+Ports:
+
+```text
+GET /api/system/ports/{protocol}/{port}
+```
+
+Supported protocols are `tcp` and `udp`. The endpoint reports whether a host port appears available now and whether Docker has a matching published port for diagnostic purposes. It does not expose process names, PIDs, owners or container identifiers.
+
 Temporary Palworld integration:
 
 ```text
@@ -340,6 +462,8 @@ DELETE /api/palworld/backups/{backupId}
 GET /api/palworld/update
 POST /api/palworld/update
 ```
+
+Configured non-Palworld `LegacyExternal` Docker servers use the generic server page. That page resolves the registered server first and then reuses the existing bounded Docker details, logs and manual start/stop/restart clients for its configured `ContainerName`. It does not add a new endpoint accepting arbitrary Docker ids.
 
 `GET` returns a typed settings list with metadata, current values and `hasValue` for protected password settings. It does not return plaintext passwords or raw INI content. Empty password values on `PUT` preserve the current password.
 
@@ -461,15 +585,23 @@ The VPS may already host production containers such as Palworld and Portainer. G
 - [AI Rules](AI_RULES.md)
 - [Roadmap](ROADMAP.md)
 - [Development Guide](docs/development.md)
+- [Continuous Integration](docs/ci.md)
+- [Dependency and Secret Security](docs/security/dependency-security.md)
 - [Deployment Guide](docs/deployment.md)
 - [Metrics Guide](docs/metrics.md)
 - [Palworld Backups Guide](docs/palworld-backups.md)
 - [Palworld Updates Guide](docs/palworld-updates.md)
 - [Palworld Settings Guide](docs/palworld-settings.md)
+- [Palworld Managed Configuration](docs/palworld-managed-configuration.md)
+- [Controlled Docker Integration Validation](docs/docker-integration-validation.md)
 - [Palworld REST API Guide](docs/palworld-rest-api.md)
 - [Operations Guide](docs/operations.md)
+- [Persistence Guide](docs/persistence.md)
+- [Provisioning Engine Foundation](docs/provisioning.md)
 - [API Guidelines](docs/api-guidelines.md)
 - [Frontend Guidelines](docs/frontend-guidelines.md)
+- [Threat Model](docs/security/threat-model.md)
+- [Security Invariants](docs/security/security-invariants.md)
 
 ---
 
@@ -486,3 +618,8 @@ The VPS may already host production containers such as Palworld and Portainer. G
 ## License
 
 Not defined yet.
+# Managed provisioning API (GH-17)
+
+The backend exposes authenticated asynchronous managed provisioning at `POST /api/game-servers`, with owner-scoped durable status at `GET /api/game-servers/{id}` and `GET /api/game-servers/{id}/provisioning`. SEC-04 uses local ASP.NET Core Identity, a same-origin HttpOnly cookie, and framework antiforgery tokens. Public registration is disabled. See [the API contract](docs/managed-game-server-api.md) and [authentication and ownership](docs/security/authentication-ownership.md).
+
+Historical ownerless resources are not visible through the authenticated Managed API. Existing legacy administrative APIs remain a public-deployment release gate. Real production or homologation activation also remains gated by the opt-in GH-16B Docker validation.

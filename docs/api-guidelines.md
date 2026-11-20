@@ -76,6 +76,13 @@ These rules apply to the GamesHud .NET backend.
 - Only the backend may access Docker Engine.
 - Never expose complete container environment variables.
 - Avoid exposing raw inspect payloads, secrets, tokens and unnecessary internal information.
+- Host inspection endpoints must report capabilities without exposing usernames, home directories, arbitrary filesystem paths, Docker socket paths, MAC addresses, hostnames, public IPs or secrets.
+- Host inspection must be read-only. It must not install software, create containers, open firewall rules, reserve ports or provision resources.
+- Game compatibility endpoints must be read-only. They may compare static game requirements with host capabilities, but must not provision servers, create directories, install runtimes, open firewall rules, reserve ports or mutate host/container state.
+- Port inspection and planning endpoints must be read-only. They may check current host availability and suggest candidate alternatives, but must not open firewall rules, publish Docker ports, create containers, reserve durable state or expose process names, PIDs, owners or container identifiers.
+- Storage planning endpoints must be read-only. They may derive deterministic managed paths, inspect available space and return advisory issues, but must not create directories, copy files, move existing saves, create Docker volumes, change Compose files, reserve durable state or adopt existing data.
+- Clients must not provide arbitrary host paths for game storage planning. Public storage contracts should expose relative managed paths and runtime targets, not absolute backend filesystem paths.
+- Persistence health endpoints may report provider and migration availability, but must not accept database paths or return absolute database paths, connection strings, table names or secrets.
 
 ---
 
@@ -83,6 +90,7 @@ These rules apply to the GamesHud .NET backend.
 
 - Tests must not depend on a real VPS or production Docker host.
 - Use mocks, fakes or test doubles.
+- Use SQLite file or SQLite in-memory tests for EF relational constraints and transactions; do not use EF InMemory for relational persistence behavior.
 - Cover contracts, mapping, errors and relevant regressions.
 - Do not create fragile tests based only on text or file names when behavioral tests are possible.
 
