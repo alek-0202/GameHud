@@ -15,6 +15,7 @@ public static class ProvisioningStepIds
     public const string PrepareStorage = "prepare_storage";
     public const string ConfigureGame = "configure_game";
     public const string AcquireImage = "acquire_image";
+    public const string AcquireGameArtifact = "acquire_game_artifact";
     public const string CreateRuntime = "create_runtime";
     public const string StartRuntime = "start_runtime";
     public const string VerifyHealth = "verify_health";
@@ -123,7 +124,13 @@ public static class ProvisioningStepResultStatuses
 public sealed record CreateGameServerProvisioningRequest(
     string GameServerId,
     string GameId,
-    string DisplayName);
+    string DisplayName,
+    MinecraftProvisioningOptions? Minecraft = null);
+
+public sealed record MinecraftProvisioningOptions(
+    int JavaMemoryMiB,
+    int HostPort,
+    bool EulaAccepted);
 
 public sealed record ValidatedProvisioningPort(
     string DefinitionId,

@@ -147,12 +147,12 @@ internal sealed class VerifyRuntimeHealthProvisioningStep : IProvisioningStep
 
     public async Task<ProvisioningStepResult> ExecuteAsync(ProvisioningContext context, CancellationToken cancellationToken)
     {
-        var timeoutSeconds = context.ValidatedPlan.GameId.Value == "palworld"
-            ? _options.PalworldTimeoutSeconds
-            : _options.TimeoutSeconds;
-        var maximumTimeoutSeconds = context.ValidatedPlan.GameId.Value == "palworld"
-            ? RuntimeHealthOptions.MaximumGameTimeoutSeconds
-            : RuntimeHealthOptions.MaximumTimeoutSeconds;
+        var (timeoutSeconds, maximumTimeoutSeconds) = context.ValidatedPlan.GameId.Value switch
+        {
+            "palworld" => (_options.PalworldTimeoutSeconds, RuntimeHealthOptions.MaximumGameTimeoutSeconds),
+            "minecraft" => (_options.MinecraftTimeoutSeconds, RuntimeHealthOptions.MaximumGameTimeoutSeconds),
+            _ => (_options.TimeoutSeconds, RuntimeHealthOptions.MaximumTimeoutSeconds)
+        };
         if (timeoutSeconds <= 0 || timeoutSeconds > maximumTimeoutSeconds
             || _options.PollIntervalSeconds <= 0 || _options.PollIntervalSeconds > RuntimeHealthOptions.MaximumPollIntervalSeconds
             || _options.PollIntervalSeconds > timeoutSeconds)
@@ -178,7 +178,11 @@ internal sealed class VerifyRuntimeHealthProvisioningStep : IProvisioningStep
             {
                 if (inspection.DockerHealth == "unhealthy")
                     return ProvisioningStepResult.Failure(RuntimeStartHealthErrorCodes.Unhealthy, "Managed runtime health check is unhealthy.");
-                if (inspection.DockerHealth is null or "" or "healthy") return ProvisioningStepResult.Success();
+                if (context.ValidatedPlan.GameId.Value == "minecraft")
+                {
+                    if (inspection.DockerHealth == "healthy") return ProvisioningStepResult.Success();
+                }
+                else if (inspection.DockerHealth is null or "" or "healthy") return ProvisioningStepResult.Success();
             }
             else if (inspection.State is ManagedRuntimeStates.Dead or ManagedRuntimeStates.Absent)
                 return ProvisioningStepResult.Failure(RuntimeStartHealthErrorCodes.Unhealthy, "Managed runtime is not healthy.");

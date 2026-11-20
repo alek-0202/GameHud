@@ -48,11 +48,11 @@ public sealed class ProvisioningEngine : IProvisioningEngine
         }
         if (state.Status == ProvisioningOperationStatuses.Cancelled)
             throw new ProvisioningTransitionException("A user-cancelled operation cannot resume execution.");
-        if (state.PipelineVersion == ProvisioningPipelines.ImageAcquisitionVersion && !pipeline.Matches(state))
+        if (ProvisioningPipelines.RequiresExactMetadata(state.PipelineVersion) && !pipeline.Matches(state))
             throw new ProvisioningTransitionException("Persisted V2 pipeline metadata is invalid.");
 
         foreach (var persistedStep in state.Steps
-            .Where(step => pipeline.Steps.Any(expected => expected.Id == step.StepId && expected.Sequence > 3))
+            .Where(step => pipeline.Steps.Any(expected => expected.Id == step.StepId))
             .OrderBy(step => step.Sequence))
         {
             var stepId = persistedStep.StepId;

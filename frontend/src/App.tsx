@@ -14,6 +14,8 @@ import { PalworldOverviewPage } from './pages/PalworldOverviewPage'
 import { PalworldPlayersPage } from './pages/PalworldPlayersPage'
 import { PalworldSettingsPage } from './pages/PalworldSettingsPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { ManagedGameServerPage } from './pages/ManagedGameServerPage'
+import { MinecraftInstallPage } from './pages/MinecraftInstallPage'
 import './App.css'
 
 function App() {
@@ -22,6 +24,8 @@ function App() {
       <Route element={<AppShell />}>
         <Route index element={<DashboardPage />} />
         <Route path="games" element={<GameCatalogPage />} />
+        <Route path="games/minecraft/install" element={<MinecraftInstallPage />} />
+        <Route path="managed-servers/:serverId" element={<ManagedGameServerPage />} />
         <Route path="servers" element={<GameServersPage />} />
         <Route path="servers/:serverId" element={<GameServerRoutePage />}>
           <Route index element={<PalworldOverviewPage />} />

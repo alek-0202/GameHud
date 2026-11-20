@@ -8,5 +8,6 @@ public sealed class RuntimeHealthOptions
     public const int MaximumPollIntervalSeconds = 30;
     public int TimeoutSeconds { get; init; } = 60;
     public int PalworldTimeoutSeconds { get; init; } = 600;
+    public int MinecraftTimeoutSeconds { get; init; } = 1200;
     public int PollIntervalSeconds { get; init; } = 2;
 }

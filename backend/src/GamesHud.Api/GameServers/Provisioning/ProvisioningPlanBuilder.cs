@@ -70,6 +70,20 @@ public sealed class ProvisioningPlanBuilder : IProvisioningPlanBuilder
             return Failed(ProvisioningErrorCodes.GameNotFound, "The requested game is not registered.");
         }
 
+        var minecraftOptions = request.Minecraft;
+        if (gameId.Value == "minecraft")
+        {
+            if (minecraftOptions is null
+                || !MinecraftProvisioningConfigurationCodec.AllowedJavaMemoryMiB.Contains(minecraftOptions.JavaMemoryMiB)
+                || minecraftOptions.HostPort is < 1024 or > 65535
+                || !minecraftOptions.EulaAccepted)
+                return Failed(ProvisioningErrorCodes.InvalidRequest, "Minecraft RAM, port and explicit EULA acceptance are required.");
+        }
+        else if (minecraftOptions is not null)
+        {
+            return Failed(ProvisioningErrorCodes.InvalidRequest, "Minecraft installation choices are not valid for this game.");
+        }
+
         var capabilities = await _hostCapabilities.GetCapabilitiesAsync(cancellationToken);
         var compatibility = _requirements.Evaluate(definition!, capabilities);
         if (compatibility.Status is GameCompatibilityStatuses.Incompatible or GameCompatibilityStatuses.Unknown)
@@ -77,7 +91,10 @@ public sealed class ProvisioningPlanBuilder : IProvisioningPlanBuilder
             return Failed(ProvisioningErrorCodes.HostIncompatible, "The host does not satisfy the game requirements.");
         }
 
-        var portPlan = await _portPlanner.CreatePlanAsync(definition!, cancellationToken);
+        var preferredPorts = minecraftOptions is null
+            ? new Dictionary<string, int>()
+            : new Dictionary<string, int> { ["game"] = minecraftOptions.HostPort };
+        var portPlan = await _portPlanner.CreatePlanAsync(definition!, preferredPorts, cancellationToken);
         if (portPlan.Status is PortPlanStatuses.Conflict or PortPlanStatuses.Unknown)
         {
             return Failed(ProvisioningErrorCodes.PortConflict, "Required game ports could not be planned safely.");
@@ -107,7 +124,7 @@ public sealed class ProvisioningPlanBuilder : IProvisioningPlanBuilder
             .Select(item => new ValidatedProvisioningPort(
                 item.DefinitionId,
                 item.Allocation.RequestedPort.Protocol,
-                item.Allocation.RequestedPort.Number,
+                definition!.Ports.Single(port => port.Id == item.DefinitionId).DefaultPort.Number,
                 item.Exposure == PortExposures.Public ? item.Allocation.AllocatedPort!.Number : null,
                 item.Exposure == PortExposures.Public,
                 item.Exposure))
@@ -120,8 +137,15 @@ public sealed class ProvisioningPlanBuilder : IProvisioningPlanBuilder
                 item.HostPath))
             .ToArray();
 
-        var configuration = _configurationCodecs.SingleOrDefault(codec => codec.GameId == gameId)
-            ?.CreateInitial(request.DisplayName.Trim());
+        var codec = _configurationCodecs.SingleOrDefault(candidate => candidate.GameId == gameId);
+        var configuration = codec switch
+        {
+            MinecraftProvisioningConfigurationCodec minecraftCodec when minecraftOptions is not null =>
+                minecraftCodec.CreateInitial(request.DisplayName.Trim(), minecraftOptions.JavaMemoryMiB,
+                    minecraftOptions.HostPort, minecraftOptions.EulaAccepted),
+            not null => codec.CreateInitial(request.DisplayName.Trim()),
+            _ => null
+        };
         return new ProvisioningPlanBuildResult(
             new ValidatedProvisioningPlan(
                 gameServerId,

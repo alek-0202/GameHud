@@ -92,7 +92,9 @@ public sealed class RuntimeImageIntentStore(GamesHudDbContext database, IPersist
         if (record.OperationId != owner.OperationId || record.GameServerId != owner.GameServerId
             || record.GameId != owner.GameId || record.RuntimeType != owner.RuntimeType
             || !await database.ProvisioningOperations.AsNoTracking().AnyAsync(item => item.Id == owner.OperationId
-                && item.GameServerId == owner.GameServerId && item.PipelineVersion == ProvisioningPipelines.ImageAcquisitionVersion, token)
+                && item.GameServerId == owner.GameServerId
+                && (item.PipelineVersion == ProvisioningPipelines.ImageAcquisitionVersion
+                    || item.PipelineVersion == ProvisioningPipelines.MinecraftDumbModeVersion), token)
             || !await database.ManagedGameServers.AsNoTracking().AnyAsync(item => item.Id == owner.GameServerId
                 && item.GameId == owner.GameId && item.RuntimeType == owner.RuntimeType
                 && item.InstallationType == ManagedInstallationTypes.Managed, token))

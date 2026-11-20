@@ -1,6 +1,7 @@
 using GamesHud.Api.GameServers.Definitions;
 using GamesHud.Api.GameServers.Ports;
 using GamesHud.Api.GameServers.Storage;
+using GamesHud.Api.GameServers.Configuration;
 
 namespace GamesHud.Api.GameServers.Runtime;
 
@@ -59,6 +60,11 @@ public sealed class RuntimeMutationPolicy : IRuntimeMutationPolicy
         List<RuntimePolicyViolation> violations)
     {
         var actual = specification.Environment;
+        if (definition.GameId.Value == "minecraft")
+        {
+            ValidateMinecraftEnvironment(specification, actual, violations);
+            return;
+        }
         var expected = definition.RuntimeEnvironment
             .Where(item => item.RuntimeType == specification.RuntimeType).ToArray();
 
@@ -73,6 +79,38 @@ public sealed class RuntimeMutationPolicy : IRuntimeMutationPolicy
                 expected.OrderBy(item => item.Name, StringComparer.Ordinal)))
             Add(violations, RuntimePolicyErrorCodes.RuntimeEnvironmentMismatch,
                 "Runtime environment does not match the trusted game definition.");
+    }
+
+    private static void ValidateMinecraftEnvironment(
+        RuntimeMutationSpecification specification,
+        IReadOnlyCollection<TrustedRuntimeEnvironmentVariable> actual,
+        List<RuntimePolicyViolation> violations)
+    {
+        if (actual is null || actual.Count != 7
+            || actual.Any(item => item is null || !IsValidEnvironmentEntry(item))
+            || actual.GroupBy(item => item.Name, StringComparer.Ordinal).Any(group => group.Count() > 1))
+        {
+            Add(violations, RuntimePolicyErrorCodes.RuntimeEnvironmentInvalid,
+                "Minecraft runtime environment is invalid.");
+            return;
+        }
+
+        var values = actual.ToDictionary(item => item.Name, item => item.Value, StringComparer.Ordinal);
+        var fixedValuesMatch = values.GetValueOrDefault("ENABLE_RCON") == "FALSE"
+            && values.GetValueOrDefault("EULA") == "TRUE"
+            && values.GetValueOrDefault("FORGE_VERSION") == Definitions.LunchtimeArtifactManifest.ForgeVersion
+            && values.GetValueOrDefault("SERVER_PORT") == "25565"
+            && values.GetValueOrDefault("TYPE") == "FORGE"
+            && values.GetValueOrDefault("VERSION") == Definitions.LunchtimeArtifactManifest.MinecraftVersion;
+        var memoryValue = values.GetValueOrDefault("MEMORY");
+        var memoryValid = memoryValue is not null && memoryValue.EndsWith('M')
+            && int.TryParse(memoryValue[..^1], out var javaMemoryMiB)
+            && MinecraftProvisioningConfigurationCodec.AllowedJavaMemoryMiB.Contains(javaMemoryMiB)
+            && specification.Resources.MemoryBytes
+                == checked((ulong)(javaMemoryMiB + MinecraftProvisioningConfigurationCodec.ContainerOverheadMiB) * 1024UL * 1024UL);
+        if (!fixedValuesMatch || !memoryValid)
+            Add(violations, RuntimePolicyErrorCodes.RuntimeEnvironmentMismatch,
+                "Minecraft runtime environment does not match durable approved configuration.");
     }
 
     private static bool IsValidEnvironmentEntry(TrustedRuntimeEnvironmentVariable entry)

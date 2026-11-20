@@ -2,6 +2,7 @@ using GamesHud.Api.Configuration;
 using GamesHud.Api.Authentication;
 using GamesHud.Api.Docker.Services;
 using GamesHud.Api.GameServers.Definitions;
+using GamesHud.Api.GameServers.Artifacts;
 using GamesHud.Api.GameServers.Configuration;
 using GamesHud.Api.GameServers.Ports;
 using GamesHud.Api.GameServers.Provisioning;
@@ -60,8 +61,11 @@ builder.Services.Configure<GamesHud.Api.Authentication.AuthenticationOptions>(
     builder.Configuration.GetSection(GamesHud.Api.Authentication.AuthenticationOptions.SectionName));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<PalworldGameDefinition>();
+builder.Services.AddSingleton<MinecraftGameDefinition>();
 builder.Services.AddSingleton<GameDefinition>(serviceProvider =>
     serviceProvider.GetRequiredService<PalworldGameDefinition>());
+builder.Services.AddSingleton<GameDefinition>(serviceProvider =>
+    serviceProvider.GetRequiredService<MinecraftGameDefinition>());
 builder.Services.AddSingleton<IGameDefinitionRegistry, GameDefinitionRegistry>();
 builder.Services.AddSingleton<IGameServerPlugin, PalworldGameServerPlugin>();
 builder.Services.AddSingleton<IGameServerRegistry, GameServerRegistry>();
@@ -141,7 +145,11 @@ builder.Services.AddScoped<IProvisioningPlanBuilder, ProvisioningPlanBuilder>();
 builder.Services.AddSingleton<PalworldProvisioningConfigurationCodec>();
 builder.Services.AddSingleton<IGameProvisioningConfigurationCodec>(services =>
     services.GetRequiredService<PalworldProvisioningConfigurationCodec>());
+builder.Services.AddSingleton<MinecraftProvisioningConfigurationCodec>();
+builder.Services.AddSingleton<IGameProvisioningConfigurationCodec>(services =>
+    services.GetRequiredService<MinecraftProvisioningConfigurationCodec>());
 builder.Services.AddScoped<IGameProvisioningConfigurationStore, GameProvisioningConfigurationStore>();
+builder.Services.AddScoped<IMinecraftProvisioningIntentReader, MinecraftProvisioningIntentReader>();
 builder.Services.AddScoped<IRuntimeImageIntentStore, RuntimeImageIntentStore>();
 builder.Services.AddScoped<IProvisioningEngine, ProvisioningEngine>();
 builder.Services.AddScoped<IGameServerProvisioningService, GameServerProvisioningService>();
@@ -162,6 +170,11 @@ builder.Services.AddSingleton<IRuntimeImageAcquisitionAdapter, DockerRuntimeImag
 builder.Services.AddScoped<IProvisioningStep, CreateRuntimeProvisioningStep>();
 builder.Services.AddScoped<IProvisioningStep, AcquireImageProvisioningStep>();
 builder.Services.AddScoped<IProvisioningStepReconciler, AcquireImageReconciler>();
+builder.Services.AddHttpClient<IMinecraftArtifactAcquisitionService, MinecraftArtifactAcquisitionService>(client =>
+    client.Timeout = TimeSpan.FromMinutes(30))
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+builder.Services.AddScoped<IProvisioningStep, AcquireMinecraftArtifactProvisioningStep>();
+builder.Services.AddScoped<IProvisioningStepReconciler, AcquireMinecraftArtifactReconciler>();
 builder.Services.AddScoped<IProvisioningStepReconciler, CreateRuntimeReconciler>();
 builder.Services.AddScoped<IProvisioningStep, StartRuntimeProvisioningStep>();
 builder.Services.AddScoped<IProvisioningStepReconciler, StartRuntimeReconciler>();
@@ -174,8 +187,12 @@ builder.Services.AddSingleton<IPalworldManagedConfigurationSerializer, PalworldM
 builder.Services.AddSingleton<IPalworldManagedConfigurationFileSystem, SystemPalworldManagedConfigurationFileSystem>();
 builder.Services.AddSingleton<IPalworldManagedConfigurationFileStore, PalworldManagedConfigurationFileStore>();
 builder.Services.AddScoped<IPalworldManagedConfigurationIntentReader, PalworldManagedConfigurationIntentReader>();
-builder.Services.AddScoped<IProvisioningStep, ConfigurePalworldGameProvisioningStep>();
-builder.Services.AddScoped<IProvisioningStepReconciler, ConfigurePalworldGameReconciler>();
+builder.Services.AddScoped<ConfigurePalworldGameProvisioningStep>();
+builder.Services.AddScoped<ConfigurePalworldGameReconciler>();
+builder.Services.AddScoped<ConfigureMinecraftGameProvisioningStep>();
+builder.Services.AddScoped<ConfigureMinecraftGameReconciler>();
+builder.Services.AddScoped<IProvisioningStep, ConfigureManagedGameProvisioningStep>();
+builder.Services.AddScoped<IProvisioningStepReconciler, ConfigureManagedGameReconciler>();
 foreach (var stepId in ProvisioningStepIds.ExecutableFoundation.Where(id =>
     id != ProvisioningStepIds.CreateRuntime && id != ProvisioningStepIds.PrepareStorage
     && id != ProvisioningStepIds.ConfigureGame && id != ProvisioningStepIds.StartRuntime

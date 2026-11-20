@@ -244,6 +244,21 @@ public sealed class GamePortsTests
     }
 
     [Fact]
+    public async Task ExplicitMinecraftHostPortCollisionDoesNotSilentlyChooseAnotherPort()
+    {
+        var planner = CreatePlanner(availablePorts: [25566]);
+        var definition = new MinecraftGameDefinition();
+
+        var plan = await planner.CreatePlanAsync(
+            definition,
+            new Dictionary<string, int> { ["game"] = 25565 },
+            CancellationToken.None);
+
+        Assert.Equal(PortPlanStatuses.Conflict, plan.Status);
+        Assert.Null(Assert.Single(plan.Ports).Allocation.AllocatedPort);
+    }
+
+    [Fact]
     public async Task PlannerDoesNotRequireHostAvailabilityForInternalPort()
     {
         var planner = CreatePlanner(availablePorts: []);

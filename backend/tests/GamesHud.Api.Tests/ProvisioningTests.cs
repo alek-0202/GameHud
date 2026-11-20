@@ -30,7 +30,7 @@ public sealed class ProvisioningTests
             .Select(property => property.Name)
             .ToArray();
 
-        Assert.Equal(["GameServerId", "GameId", "DisplayName"], properties);
+        Assert.Equal(["GameServerId", "GameId", "DisplayName", "Minecraft"], properties);
         Assert.DoesNotContain(properties, name => name.Contains("Path", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(properties, name => name.Contains("Image", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(properties, name => name.Contains("Mount", StringComparison.OrdinalIgnoreCase));

@@ -45,9 +45,28 @@ public sealed class ManagedGameServerApplicationService : IManagedGameServerAppl
         try { gameId = new GameId(request.GameId).Value; }
         catch (ArgumentException) { return Failure("invalid_request", "GameId is invalid."); }
         var displayName = request.DisplayName.Trim();
-        var fingerprint = Hash($"{FingerprintVersion}\n{gameId.Length}:{gameId}\n{displayName.Length}:{displayName}");
+        MinecraftProvisioningOptions? minecraft = null;
+        if (gameId == "minecraft")
+        {
+            if (request.Minecraft?.RamMiB is not int ramMiB
+                || request.Minecraft.Port is not int port
+                || !Configuration.MinecraftProvisioningConfigurationCodec.AllowedJavaMemoryMiB.Contains(ramMiB)
+                || port is < 1024 or > 65535
+                || !request.Minecraft.EulaAccepted)
+                return Failure("invalid_request", "Minecraft RAM, port and explicit EULA acceptance are required.");
+            minecraft = new MinecraftProvisioningOptions(ramMiB, port, true);
+        }
+        else if (request.Minecraft is not null)
+        {
+            return Failure("invalid_request", "Minecraft installation choices are not valid for this game.");
+        }
+
+        var canonicalOptions = minecraft is null
+            ? "none"
+            : $"ramMiB={minecraft.JavaMemoryMiB};port={minecraft.HostPort};eula=true";
+        var fingerprint = Hash($"{FingerprintVersion}\n{gameId.Length}:{gameId}\n{displayName.Length}:{displayName}\n{canonicalOptions}");
         var result = await _provisioning.ScheduleIdempotentProvisioningAsync(
-            new CreateGameServerProvisioningRequest($"gs-{Guid.NewGuid():N}", gameId, displayName),
+            new CreateGameServerProvisioningRequest($"gs-{Guid.NewGuid():N}", gameId, displayName, minecraft),
             _currentUser.UserId, Hash(idempotencyKey!), fingerprint, cancellationToken);
         return result.Succeeded
             ? new(true, result.Created, result.GameServerId, result.OperationId, null, null)

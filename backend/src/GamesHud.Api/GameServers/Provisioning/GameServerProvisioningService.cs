@@ -93,7 +93,7 @@ public sealed class GameServerProvisioningService : IGameServerProvisioningServi
                 step.RetryClassification,
                 step.SideEffectClassification,
                 step.MaxAttempts,
-                step.Sequence <= 3)).ToArray(),
+                ProvisioningPipelines.IsCompletedBeforeReservation(selection.Pipeline.Version, step))).ToArray(),
             selection.RuntimeImage);
         var conflict = await _store.FindReservationConflictAsync(persistencePlan, cancellationToken);
         if (conflict is not null)
@@ -186,7 +186,8 @@ public sealed class GameServerProvisioningService : IGameServerProvisioningServi
             plan.Storage.Select(storage => new StorageReservationPlan(storage.DefinitionId, storage.RelativePath,
                 storage.ApiPath, storage.HostPath)).ToArray(), plan.GameConfiguration, selection.Pipeline.Version,
             selection.Pipeline.Steps.Select(step => new ProvisioningStepPlan(step.Id, step.Sequence,
-                step.RetryClassification, step.SideEffectClassification, step.MaxAttempts, step.Sequence <= 3)).ToArray(),
+                step.RetryClassification, step.SideEffectClassification, step.MaxAttempts,
+                ProvisioningPipelines.IsCompletedBeforeReservation(selection.Pipeline.Version, step))).ToArray(),
             selection.RuntimeImage);
     }
 

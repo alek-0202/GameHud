@@ -1494,6 +1494,24 @@ tbody tr:last-child td {
   outline-offset: 1px;
 }
 
+.minecraft-install-form {
+  max-width: 920px;
+}
+
+.minecraft-install-form small {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+  text-transform: none;
+}
+
+.minecraft-step-list {
+  display: grid;
+  gap: 0.55rem;
+  margin: 1rem 0 0;
+  padding-left: 1.4rem;
+}
+
 input[type='checkbox'] {
   display: inline-grid;
   place-content: center;

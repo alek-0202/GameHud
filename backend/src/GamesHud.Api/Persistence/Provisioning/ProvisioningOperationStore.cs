@@ -88,7 +88,7 @@ public sealed class ProvisioningOperationStore : IProvisioningOperationStore
                             $"Provisioning step '{step.StepId}' cannot start before earlier pipeline steps complete.");
                     }
                     _stateMachine.EnsureStepTransition(snapshot, checkpoint.StepStatus, checkpoint.ExplicitRetry);
-                    if (operation.PipelineVersion == ProvisioningPipelines.ImageAcquisitionVersion
+                    if (ProvisioningPipelines.UsesTrustedImageAcquisition(operation.PipelineVersion)
                         && ((step.StepId == ProvisioningStepIds.AcquireImage && checkpoint.StepStatus == ProvisioningStepStatuses.Succeeded)
                             || (step.StepId is ProvisioningStepIds.CreateRuntime or ProvisioningStepIds.StartRuntime
                                 && checkpoint.StepStatus == ProvisioningStepStatuses.Running)))
@@ -96,7 +96,7 @@ public sealed class ProvisioningOperationStore : IProvisioningOperationStore
                         var image = await database.RuntimeImageIntents.AsNoTracking()
                             .SingleOrDefaultAsync(item => item.OperationId == operation.Id, token);
                         if (image is null || ManagedServers.RuntimeImageIntentStore.Map(image).VerifiedLocalImageId is null)
-                            throw new ProvisioningTransitionException("V2 runtime requires durable verified image identity.");
+                            throw new ProvisioningTransitionException("Managed runtime requires durable verified image identity.");
                     }
                     ApplyStepCheckpoint(step, checkpoint, now);
                 }

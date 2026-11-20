@@ -46,6 +46,7 @@ Implemented:
 - Temporary Palworld REST overview and players view isolated outside Docker Core
 - Server registry foundation with legacy Palworld fallback
 - LegacyExternal Docker game-server management UI with configured-container status, logs and manual lifecycle actions
+- Fixed Managed Minecraft installer for Lunchtime v2.6.0-r2 with durable `gh-mc01-v1` progress, approved artifact acquisition and real health-based readiness
 - Game catalog API backed by the game definition registry
 - Frontend Game Catalog page separated from configured servers
 - Palworld player administration through the backend REST integration
@@ -206,6 +207,7 @@ Managed runtime readiness:
 
 - `RuntimeHealth__TimeoutSeconds` (default `60`)
 - `RuntimeHealth__PalworldTimeoutSeconds` (default `600`, maximum `1800`)
+- `RuntimeHealth__MinecraftTimeoutSeconds` (default `1200`, maximum `1800`)
 - `RuntimeHealth__PollIntervalSeconds` (default `2`)
 
 Trusted runtime image acquisition:
@@ -226,6 +228,8 @@ GamesHud stores its SQLite database at `<DataRoot>/system/gameshud.db`, where `D
 Managed server persistence records durable GamesHud claims for future provisioning. Reservations do not create directories, bind ports, publish Docker ports, create containers or prove an external resource exists.
 
 Managed Palworld provisioning materializes its durable initial intent as `PalWorldSettings.ini` during the typed `configure_game` step without invoking Docker or adopting existing drift.
+
+Managed Minecraft is intentionally limited to the approved Lunchtime server pack and pinned itzg image. See [Managed Minecraft: Lunchtime](docs/minecraft-managed.md) for immutable identities, ZIP safety, recovery, limitations, and the VPS activation checklist. The installer does not accept uploads, arbitrary URLs, image names, commands, paths, or Docker identifiers.
 
 Operations:
 

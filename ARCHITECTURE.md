@@ -572,6 +572,14 @@ compares the complete environment without logging it; absence, modification, or 
 Palworld currently declares exactly `DISABLE_GENERATE_SETTINGS=true` so its trusted image preserves the
 managed configuration file under the existing `/palworld` mount. Secrets are not runtime environment configuration.
 
+GH-MC-01B adds the separate durable `gh-mc01-v1` sequence for Managed Minecraft without changing `gh09-v1`
+or `gh15-v2`. Its `minecraft.lunchtime.initial` schema 1 persists installation choices and immutable artifact
+identity before mutation. Artifact acquisition is a typed, fixed-manifest step with bounded streaming, safe ZIP
+inspection, isolated staging, atomic publication and marker-based recovery. Runtime construction uses only the
+pinned linux/amd64 image manifest, a dedicated `/data` mount, an exact internal port, a durably reserved host port,
+and separate Java heap/container memory limits. Running is not readiness: Minecraft requires Docker health
+`healthy`. LegacyExternal container management is not an adoption or management path for this Managed server.
+
 GH-14A adds one generic durable configuration record per Managed GameServer and configuration kind. Trusted
 game codecs own typed validation and versioned serialization; the core persists the resulting intent with opaque,
 semantic `SecretReference` roles in the same transaction as initial provisioning reservations. Palworld uses

@@ -125,6 +125,23 @@ public sealed class RuntimeStartHealthTests
     }
 
     [Fact]
+    public async Task MinecraftRunningWithoutHealthyHealthcheckIsNotReady()
+    {
+        var step = new VerifyRuntimeHealthProvisioningStep(
+            new FakeBuilder(Specification("minecraft")), new AllowPolicy(), new FakePaths(),
+            new FakeInspector(new ManagedRuntimeInspection(ManagedRuntimeStates.Running, "container-1", null)),
+            new FakeDelay(), Options.Create(new RuntimeHealthOptions
+            {
+                TimeoutSeconds = 1, PalworldTimeoutSeconds = 1, MinecraftTimeoutSeconds = 1,
+                PollIntervalSeconds = 1
+            }));
+        var result = await step.ExecuteAsync(ProvisioningContext("minecraft"), CancellationToken.None);
+
+        Assert.Equal(ProvisioningStepResultStatuses.Failed, result.Status);
+        Assert.Equal(RuntimeStartHealthErrorCodes.HealthTimeout, result.ErrorCode);
+    }
+
+    [Fact]
     public async Task DockerHealthStartingThenHealthyUsesBoundedPolling()
     {
         var delay = new FakeDelay();
@@ -183,14 +200,15 @@ public sealed class RuntimeStartHealthTests
     }
 
     private static VerifyRuntimeHealthProvisioningStep HealthStep(FakeClient client, FakeDelay? delay = null,
-        int timeout = 4, int interval = 1)
+        int timeout = 4, int interval = 1, string gameId = "palworld")
     {
-        var specification = Specification();
+        var specification = Specification(gameId);
         return new(new FakeBuilder(specification), new AllowPolicy(), new FakePaths(), Adapter(client), delay ?? new FakeDelay(),
             Options.Create(new RuntimeHealthOptions
             {
                 TimeoutSeconds = timeout,
                 PalworldTimeoutSeconds = timeout,
+                MinecraftTimeoutSeconds = timeout,
                 PollIntervalSeconds = interval
             }));
     }
@@ -204,18 +222,19 @@ public sealed class RuntimeStartHealthTests
         new ValidatedRuntimeMutationSpecification(Specification()), RuntimeMutationKind.StartRuntime,
         ProvisioningStepIds.StartRuntime, 1);
 
-    private static RuntimeMutationSpecification Specification() => new(
-        new GameServerId("server-1"), new GameId("palworld"), "operation-1", "docker",
+    private static RuntimeMutationSpecification Specification(string gameId = "palworld") => new(
+        new GameServerId("server-1"), new GameId(gameId), "operation-1", "docker",
         new TrustedRuntimeImage("docker", "trusted/game", "1", "test"),
         [new("port-1", "game", PortProtocols.Udp, 7000, PortExposures.Public)],
         [new("storage-1", "data", "C:\\managed\\server-1", "/palworld", false)], [], [],
         new(2, 1024), RuntimeRestartPolicies.UnlessStopped, RuntimeNetworkPolicies.GamesHudManaged);
 
-    private static ProvisioningContext ProvisioningContext()
+    private static ProvisioningContext ProvisioningContext(string gameId = "palworld")
     {
-        var plan = new ValidatedProvisioningPlan(new GameServerId("server-1"), new GameId("palworld"), "Server",
+        var plan = new ValidatedProvisioningPlan(new GameServerId("server-1"), new GameId(gameId), "Server",
             "docker", "compatible", [], [], [], [], ProvisioningStepIds.All);
-        return new("operation-1", new PalworldGameDefinition(), plan,
+        GameDefinition definition = gameId == "minecraft" ? new MinecraftGameDefinition() : new PalworldGameDefinition();
+        return new("operation-1", definition, plan,
             new ManagedServerReservationResult("server-1", "operation-1", [], []));
     }
 

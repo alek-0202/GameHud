@@ -233,6 +233,11 @@ function GameCatalogCard({ game }: GameCatalogCardProps) {
       </div>
 
       <div className="server-card-actions">
+        {game.id === 'minecraft' && (
+          <Link className="primary-button" to="/games/minecraft/install">
+            Install Lunchtime
+          </Link>
+        )}
         <button
           className="secondary-button"
           disabled={compatibilityState.status === 'loading'}

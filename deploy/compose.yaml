@@ -10,6 +10,7 @@ services:
       Docker__Endpoint: ${GAMESHUD_DOCKER_ENDPOINT:-unix:///var/run/docker.sock}
       RuntimeImageAcquisition__TimeoutSeconds: ${GAMESHUD_IMAGE_ACQUISITION_TIMEOUT_SECONDS:-900}
       RuntimeImageAcquisition__InspectTimeoutSeconds: ${GAMESHUD_IMAGE_INSPECT_TIMEOUT_SECONDS:-30}
+      RuntimeHealth__MinecraftTimeoutSeconds: ${GAMESHUD_MINECRAFT_HEALTH_TIMEOUT_SECONDS:-1200}
       Storage__DataRoot: /managed/gameshud
       Storage__ManagedApiRoot: /managed/gameshud
       Storage__ManagedHostRoot: ${GAMESHUD_MANAGED_HOST_ROOT:-/srv/gameshud}

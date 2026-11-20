@@ -53,7 +53,9 @@ public sealed class ManagedServerStore : IManagedServerStore
                     Type = ProvisioningOperationTypes.Provision,
                     Status = ProvisioningOperationStatuses.Pending,
                     ActiveSlot = ProvisioningOperationActiveSlots.Active,
-                    CurrentStep = InitialProvisioningStep,
+                    CurrentStep = normalizedPlan.PipelineVersion == ProvisioningPipelines.MinecraftDumbModeVersion
+                        ? ProvisioningStepIds.PrepareStorage
+                        : InitialProvisioningStep,
                     PipelineVersion = normalizedPlan.PipelineVersion!,
                     Version = 1,
                 };
@@ -217,7 +219,7 @@ public sealed class ManagedServerStore : IManagedServerStore
             : plan.PipelineVersion.Trim();
         var pipeline = ProvisioningPipelines.Find(pipelineVersion)
             ?? throw new ArgumentException("Unsupported provisioning pipeline.", nameof(plan));
-        if (pipelineVersion == ProvisioningPipelines.ImageAcquisitionVersion
+        if (ProvisioningPipelines.UsesTrustedImageAcquisition(pipelineVersion)
             ? plan.RuntimeImage is null || !plan.RuntimeImage.IsPinned || plan.RuntimeImage.RuntimeType != runtimeType
             : plan.RuntimeImage is not null)
             throw new ArgumentException("Runtime image intent does not match the pipeline.", nameof(plan));
@@ -227,15 +229,15 @@ public sealed class ManagedServerStore : IManagedServerStore
             step.RetryClassification,
             step.SideEffectClassification,
             step.MaxAttempts,
-            step.Sequence <= 3)).ToArray();
+            ProvisioningPipelines.IsCompletedBeforeReservation(pipelineVersion, step))).ToArray();
         var steps = NormalizeSteps(sourceSteps);
-        if (pipelineVersion == ProvisioningPipelines.ImageAcquisitionVersion
+        if (ProvisioningPipelines.RequiresExactMetadata(pipelineVersion)
             && (steps.Count != pipeline.Steps.Count || pipeline.Steps.Any(expected => !steps.Any(actual =>
                 actual.StepId == expected.Id && actual.Sequence == expected.Sequence
                 && actual.RetryClassification == expected.RetryClassification && actual.MaxAttempts == expected.MaxAttempts
                 && actual.SideEffectClassification == expected.SideEffectClassification
-                && actual.CompletedBeforeReservation == (expected.Sequence <= 3)))))
-            throw new ArgumentException("V2 pipeline metadata is invalid.", nameof(plan));
+                && actual.CompletedBeforeReservation == ProvisioningPipelines.IsCompletedBeforeReservation(pipelineVersion, expected)))))
+            throw new ArgumentException("Provisioning pipeline metadata is invalid.", nameof(plan));
 
         if (plan.Configuration is not null
             && (plan.Configuration.GameId.Value != gameId || plan.Configuration.Payload.Length > 8000))
@@ -386,7 +388,10 @@ public sealed class ManagedServerStore : IManagedServerStore
         {
             Id = operationId, GameServerId = normalizedPlan.GameServerId,
             Type = ProvisioningOperationTypes.Provision, Status = ProvisioningOperationStatuses.Pending,
-            ActiveSlot = ProvisioningOperationActiveSlots.Active, CurrentStep = InitialProvisioningStep,
+            ActiveSlot = ProvisioningOperationActiveSlots.Active,
+            CurrentStep = normalizedPlan.PipelineVersion == ProvisioningPipelines.MinecraftDumbModeVersion
+                ? ProvisioningStepIds.PrepareStorage
+                : InitialProvisioningStep,
             PipelineVersion = normalizedPlan.PipelineVersion!, Version = 1
         };
         var now = DateTimeOffset.UtcNow;

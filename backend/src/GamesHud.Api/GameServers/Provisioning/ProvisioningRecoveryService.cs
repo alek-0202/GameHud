@@ -91,7 +91,7 @@ public sealed class ProvisioningRecoveryService : IProvisioningRecoveryService
             return Decision(operation, ProvisioningRecoveryDecisions.ManualIntervention,
                 "pipeline_version_mismatch", "The persisted pipeline version differs from the current pipeline.");
         }
-        if (operation.PipelineVersion == ProvisioningPipelines.ImageAcquisitionVersion && !pipeline.Matches(operation))
+        if (ProvisioningPipelines.RequiresExactMetadata(operation.PipelineVersion) && !pipeline.Matches(operation))
             return Decision(operation, ProvisioningRecoveryDecisions.ManualIntervention,
                 "pipeline_definition_mismatch", "The persisted pipeline metadata differs from its registered version.");
 

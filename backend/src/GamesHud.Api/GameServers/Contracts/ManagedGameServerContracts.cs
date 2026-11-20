@@ -1,6 +1,14 @@
 namespace GamesHud.Api.GameServers.Contracts;
 
-public sealed record CreateManagedGameServerRequest(string? GameId, string? DisplayName);
+public sealed record CreateManagedGameServerRequest(
+    string? GameId,
+    string? DisplayName,
+    MinecraftManagedInstallRequest? Minecraft = null);
+
+public sealed record MinecraftManagedInstallRequest(
+    int? RamMiB,
+    int? Port,
+    bool EulaAccepted);
 
 public sealed record CreateManagedGameServerResponse(string GameServerId, string ProvisioningOperationId);
 

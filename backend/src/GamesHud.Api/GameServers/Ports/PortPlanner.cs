@@ -18,9 +18,16 @@ public sealed class PortPlanner : IPortPlanner
 
     public async Task<GamePortPlan> CreatePlanAsync(
         GameDefinition definition,
+        CancellationToken cancellationToken) =>
+        await CreatePlanAsync(definition, new Dictionary<string, int>(), cancellationToken);
+
+    public async Task<GamePortPlan> CreatePlanAsync(
+        GameDefinition definition,
+        IReadOnlyDictionary<string, int> preferredHostPorts,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(definition);
+        ArgumentNullException.ThrowIfNull(preferredHostPorts);
 
         if (definition.Ports.Count == 0)
         {
@@ -53,15 +60,20 @@ public sealed class PortPlanner : IPortPlanner
                 continue;
             }
 
+            var requestedPort = preferredHostPorts.TryGetValue(portDefinition.Id, out var preferredPort)
+                ? new NetworkPort(preferredPort, portDefinition.DefaultPort.Protocol)
+                : portDefinition.DefaultPort;
             var availability = await _availabilityService.CheckAvailabilityAsync(
-                portDefinition.DefaultPort,
+                requestedPort,
                 cancellationToken);
             var allocation = await _portAllocator.AllocateAsync(
                 new PortAllocationRequest(
                     new GameServerId($"{definition.GameId}-{portDefinition.Id}-preview"),
                     portDefinition.Id,
-                    portDefinition.DefaultPort,
-                    portDefinition.AllowAlternative,
+                    requestedPort,
+                    preferredHostPorts.ContainsKey(portDefinition.Id)
+                        ? false
+                        : portDefinition.AllowAlternative,
                     CoordinateInProcess: false),
                 cancellationToken);
 

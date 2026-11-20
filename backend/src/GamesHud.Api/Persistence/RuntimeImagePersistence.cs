@@ -85,7 +85,7 @@ internal static class RuntimeImagePersistence
             if (entry.State is EntityState.Modified or EntityState.Deleted)
                 throw new InvalidOperationException("Reconciliation audit is append-only.");
         foreach (var entry in database.ChangeTracker.Entries<ProvisioningOperationRecord>().Where(item => item.State == EntityState.Added
-            && item.Entity.PipelineVersion == ProvisioningPipelines.ImageAcquisitionVersion))
+            && ProvisioningPipelines.UsesTrustedImageAcquisition(item.Entity.PipelineVersion)))
             if (!database.ChangeTracker.Entries<RuntimeImageIntentRecord>().Any(image => image.State == EntityState.Added
                 && image.Entity.OperationId == entry.Entity.Id && image.Entity.GameServerId == entry.Entity.GameServerId))
                 throw new InvalidOperationException("V2 operation requires transactional image intent.");

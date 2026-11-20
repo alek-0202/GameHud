@@ -65,7 +65,7 @@ public sealed class RuntimeImageIdentityFoundationTests
     {
         var properties = typeof(CreateGameServerProvisioningRequest).GetProperties().Select(property => property.Name).ToArray();
 
-        Assert.Equal(["GameServerId", "GameId", "DisplayName"], properties);
+        Assert.Equal(["GameServerId", "GameId", "DisplayName", "Minecraft"], properties);
     }
 
     [Fact]

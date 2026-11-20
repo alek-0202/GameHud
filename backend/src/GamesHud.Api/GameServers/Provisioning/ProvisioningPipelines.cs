@@ -13,6 +13,7 @@ public sealed record ProvisioningPipelineDefinition(string Version, IReadOnlyCol
 public static class ProvisioningPipelines
 {
     public const string ImageAcquisitionVersion = "gh15-v2";
+    public const string MinecraftDumbModeVersion = "gh-mc01-v1";
     public static string DefaultVersion => ProvisioningPipeline.Version;
     public static ProvisioningPipelineDefinition Legacy { get; } = new(ProvisioningPipeline.Version, ProvisioningPipeline.Steps);
     public static ProvisioningPipelineDefinition ImageAcquisition { get; } = new(ImageAcquisitionVersion,
@@ -20,11 +21,23 @@ public static class ProvisioningPipelines
             .Select(step => step.SideEffectClassification == ProvisioningSideEffectClassifications.Mutation ? step with { MaxAttempts = 3 } : step)
             .Append(new(ProvisioningStepIds.AcquireImage, 6, ProvisioningRetryClassifications.RequiresInspection,
                 ProvisioningSideEffectClassifications.Mutation, 3)).OrderBy(step => step.Sequence).ToArray()));
+    public static ProvisioningPipelineDefinition MinecraftDumbMode { get; } = new(MinecraftDumbModeVersion,
+    [
+        new(ProvisioningStepIds.PrepareStorage, 1, ProvisioningRetryClassifications.RequiresInspection, ProvisioningSideEffectClassifications.Mutation, 3),
+        new(ProvisioningStepIds.AcquireImage, 2, ProvisioningRetryClassifications.RequiresInspection, ProvisioningSideEffectClassifications.Mutation, 3),
+        new(ProvisioningStepIds.AcquireGameArtifact, 3, ProvisioningRetryClassifications.RequiresInspection, ProvisioningSideEffectClassifications.Mutation, 3),
+        new(ProvisioningStepIds.ConfigureGame, 4, ProvisioningRetryClassifications.RequiresInspection, ProvisioningSideEffectClassifications.Mutation, 3),
+        new(ProvisioningStepIds.CreateRuntime, 5, ProvisioningRetryClassifications.RequiresInspection, ProvisioningSideEffectClassifications.Mutation, 3),
+        new(ProvisioningStepIds.StartRuntime, 6, ProvisioningRetryClassifications.RequiresInspection, ProvisioningSideEffectClassifications.Mutation, 3),
+        new(ProvisioningStepIds.VerifyHealth, 7, ProvisioningRetryClassifications.SafeToRetry, ProvisioningSideEffectClassifications.ReadOnly, 2),
+        new(ProvisioningStepIds.Complete, 8, ProvisioningRetryClassifications.SafeToRetry, ProvisioningSideEffectClassifications.ReadOnly, 1)
+    ]);
 
     public static ProvisioningPipelineDefinition? Find(string version) => version switch
     {
         ProvisioningPipeline.Version => Legacy,
         ImageAcquisitionVersion => ImageAcquisition,
+        MinecraftDumbModeVersion => MinecraftDumbMode,
         _ => null
     };
 
@@ -43,8 +56,19 @@ public static class ProvisioningPipelines
             return (Legacy, null);
         }
 
-        return (ImageAcquisition, candidates[0]);
+        return definition.GameId.Value == "minecraft"
+            ? (MinecraftDumbMode, candidates[0])
+            : (ImageAcquisition, candidates[0]);
     }
+
+    public static bool UsesTrustedImageAcquisition(string version) =>
+        version is ImageAcquisitionVersion or MinecraftDumbModeVersion;
+
+    public static bool RequiresExactMetadata(string version) =>
+        version is ImageAcquisitionVersion or MinecraftDumbModeVersion;
+
+    public static bool IsCompletedBeforeReservation(string version, ProvisioningStepDefinition step) =>
+        version != MinecraftDumbModeVersion && step.Sequence <= 3;
 
     private static bool IsSupportedV2Image(TrustedRuntimeImage image) =>
         image.RuntimeType == "docker"

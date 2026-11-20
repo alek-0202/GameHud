@@ -5,6 +5,8 @@ using GamesHud.Api.Persistence.Models;
 using GamesHud.Api.GameServers.Definitions;
 using GamesHud.Api.GameServers.Domain;
 using GamesHud.Api.Persistence.Provisioning;
+using GamesHud.Api.GameServers.Artifacts;
+using GamesHud.Api.GameServers.Configuration;
 
 namespace GamesHud.Api.GameServers.Runtime;
 
@@ -26,18 +28,21 @@ public sealed class RuntimeSpecificationBuilder : IRuntimeSpecificationBuilder, 
     private readonly IGameDefinitionRegistry _definitions;
     private readonly IProvisioningOperationStore? _operations;
     private readonly IRuntimeImageIntentStore? _images;
+    private readonly IMinecraftProvisioningIntentReader? _minecraftIntents;
 
     public RuntimeSpecificationBuilder(IManagedServerStore store, IManagedStoragePathBuilder paths,
         IGameDefinitionRegistry definitions) : this(store, paths, definitions, null, null) { }
 
     public RuntimeSpecificationBuilder(IManagedServerStore store, IManagedStoragePathBuilder paths, IGameDefinitionRegistry definitions,
-        IProvisioningOperationStore? operations, IRuntimeImageIntentStore? images)
+        IProvisioningOperationStore? operations, IRuntimeImageIntentStore? images,
+        IMinecraftProvisioningIntentReader? minecraftIntents = null)
     {
         _store = store;
         _paths = paths;
         _definitions = definitions;
         _operations = operations;
         _images = images;
+        _minecraftIntents = minecraftIntents;
     }
 
     public async Task<RuntimeMutationSpecification?> BuildAsync(ProvisioningContext context, CancellationToken cancellationToken)
@@ -46,7 +51,7 @@ public sealed class RuntimeSpecificationBuilder : IRuntimeSpecificationBuilder, 
         var operation = _operations is null ? null : await _operations.GetAsync(context.OperationId, cancellationToken);
         VerifiedRuntimeImage? verifiedImage = null;
         var image = context.GameDefinition.LegacyRuntimeImages.SingleOrDefault(item => item.RuntimeType == context.ValidatedPlan.RuntimeType);
-        if (operation?.PipelineVersion == ProvisioningPipelines.ImageAcquisitionVersion)
+        if (operation is not null && ProvisioningPipelines.UsesTrustedImageAcquisition(operation.PipelineVersion))
         {
             if (_images is null) return null;
             try
@@ -88,9 +93,19 @@ public sealed class RuntimeSpecificationBuilder : IRuntimeSpecificationBuilder, 
         var requirements = context.GameDefinition.Requirements;
         var environment = context.GameDefinition.RuntimeEnvironment
             .Where(item => item.RuntimeType == context.ValidatedPlan.RuntimeType).ToArray();
+        var resources = new RuntimeResourceLimits(
+            requirements?.MinimumLogicalProcessors ?? 1,
+            requirements?.Memory?.MinimumBytes ?? 1);
+        if (context.ValidatedPlan.GameId.Value == "minecraft")
+        {
+            if (_minecraftIntents is null) return null;
+            var intent = await _minecraftIntents.ReadAsync(context.GameServerId, cancellationToken);
+            environment = MinecraftRuntimeConfiguration.CreateEnvironment(intent);
+            resources = MinecraftRuntimeConfiguration.CreateResources(intent, requirements?.MinimumLogicalProcessors ?? 2);
+        }
         return new RuntimeMutationSpecification(context.GameServerId, context.ValidatedPlan.GameId, context.OperationId,
             context.ValidatedPlan.RuntimeType, image, ports, mounts, context.ValidatedPlan.SecretReferences, environment,
-            new RuntimeResourceLimits(requirements?.MinimumLogicalProcessors ?? 1, requirements?.Memory?.MinimumBytes ?? 1),
+            resources,
             RuntimeRestartPolicies.UnlessStopped, RuntimeNetworkPolicies.GamesHudManaged, verifiedImage);
     }
 
@@ -103,7 +118,7 @@ public sealed class RuntimeSpecificationBuilder : IRuntimeSpecificationBuilder, 
         var operation = _operations is null ? null : await _operations.GetAsync(operationId, cancellationToken);
         VerifiedRuntimeImage? verifiedImage = null;
         var image = definition!.LegacyRuntimeImages.SingleOrDefault(item => item.RuntimeType == server.RuntimeType);
-        if (operation?.PipelineVersion == ProvisioningPipelines.ImageAcquisitionVersion)
+        if (operation is not null && ProvisioningPipelines.UsesTrustedImageAcquisition(operation.PipelineVersion))
         {
             if (_images is null) return (null, definition);
             try
@@ -135,8 +150,39 @@ public sealed class RuntimeSpecificationBuilder : IRuntimeSpecificationBuilder, 
         if (ports.Length == 0 || mounts.Length == 0) return (null, definition);
         var requirements = definition.Requirements;
         var environment = definition.RuntimeEnvironment.Where(item => item.RuntimeType == server.RuntimeType).ToArray();
+        var resources = new RuntimeResourceLimits(
+            requirements?.MinimumLogicalProcessors ?? 1,
+            requirements?.Memory?.MinimumBytes ?? 1);
+        if (server.GameId == "minecraft")
+        {
+            if (_minecraftIntents is null) return (null, definition);
+            var intent = await _minecraftIntents.ReadAsync(gameServerId, cancellationToken);
+            environment = MinecraftRuntimeConfiguration.CreateEnvironment(intent);
+            resources = MinecraftRuntimeConfiguration.CreateResources(intent, requirements?.MinimumLogicalProcessors ?? 2);
+        }
         return (new RuntimeMutationSpecification(gameServerId, definition.GameId, operationId, server.RuntimeType, image,
-            ports, mounts, [], environment, new(requirements?.MinimumLogicalProcessors ?? 1, requirements?.Memory?.MinimumBytes ?? 1),
+            ports, mounts, [], environment, resources,
             RuntimeRestartPolicies.UnlessStopped, RuntimeNetworkPolicies.GamesHudManaged, verifiedImage), definition);
     }
+}
+
+internal static class MinecraftRuntimeConfiguration
+{
+    internal static TrustedRuntimeEnvironmentVariable[] CreateEnvironment(
+        MinecraftInitialProvisioningConfiguration intent) =>
+    [
+        new("docker", "ENABLE_RCON", "FALSE"),
+        new("docker", "EULA", "TRUE"),
+        new("docker", "FORGE_VERSION", intent.ForgeVersion),
+        new("docker", "MEMORY", $"{intent.JavaMemoryMiB}M"),
+        new("docker", "SERVER_PORT", "25565"),
+        new("docker", "TYPE", "FORGE"),
+        new("docker", "VERSION", intent.MinecraftVersion)
+    ];
+
+    internal static RuntimeResourceLimits CreateResources(
+        MinecraftInitialProvisioningConfiguration intent,
+        int cpuCount) => new(
+            cpuCount,
+            checked((ulong)intent.ContainerMemoryMiB * 1024UL * 1024UL));
 }

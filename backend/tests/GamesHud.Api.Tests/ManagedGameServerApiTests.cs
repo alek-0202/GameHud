@@ -72,6 +72,20 @@ public sealed class ManagedGameServerApiTests
     }
 
     [Fact]
+    public async Task MinecraftIdempotencyFingerprintIncludesAllInstallationChoices()
+    {
+        var provisioning = new CapturingProvisioningService();
+        var service = new ManagedGameServerApplicationService(provisioning, new StubCurrentUser());
+        await service.CreateAsync(new("minecraft", "Lunch", new(6144, 25565, true)), "same-key", default);
+        var first = provisioning.Fingerprint;
+        await service.CreateAsync(new(" MINECRAFT ", " Lunch ", new(6144, 25565, true)), "same-key", default);
+        Assert.Equal(first, provisioning.Fingerprint);
+
+        await service.CreateAsync(new("minecraft", "Lunch", new(8192, 25565, true)), "same-key", default);
+        Assert.NotEqual(first, provisioning.Fingerprint);
+    }
+
+    [Fact]
     public async Task MigrationUpgradesPreviousSchemaAndDatabaseRejectsDuplicateKeyHash()
     {
         var file = Path.Combine(Path.GetTempPath(), $"gameshud-gh17-{Guid.NewGuid():N}.db");
@@ -100,7 +114,7 @@ public sealed class ManagedGameServerApiTests
     [Fact]
     public void PublicWriteDtoCannotSetServerRuntimeOrProvisioningState()
     {
-        Assert.Equal(["DisplayName", "GameId"], typeof(CreateManagedGameServerRequest).GetProperties()
+        Assert.Equal(["DisplayName", "GameId", "Minecraft"], typeof(CreateManagedGameServerRequest).GetProperties()
             .Select(property => property.Name).OrderBy(name => name, StringComparer.Ordinal).ToArray());
     }
 
