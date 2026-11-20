@@ -29,7 +29,7 @@ public sealed class MinecraftProvisioningConfigurationCodec : IGameProvisioningC
     public const string InitialConfigurationKind = "minecraft.lunchtime.initial";
     public const int CurrentSchemaVersion = 1;
     public const int ContainerOverheadMiB = 1024;
-    public static readonly IReadOnlyCollection<int> AllowedJavaMemoryMiB = [6144, 8192, 10240, 12288];
+    public static readonly IReadOnlyCollection<int> AllowedJavaMemoryMiB = [5120, 6144, 8192, 10240, 12288];
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {

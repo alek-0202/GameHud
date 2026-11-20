@@ -14,6 +14,18 @@ describe('MinecraftInstallPage', () => {
     vi.unstubAllGlobals()
   })
 
+  it('offers 5 GiB while preserving every existing heap choice', () => {
+    render(<MemoryRouter><MinecraftInstallPage /></MemoryRouter>)
+
+    const memory = screen.getByRole('combobox', { name: /Java memory/ }) as HTMLSelectElement
+    expect(Array.from(memory.options).map((option) => Number(option.value))).toEqual([
+      5120, 6144, 8192, 10240, 12288,
+    ])
+    expect(Array.from(memory.options).map((option) => option.textContent)).toEqual([
+      '5 GiB heap', '6 GiB heap', '8 GiB heap', '10 GiB heap', '12 GiB heap',
+    ])
+  })
+
   it('uses the authenticated Managed API with CSRF, idempotency and persistent progress', async () => {
     const requests: Array<{ path: string; init?: RequestInit }> = []
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

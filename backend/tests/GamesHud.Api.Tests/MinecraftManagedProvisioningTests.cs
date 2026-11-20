@@ -73,21 +73,39 @@ public sealed class MinecraftManagedProvisioningTests
         Assert.Throws<GameConfigurationException>(() => codec.CreateInitial("Lunch", 6144, 25565, false));
     }
 
+    [Theory]
+    [InlineData(5120, 6144)]
+    [InlineData(6144, 7168)]
+    [InlineData(8192, 9216)]
+    [InlineData(10240, 11264)]
+    [InlineData(12288, 13312)]
+    public void EverySupportedHeapPersistsWithOneGiBContainerOverhead(
+        int javaMemoryMiB,
+        int expectedContainerMemoryMiB)
+    {
+        var value = Assert.IsType<MinecraftInitialProvisioningConfiguration>(
+            new MinecraftProvisioningConfigurationCodec()
+                .CreateInitial("Lunch", javaMemoryMiB, 25565, true).TypedValue);
+
+        Assert.Equal(javaMemoryMiB, value.JavaMemoryMiB);
+        Assert.Equal(expectedContainerMemoryMiB, value.ContainerMemoryMiB);
+    }
+
     [Fact]
     public void JavaHeapAndContainerLimitRemainSeparateAndPinned()
     {
         var intent = Assert.IsType<MinecraftInitialProvisioningConfiguration>(
-            new MinecraftProvisioningConfigurationCodec().CreateInitial("Lunch", 8192, 25565, true).TypedValue);
+            new MinecraftProvisioningConfigurationCodec().CreateInitial("Lunch", 5120, 25565, true).TypedValue);
         var environment = MinecraftRuntimeConfiguration.CreateEnvironment(intent)
             .ToDictionary(item => item.Name, item => item.Value, StringComparer.Ordinal);
         var resources = MinecraftRuntimeConfiguration.CreateResources(intent, 2);
 
-        Assert.Equal("8192M", environment["MEMORY"]);
+        Assert.Equal("5120M", environment["MEMORY"]);
         Assert.Equal("FORGE", environment["TYPE"]);
         Assert.Equal("1.20.1", environment["VERSION"]);
         Assert.Equal("47.4.29", environment["FORGE_VERSION"]);
         Assert.Equal("TRUE", environment["EULA"]);
-        Assert.Equal(9UL * 1024 * 1024 * 1024, resources.MemoryBytes);
+        Assert.Equal(6UL * 1024 * 1024 * 1024, resources.MemoryBytes);
         Assert.Equal(2, resources.CpuCount);
     }
 

@@ -7,7 +7,7 @@ import {
 } from '../api/managedGameServers'
 import { SectionHeader } from '../components/SectionHeader'
 
-const ramChoices = [6144, 8192, 10240, 12288]
+const ramChoices = [5120, 6144, 8192, 10240, 12288]
 const terminalStatuses = new Set(['succeeded', 'failed', 'cancelled', 'compensation_failed'])
 
 export function isManagedProvisioningTerminal(provisioning: ManagedProvisioning) {

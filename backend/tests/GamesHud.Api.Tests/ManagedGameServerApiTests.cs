@@ -76,12 +76,12 @@ public sealed class ManagedGameServerApiTests
     {
         var provisioning = new CapturingProvisioningService();
         var service = new ManagedGameServerApplicationService(provisioning, new StubCurrentUser());
-        await service.CreateAsync(new("minecraft", "Lunch", new(6144, 25565, true)), "same-key", default);
+        await service.CreateAsync(new("minecraft", "Lunch", new(5120, 25565, true)), "same-key", default);
         var first = provisioning.Fingerprint;
-        await service.CreateAsync(new(" MINECRAFT ", " Lunch ", new(6144, 25565, true)), "same-key", default);
+        await service.CreateAsync(new(" MINECRAFT ", " Lunch ", new(5120, 25565, true)), "same-key", default);
         Assert.Equal(first, provisioning.Fingerprint);
 
-        await service.CreateAsync(new("minecraft", "Lunch", new(8192, 25565, true)), "same-key", default);
+        await service.CreateAsync(new("minecraft", "Lunch", new(6144, 25565, true)), "same-key", default);
         Assert.NotEqual(first, provisioning.Fingerprint);
     }
 

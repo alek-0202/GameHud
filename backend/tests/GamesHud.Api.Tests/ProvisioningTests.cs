@@ -1,5 +1,6 @@
 using System.Text.Json;
 using GamesHud.Api.Authentication;
+using GamesHud.Api.GameServers.Configuration;
 using GamesHud.Api.GameServers.Definitions;
 using GamesHud.Api.GameServers.Domain;
 using GamesHud.Api.GameServers.Ports;
@@ -73,6 +74,29 @@ public sealed class ProvisioningTests
         Assert.All(result.Plan.Storage, item => Assert.StartsWith("servers/server-one/", item.RelativePath));
         Assert.Empty(result.Plan.SecretReferences);
         Assert.Equal(ProvisioningStepIds.All, result.Plan.RequiredSteps);
+    }
+
+    [Fact]
+    public async Task MinecraftPlanAcceptsFiveGiBHeapWhenHostRequirementsPass()
+    {
+        var builder = CreatePlanBuilder(
+            new MinecraftGameDefinition(),
+            CreateCompatibleHost(),
+            [new MinecraftProvisioningConfigurationCodec()]);
+
+        var result = await builder.BuildAsync(
+            new CreateGameServerProvisioningRequest(
+                "minecraft-five-gib",
+                "minecraft",
+                "Lunchtime",
+                new MinecraftProvisioningOptions(5120, 25565, true)),
+            CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        var configuration = Assert.IsType<MinecraftInitialProvisioningConfiguration>(
+            result.Plan!.GameConfiguration!.TypedValue);
+        Assert.Equal(5120, configuration.JavaMemoryMiB);
+        Assert.Equal(6144, configuration.ContainerMemoryMiB);
     }
 
     [Fact]
@@ -716,13 +740,17 @@ public sealed class ProvisioningTests
             .OrderBy(request => request.OwnerId).Select(request => request.OwnerId!).ToArrayAsync());
     }
 
-    private static ProvisioningPlanBuilder CreatePlanBuilder(GameDefinition definition, HostCapabilitySnapshot host) =>
+    private static ProvisioningPlanBuilder CreatePlanBuilder(
+        GameDefinition definition,
+        HostCapabilitySnapshot host,
+        IEnumerable<IGameProvisioningConfigurationCodec>? configurationCodecs = null) =>
         new(
             new GameDefinitionRegistry([definition]),
             new StubHostCapabilityService(host),
             new GameRequirementEvaluator(),
             new StubPortPlanner(),
-            new StubStoragePlanner());
+            new StubStoragePlanner(),
+            configurationCodecs);
 
     private static ProvisioningHarness CreateHarness(
         GamesHudDbContext database,
@@ -850,11 +878,24 @@ public sealed class ProvisioningTests
     private sealed class StubPortPlanner : IPortPlanner
     {
         public Task<GamePortPlan> CreatePlanAsync(GameDefinition definition, CancellationToken cancellationToken)
+            => CreatePlanAsync(definition, new Dictionary<string, int>(), cancellationToken);
+
+        public Task<GamePortPlan> CreatePlanAsync(
+            GameDefinition definition,
+            IReadOnlyDictionary<string, int> preferredHostPorts,
+            CancellationToken cancellationToken)
         {
-            var items = definition.Ports.Select(port => new GamePortPlanItem(
-                port.Id, port.Label, port.Purpose, port.Exposure, port.Required, port.AllowAlternative,
-                new PortAvailability(port.DefaultPort, PortAvailabilityStatuses.Available, true, [], "Available"),
-                new PortAllocationResult(port.DefaultPort, port.DefaultPort, false, PortAllocationStatuses.Allocated, null, "Allocated", [port.DefaultPort]))).ToArray();
+            var items = definition.Ports.Select(port =>
+            {
+                var requestedPort = preferredHostPorts.TryGetValue(port.Id, out var preferred)
+                    ? new NetworkPort(preferred, port.DefaultPort.Protocol)
+                    : port.DefaultPort;
+                return new GamePortPlanItem(
+                    port.Id, port.Label, port.Purpose, port.Exposure, port.Required, port.AllowAlternative,
+                    new PortAvailability(requestedPort, PortAvailabilityStatuses.Available, true, [], "Available"),
+                    new PortAllocationResult(requestedPort, requestedPort, false, PortAllocationStatuses.Allocated,
+                        null, "Allocated", [requestedPort]));
+            }).ToArray();
             return Task.FromResult(new GamePortPlan(definition.GameId.ToString(), definition.DisplayName, PortPlanStatuses.Ready, items, "Ready"));
         }
     }
