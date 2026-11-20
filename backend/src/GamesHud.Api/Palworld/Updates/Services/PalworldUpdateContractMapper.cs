@@ -8,8 +8,13 @@ public static class PalworldUpdateContractMapper
     {
         return new PalworldUpdateStatusResponse(
             status.InstalledVersion,
+            status.InstalledBuild,
             status.AvailableVersion,
+            status.AvailableBuild,
             status.UpdateStatus,
+            status.UpdateReady,
+            status.UpdateReadinessStatus,
+            status.UpdateReadinessMessage,
             status.LastCheckedAt.ToString("O"),
             status.Strategy,
             status.Message);

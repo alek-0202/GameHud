@@ -3,11 +3,18 @@ namespace GamesHud.Api.Palworld.Updates.Services;
 public static class PalworldUpdateStatuses
 {
     public const string Unknown = "unknown";
-    public const string UpToDate = "up-to-date";
-    public const string UpdateAvailable = "update-available";
-    public const string CheckUnavailable = "check-unavailable";
+    public const string UpToDate = "up_to_date";
+    public const string UpdateAvailable = "update_available";
+    public const string Unavailable = "unavailable";
     public const string Applied = "applied";
-    public const string AppliedVersionUnknown = "applied-version-unknown";
+    public const string AppliedVersionUnknown = "applied_version_unknown";
+}
+
+public static class PalworldUpdateReadinessStatuses
+{
+    public const string Ready = "ready";
+    public const string NotConfigured = "not_configured";
+    public const string Unavailable = "unavailable";
 }
 
 public static class PalworldUpdateSteps
@@ -24,10 +31,20 @@ public static class PalworldUpdateSteps
 
 public sealed record PalworldUpdateStatus(
     string? InstalledVersion,
+    string? InstalledBuild,
     string? AvailableVersion,
+    string? AvailableBuild,
     string UpdateStatus,
+    bool UpdateReady,
+    string UpdateReadinessStatus,
+    string UpdateReadinessMessage,
     DateTimeOffset LastCheckedAt,
     string Strategy,
+    string Message);
+
+public sealed record PalworldUpdateReadiness(
+    bool Ready,
+    string Status,
     string Message);
 
 public sealed record PalworldUpdateResult(

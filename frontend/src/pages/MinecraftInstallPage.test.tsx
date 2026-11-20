@@ -1,7 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MinecraftInstallPage } from './MinecraftInstallPage'
+import { isManagedProvisioningTerminal, MinecraftInstallPage } from './MinecraftInstallPage'
+import type { ManagedProvisioning } from '../api/managedGameServers'
 
 describe('MinecraftInstallPage', () => {
   beforeEach(() => {
@@ -21,7 +22,7 @@ describe('MinecraftInstallPage', () => {
       if (path === '/api/auth/csrf') return json({ requestToken: 'csrf-token' })
       if (path === '/api/game-servers') return json({ gameServerId: 'gs-minecraft', provisioningOperationId: 'op-1' }, 202)
       if (path === '/api/game-servers/gs-minecraft/provisioning') return json({
-        operationId: 'op-1', gameServerId: 'gs-minecraft', status: 'completed',
+        operationId: 'op-1', gameServerId: 'gs-minecraft', status: 'succeeded',
         currentStep: 'complete', pipelineVersion: 'gh-mc01-v1', requiresInspection: false,
         failure: null,
         steps: [
@@ -78,6 +79,21 @@ describe('MinecraftInstallPage', () => {
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('The selected port is already reserved.'))
     expect(screen.queryByText(/stack/i)).not.toBeInTheDocument()
+  })
+
+  it('stops polling for real terminal statuses and inspection-required operations', () => {
+    const provisioning = {
+      operationId: 'op-1', gameServerId: 'gs-minecraft', status: 'running',
+      currentStep: 'create_runtime', pipelineVersion: 'gh-mc01-v1', requiresInspection: false,
+      failure: null, steps: [],
+    } satisfies ManagedProvisioning
+
+    expect(isManagedProvisioningTerminal({ ...provisioning, status: 'succeeded' })).toBe(true)
+    expect(isManagedProvisioningTerminal({ ...provisioning, status: 'failed' })).toBe(true)
+    expect(isManagedProvisioningTerminal({ ...provisioning, status: 'cancelled' })).toBe(true)
+    expect(isManagedProvisioningTerminal({ ...provisioning, status: 'compensation_failed' })).toBe(true)
+    expect(isManagedProvisioningTerminal({ ...provisioning, requiresInspection: true })).toBe(true)
+    expect(isManagedProvisioningTerminal(provisioning)).toBe(false)
   })
 })
 

@@ -845,7 +845,8 @@ public sealed class ManagedPalworldEndToEndTests
         private bool _ambiguous;
         public int StartingHealthInspections { get; set; }
         public List<CreateContainerParameters> Created { get; } = [];
-        public Task<bool> ImageExistsAsync(string image, CancellationToken cancellationToken) => Task.FromResult(image == LocalImageId);
+        public Task<DockerManagedImageInspection?> InspectImageAsync(string image, CancellationToken cancellationToken) =>
+            Task.FromResult(image == LocalImageId ? new DockerManagedImageInspection([]) : null);
         public Task<IReadOnlyCollection<ContainerListResponse>> ListAsync(CancellationToken cancellationToken)
         {
             if (_ambiguous) throw new HttpRequestException("simulated ambiguous Docker inspection");

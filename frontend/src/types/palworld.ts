@@ -149,8 +149,13 @@ export interface PalworldDeleteBackupResponse {
 
 export interface PalworldUpdateStatus {
   installedVersion: string | null
+  installedBuild: string | null
   availableVersion: string | null
+  availableBuild: string | null
   updateStatus: string
+  updateReady: boolean
+  updateReadinessStatus: string
+  updateReadinessMessage: string
   lastCheckedAt: string
   strategy: string
   message: string

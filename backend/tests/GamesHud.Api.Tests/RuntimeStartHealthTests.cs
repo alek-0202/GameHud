@@ -17,7 +17,7 @@ public sealed class RuntimeStartHealthTests
     public void ManagedDockerBoundaryExposesOnlyExistingCreateAndNewStartMutation()
     {
         var methods = typeof(IDockerManagedRuntimeClient).GetMethods().Select(method => method.Name).OrderBy(name => name).ToArray();
-        Assert.Equal(["CreateAsync", "ImageExistsAsync", "InspectAsync", "ListAsync", "StartAsync"], methods);
+        Assert.Equal(["CreateAsync", "InspectAsync", "InspectImageAsync", "ListAsync", "StartAsync"], methods);
         Assert.DoesNotContain(methods, name => name.Contains("Stop", StringComparison.Ordinal)
             || name.Contains("Restart", StringComparison.Ordinal) || name.Contains("Remove", StringComparison.Ordinal)
             || name.Contains("Kill", StringComparison.Ordinal) || name.Contains("Exec", StringComparison.Ordinal)
@@ -269,7 +269,8 @@ public sealed class RuntimeStartHealthTests
         public bool ForeignLabels { get; init; }
         public Exception? StartException { get; init; }
         public int StartCalls { get; private set; }
-        public Task<bool> ImageExistsAsync(string image, CancellationToken cancellationToken) => Task.FromResult(true);
+        public Task<DockerManagedImageInspection?> InspectImageAsync(string image, CancellationToken cancellationToken) =>
+            Task.FromResult<DockerManagedImageInspection?>(new([]));
         public Task<CreateContainerResponse> CreateAsync(CreateContainerParameters parameters, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("Create is forbidden in GH-13 tests.");
         public Task<bool> StartAsync(string id, CancellationToken cancellationToken)

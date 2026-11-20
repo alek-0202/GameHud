@@ -35,6 +35,27 @@ public sealed class PalworldUpdateCommandException : PalworldUpdateException
         : base(message)
     {
     }
+
+    public PalworldUpdateCommandException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+}
+
+public sealed class PalworldUpdateConflictException : PalworldUpdateException
+{
+    public PalworldUpdateConflictException(string message)
+        : base(message)
+    {
+    }
+}
+
+public sealed class PalworldUpdateNotConfiguredException : PalworldUpdateException
+{
+    public PalworldUpdateNotConfiguredException(string message)
+        : base(message)
+    {
+    }
 }
 
 public sealed class PalworldUpdateLifecycleException : PalworldUpdateException

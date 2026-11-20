@@ -236,6 +236,7 @@ builder.Services.AddScoped<IPalworldModsService, PalworldModsService>();
 builder.Services.AddSingleton<PalworldBackupScheduleState>();
 builder.Services.AddScoped<IPalworldBackupService, PalworldBackupService>();
 builder.Services.AddHostedService<PalworldBackupScheduler>();
+builder.Services.AddSingleton<PalworldUpdateOperationState>();
 builder.Services.AddScoped<IPalworldContainerCommandService, DockerPalworldContainerCommandService>();
 builder.Services.AddScoped<IPalworldUpdateRunner, PalworldUpdateOnBootRunner>();
 builder.Services.AddScoped<IPalworldUpdateService, PalworldUpdateService>();

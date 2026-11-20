@@ -2,8 +2,13 @@ namespace GamesHud.Api.Palworld.Updates.Contracts;
 
 public sealed record PalworldUpdateStatusResponse(
     string? InstalledVersion,
+    string? InstalledBuild,
     string? AvailableVersion,
+    string? AvailableBuild,
     string UpdateStatus,
+    bool UpdateReady,
+    string UpdateReadinessStatus,
+    string UpdateReadinessMessage,
     string LastCheckedAt,
     string Strategy,
     string Message);

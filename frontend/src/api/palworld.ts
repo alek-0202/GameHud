@@ -26,6 +26,11 @@ export class PalworldApiRequestError extends Error {
   }
 }
 
+interface ProblemDetailsResponse {
+  title?: unknown
+  detail?: unknown
+}
+
 export async function fetchPalworldConfig(
   signal?: AbortSignal,
   serverId?: string,
@@ -248,9 +253,62 @@ async function fetchJson<TResponse>(
   if (!response.ok) {
     throw new PalworldApiRequestError(
       response.status,
-      `Palworld request failed with status ${response.status}.`,
+      await readErrorMessage(response),
     )
   }
 
   return response.json() as Promise<TResponse>
+}
+
+async function readErrorMessage(response: Response): Promise<string> {
+  const fallback = `Palworld request failed with status ${response.status}.`
+  const contentType = response.headers.get('content-type') ?? ''
+
+  if (contentType.includes('application/json')) {
+    try {
+      const problem = await response.json() as ProblemDetailsResponse
+
+      if (typeof problem.detail === 'string' && problem.detail.trim().length > 0) {
+        return problem.detail
+      }
+
+      if (typeof problem.title === 'string' && problem.title.trim().length > 0) {
+        return problem.title
+      }
+    } catch {
+      return fallback
+    }
+  }
+
+  try {
+    const text = await response.text()
+    const htmlTitle = text.match(/<title>([\s\S]*?)<\/title>/i)
+
+    if (htmlTitle?.[1]) {
+      const title = toPlainTextError(htmlTitle[1])
+
+      if (title.length > 0) {
+        return title
+      }
+    }
+
+    const plainText = toPlainTextError(text)
+
+    return plainText.length > 0 ? plainText : fallback
+  } catch {
+    return fallback
+  }
+}
+
+function toPlainTextError(text: string): string {
+  return text
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&amp;/gi, '&')
+    .replace(/\s+/g, ' ')
+    .trim()
 }

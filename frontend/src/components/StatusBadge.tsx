@@ -22,6 +22,7 @@ function getTone(state: string) {
     'success',
     'completed',
     'all systems operational',
+    'up to date',
   ].includes(state)) {
     return 'success'
   }
@@ -51,6 +52,7 @@ function getTone(state: string) {
     'attention',
     'warning',
     'partial telemetry',
+    'check unavailable',
   ].includes(state)) {
     return 'warning'
   }

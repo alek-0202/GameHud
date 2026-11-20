@@ -17,8 +17,13 @@ public sealed class HostMetricsFileSystem : IHostMetricsFileSystem
     public DriveInfo GetDriveInfo(string path)
     {
         var fullPath = Path.GetFullPath(path);
-        var root = Path.GetPathRoot(fullPath);
+        return new DriveInfo(ResolveDriveInfoPath(fullPath, OperatingSystem.IsWindows()));
+    }
 
-        return new DriveInfo(string.IsNullOrWhiteSpace(root) ? fullPath : root);
+    internal static string ResolveDriveInfoPath(string fullPath, bool isWindows)
+    {
+        if (!isWindows) return fullPath;
+        var root = Path.GetPathRoot(fullPath);
+        return string.IsNullOrWhiteSpace(root) ? fullPath : root;
     }
 }

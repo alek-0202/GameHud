@@ -8,7 +8,11 @@ import {
 import { SectionHeader } from '../components/SectionHeader'
 
 const ramChoices = [6144, 8192, 10240, 12288]
-const terminalStatuses = new Set(['completed', 'failed', 'requires_inspection'])
+const terminalStatuses = new Set(['succeeded', 'failed', 'cancelled', 'compensation_failed'])
+
+export function isManagedProvisioningTerminal(provisioning: ManagedProvisioning) {
+  return provisioning.requiresInspection || terminalStatuses.has(provisioning.status.toLowerCase())
+}
 
 export function MinecraftInstallPage() {
   const [name, setName] = useState('Lunchtime Minecraft')
@@ -32,7 +36,7 @@ export function MinecraftInstallPage() {
       try {
         const current = await fetchManagedProvisioning(serverId!, abortController.signal)
         setProvisioning(current)
-        if (!terminalStatuses.has(current.status.toLowerCase())) {
+        if (!isManagedProvisioningTerminal(current)) {
           timeout = window.setTimeout(() => { void poll() }, 2000)
         }
       } catch (error) {

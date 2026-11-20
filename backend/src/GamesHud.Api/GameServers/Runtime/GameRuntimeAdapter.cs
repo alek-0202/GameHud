@@ -40,9 +40,11 @@ internal static class DockerManagedRuntimeLabels
     public const string Identity = "gameshud.runtimeIdentity";
 }
 
+internal sealed record DockerManagedImageInspection(IReadOnlyCollection<string> Environment);
+
 internal interface IDockerManagedRuntimeClient
 {
-    Task<bool> ImageExistsAsync(string image, CancellationToken cancellationToken);
+    Task<DockerManagedImageInspection?> InspectImageAsync(string image, CancellationToken cancellationToken);
     Task<IReadOnlyCollection<ContainerListResponse>> ListAsync(CancellationToken cancellationToken);
     Task<ContainerInspectResponse> InspectAsync(string id, CancellationToken cancellationToken);
     Task<CreateContainerResponse> CreateAsync(CreateContainerParameters parameters, CancellationToken cancellationToken);
@@ -92,17 +94,17 @@ internal sealed class DockerManagedRuntimeClient : IDockerManagedRuntimeClient
     private readonly IOptions<DockerOptions> _options;
     public DockerManagedRuntimeClient(IOptions<DockerOptions> options) => _options = options;
 
-    public async Task<bool> ImageExistsAsync(string image, CancellationToken cancellationToken)
+    public async Task<DockerManagedImageInspection?> InspectImageAsync(string image, CancellationToken cancellationToken)
     {
         using var client = CreateClient();
         try
         {
-            await client.Images.InspectImageAsync(image, cancellationToken);
-            return true;
+            var inspected = await client.Images.InspectImageAsync(image, cancellationToken);
+            return new DockerManagedImageInspection((inspected.Config?.Env ?? []).ToArray());
         }
         catch (DockerImageNotFoundException)
         {
-            return false;
+            return null;
         }
     }
 
@@ -218,9 +220,10 @@ internal sealed class DockerGameRuntimeAdapter : IGameRuntimeAdapter, IManagedRu
 
         try
         {
-            if (!await _client.ImageExistsAsync(expected.Image, cancellationToken))
+            var image = await _client.InspectImageAsync(expected.Image, cancellationToken);
+            if (image is null)
                 return RuntimeProviderOutcome.KnownFailure(DockerRuntimeErrorCodes.ImageUnavailable, "The approved runtime image is not available locally.");
-            var inspection = await InspectAsync(expected, cancellationToken);
+            var inspection = await InspectAsync(expected, image.Environment, cancellationToken);
             if (inspection == ProvisioningReconciliationOutcomes.EffectExists)
                 return RuntimeProviderOutcome.Success("Managed runtime container already exists.");
             if (inspection == ProvisioningReconciliationOutcomes.Ambiguous)
@@ -291,6 +294,8 @@ internal sealed class DockerGameRuntimeAdapter : IGameRuntimeAdapter, IManagedRu
         RuntimeMutationExecutionContext context, CancellationToken cancellationToken)
     {
         var expected = DockerCreateContainerMapper.Map(context);
+        var image = await _client.InspectImageAsync(expected.Image, cancellationToken);
+        if (image is null) return new(ManagedRuntimeStates.Ambiguous);
         var containers = await _client.ListAsync(cancellationToken);
         var identity = Classify(containers, expected);
         if (identity == ProvisioningReconciliationOutcomes.EffectAbsent)
@@ -300,7 +305,7 @@ internal sealed class DockerGameRuntimeAdapter : IGameRuntimeAdapter, IManagedRu
         var expectedName = "/" + expected.Name;
         var candidate = containers.Single(container => container.Names?.Contains(expectedName, StringComparer.Ordinal) == true);
         var actual = await _client.InspectAsync(candidate.ID, cancellationToken);
-        if (!CriticalConfigurationMatches(actual, expected)) return new(ManagedRuntimeStates.Ambiguous);
+        if (!CriticalConfigurationMatches(actual, expected, image.Environment)) return new(ManagedRuntimeStates.Ambiguous);
         var state = NormalizeState(actual.State);
         return new(state, candidate.ID, actual.State?.Health?.Status);
     }
@@ -327,7 +332,12 @@ internal sealed class DockerGameRuntimeAdapter : IGameRuntimeAdapter, IManagedRu
         ArgumentNullException.ThrowIfNull(context);
         try
         {
-            var outcome = await InspectAsync(DockerCreateContainerMapper.Map(context), cancellationToken);
+            var expected = DockerCreateContainerMapper.Map(context);
+            var image = await _client.InspectImageAsync(expected.Image, cancellationToken);
+            if (image is null)
+                return new(ProvisioningReconciliationOutcomes.Ambiguous,
+                    "Managed runtime container state could not be proven safely.");
+            var outcome = await InspectAsync(expected, image.Environment, cancellationToken);
             return new(outcome, outcome switch
             {
                 ProvisioningReconciliationOutcomes.EffectExists => "Managed runtime container exists and matches the expected stopped configuration.",
@@ -341,7 +351,8 @@ internal sealed class DockerGameRuntimeAdapter : IGameRuntimeAdapter, IManagedRu
         }
     }
 
-    private async Task<string> InspectAsync(CreateContainerParameters expected, CancellationToken cancellationToken)
+    private async Task<string> InspectAsync(CreateContainerParameters expected,
+        IReadOnlyCollection<string> imageEnvironment, CancellationToken cancellationToken)
     {
         var containers = await _client.ListAsync(cancellationToken);
         var initial = Classify(containers, expected);
@@ -349,20 +360,19 @@ internal sealed class DockerGameRuntimeAdapter : IGameRuntimeAdapter, IManagedRu
         var expectedName = "/" + expected.Name;
         var candidate = containers.Single(container => container.Names?.Contains(expectedName, StringComparer.Ordinal) == true);
         var inspected = await _client.InspectAsync(candidate.ID, cancellationToken);
-        return CriticalConfigurationMatches(inspected, expected)
+        return CriticalConfigurationMatches(inspected, expected, imageEnvironment)
             && inspected.State is not null && !inspected.State.Running
             && !inspected.State.Paused && !inspected.State.Restarting && !inspected.State.Dead
             ? ProvisioningReconciliationOutcomes.EffectExists
             : ProvisioningReconciliationOutcomes.Ambiguous;
     }
 
-    internal static bool CriticalConfigurationMatches(ContainerInspectResponse actual, CreateContainerParameters expected)
+    internal static bool CriticalConfigurationMatches(ContainerInspectResponse actual, CreateContainerParameters expected,
+        IReadOnlyCollection<string>? imageEnvironment = null)
     {
         if (actual.Config?.Image != expected.Image || actual.HostConfig is null
             || expected.Image.StartsWith("sha256:", StringComparison.Ordinal) && actual.Image != expected.Image) return false;
-        var actualEnvironment = (actual.Config.Env ?? []).OrderBy(value => value, StringComparer.Ordinal).ToArray();
-        var expectedEnvironment = (expected.Env ?? []).OrderBy(value => value, StringComparer.Ordinal).ToArray();
-        if (!actualEnvironment.SequenceEqual(expectedEnvironment, StringComparer.Ordinal)) return false;
+        if (!EnvironmentMatches(actual.Config.Env ?? [], expected.Env ?? [], imageEnvironment ?? [])) return false;
         if (actual.HostConfig.Privileged || actual.HostConfig.NetworkMode != expected.HostConfig.NetworkMode
             || actual.HostConfig.NanoCPUs != expected.HostConfig.NanoCPUs || actual.HostConfig.Memory != expected.HostConfig.Memory
             || actual.HostConfig.RestartPolicy?.Name != expected.HostConfig.RestartPolicy.Name) return false;
@@ -374,6 +384,38 @@ internal sealed class DockerGameRuntimeAdapter : IGameRuntimeAdapter, IManagedRu
             actualPorts.TryGetValue(binding.Key, out var values)
             && values.Select(value => (value.HostIP ?? "", value.HostPort)).SequenceEqual(
                 binding.Value.Select(value => (value.HostIP ?? "", value.HostPort))));
+    }
+
+    private static bool EnvironmentMatches(IEnumerable<string> actual,
+        IEnumerable<string> overrides, IEnumerable<string> imageDefaults)
+    {
+        if (!TryBuildEnvironment(imageDefaults, rejectDuplicates: false, out var expected)
+            || !TryBuildEnvironment(overrides, rejectDuplicates: true, out var controlled)
+            || !TryBuildEnvironment(actual, rejectDuplicates: true, out var observed)) return false;
+        foreach (var item in controlled) expected[item.Key] = item.Value;
+        return expected.Count == observed.Count && expected.All(item =>
+            observed.TryGetValue(item.Key, out var value) && value == item.Value);
+    }
+
+    private static bool TryBuildEnvironment(IEnumerable<string> entries, bool rejectDuplicates,
+        out Dictionary<string, string> environment)
+    {
+        environment = new Dictionary<string, string>(StringComparer.Ordinal);
+        return TryApplyEnvironment(environment, entries, rejectDuplicates);
+    }
+
+    private static bool TryApplyEnvironment(IDictionary<string, string> environment,
+        IEnumerable<string> entries, bool rejectDuplicates)
+    {
+        foreach (var entry in entries)
+        {
+            var separator = entry.IndexOf('=');
+            if (separator <= 0) return false;
+            var name = entry[..separator];
+            if (rejectDuplicates && environment.ContainsKey(name)) return false;
+            environment[name] = entry[(separator + 1)..];
+        }
+        return true;
     }
 
     internal static string Classify(IReadOnlyCollection<ContainerListResponse> containers, CreateContainerParameters expected)

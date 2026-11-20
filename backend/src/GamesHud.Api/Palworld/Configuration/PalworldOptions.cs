@@ -15,6 +15,8 @@ public sealed class PalworldOptions
     public PalworldRestApiOptions RestApi { get; set; } = new();
 
     public PalworldBackupOptions Backups { get; set; } = new();
+
+    public PalworldUpdateOptions Updates { get; set; } = new();
 }
 
 public sealed class PalworldRestApiOptions
@@ -41,4 +43,15 @@ public sealed class PalworldBackupOptions
     public int PreBackupSaveDelaySeconds { get; set; } = 2;
 
     public int LifecycleTimeoutSeconds { get; set; } = 30;
+}
+
+public sealed class PalworldUpdateOptions
+{
+    public int CommandTimeoutSeconds { get; set; } = 60;
+
+    public int LifecycleTimeoutSeconds { get; set; } = 30;
+
+    public int StartupVerificationTimeoutSeconds { get; set; } = 300;
+
+    public int VerificationRetryDelayMilliseconds { get; set; } = 5000;
 }

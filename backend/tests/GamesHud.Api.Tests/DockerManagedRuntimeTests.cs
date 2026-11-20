@@ -62,6 +62,43 @@ public sealed class DockerManagedRuntimeTests
     }
 
     [Fact]
+    public async Task MatchingContainerIncludesVerifiedImageEnvironmentDefaults()
+    {
+        var context = Context();
+        var expected = DockerCreateContainerMapper.Map(context);
+        var inspection = Inspection(expected);
+        inspection.Config.Env = ["PATH=/usr/local/bin", .. expected.Env];
+        var client = new FakeDockerClient
+        {
+            ImageEnvironment = ["PATH=/usr/local/bin"],
+            Containers = [Summary(expected)],
+            Inspection = inspection
+        };
+
+        var outcome = await Adapter(client).CreateAsync(context, CancellationToken.None);
+
+        Assert.Equal(RuntimeMutationOutcomeStatuses.Success, outcome.Status);
+        Assert.Equal(0, client.CreateCalls);
+    }
+
+    [Fact]
+    public async Task ControlledEnvironmentOverridesVerifiedImageDefault()
+    {
+        var context = Context();
+        var expected = DockerCreateContainerMapper.Map(context);
+        var client = new FakeDockerClient
+        {
+            ImageEnvironment = ["DISABLE_GENERATE_SETTINGS=false"],
+            Containers = [Summary(expected)],
+            Inspection = Inspection(expected)
+        };
+
+        var outcome = await Adapter(client).CreateAsync(context, CancellationToken.None);
+
+        Assert.Equal(RuntimeMutationOutcomeStatuses.Success, outcome.Status);
+    }
+
+    [Fact]
     public async Task NameCollisionWithoutOwnershipFailsClosed()
     {
         var expected = DockerCreateContainerMapper.Map(Context());
@@ -163,12 +200,14 @@ public sealed class DockerManagedRuntimeTests
     private sealed class FakeDockerClient : IDockerManagedRuntimeClient
     {
         public bool ImageExists { get; init; } = true;
+        public IReadOnlyCollection<string> ImageEnvironment { get; init; } = [];
         public IReadOnlyCollection<ContainerListResponse> Containers { get; init; } = [];
         public ContainerInspectResponse Inspection { get; init; } = new();
         public Exception? CreateException { get; init; }
         public int CreateCalls { get; private set; }
         public Task<bool> StartAsync(string id, CancellationToken cancellationToken) => Task.FromResult(true);
-        public Task<bool> ImageExistsAsync(string image, CancellationToken cancellationToken) => Task.FromResult(ImageExists);
+        public Task<DockerManagedImageInspection?> InspectImageAsync(string image, CancellationToken cancellationToken) =>
+            Task.FromResult(ImageExists ? new DockerManagedImageInspection(ImageEnvironment) : null);
         public Task<IReadOnlyCollection<ContainerListResponse>> ListAsync(CancellationToken cancellationToken) => Task.FromResult(Containers);
         public Task<ContainerInspectResponse> InspectAsync(string id, CancellationToken cancellationToken) => Task.FromResult(Inspection);
         public Task<CreateContainerResponse> CreateAsync(CreateContainerParameters parameters, CancellationToken cancellationToken)
