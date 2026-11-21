@@ -66,6 +66,8 @@ Use `deploy/.env.example` as the template.
 
 ```text
 GAMESHUD_FRONTEND_PORT=8088
+GAMESHUD_PRIVATE_HTTP_ENABLED=false
+GAMESHUD_ALLOWED_HOSTS=*
 GAMESHUD_DOCKER_ENDPOINT=unix:///var/run/docker.sock
 GAMESHUD_METRICS_SNAPSHOT_INTERVAL_SECONDS=60
 GAMESHUD_METRICS_RETENTION_HOURS=24
@@ -309,7 +311,14 @@ Do not run `docker compose down` unless there is a specific, reviewed reason.
 
 ## SSH Tunnel Access
 
-Because authentication does not exist yet, do not expose GamesHud publicly.
+Production defaults require HTTPS cookies. For temporary private homologation over an SSH tunnel, explicitly enable the constrained private HTTP mode in the VPS-only `.env`:
+
+```text
+GAMESHUD_PRIVATE_HTTP_ENABLED=true
+GAMESHUD_ALLOWED_HOSTS=localhost;127.0.0.1
+```
+
+Both controls are required. Startup fails when private HTTP is enabled with `*`, a DNS wildcard or any non-loopback allowed host. Requests whose `Host` is not loopback are also rejected. The Compose frontend publication must remain exactly loopback-bound (`127.0.0.1:${GAMESHUD_FRONTEND_PORT}:80`); do not replace it with `0.0.0.0`, a bare port publication or a public interface. The API port remains unpublished.
 
 From your local machine:
 
@@ -322,6 +331,10 @@ Then open:
 ```text
 http://localhost:8088
 ```
+
+In this mode only, Identity and antiforgery cookies use `SameAsRequest` and non-`__Host-` names so they can operate over the local HTTP endpoint carried inside SSH. They remain HttpOnly where applicable and `SameSite=Strict`; authentication, authorization, ownership, antiforgery validation and persisted Data Protection keys are unchanged. The setting is explicit and is never inferred from `X-Forwarded-Proto`, `X-Forwarded-For` or other request headers. Although nginx emits those headers, the API does not currently trust or process them.
+
+Before any public deployment, terminate TLS on a reviewed reverse proxy, set `GAMESHUD_PRIVATE_HTTP_ENABLED=false`, replace `GAMESHUD_ALLOWED_HOSTS` with the exact public hostname and verify that cookies are emitted with `Secure` and `__Host-` names. If TLS terminates before the API, add forwarded-header processing only with explicit trusted proxy/network configuration; never trust forwarded headers from arbitrary clients. Confirm `/api/auth/csrf`, login, authenticated mutations and rejection without a CSRF token over HTTPS before exposing the service.
 
 Do not document real VPS IPs, hostnames, users, keys, or credentials in the repository.
 
@@ -361,4 +374,4 @@ The Docker socket grants host-level control. Treat it as equivalent to host admi
 - Do not enable Docker remote API.
 - Do not send Docker credentials to the frontend.
 
-Until authentication exists, GamesHud must remain private and accessible only through SSH tunneling.
+Until SEC-05 and SEC-06 are complete, GamesHud must remain private and accessible only through SSH tunneling.

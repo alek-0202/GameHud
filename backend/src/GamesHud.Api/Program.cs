@@ -54,8 +54,11 @@ builder.Services.Configure<SecretStorageOptions>(builder.Configuration.GetSectio
 builder.Services.Configure<RuntimeHealthOptions>(builder.Configuration.GetSection(RuntimeHealthOptions.SectionName));
 builder.Services.Configure<RuntimeImageAcquisitionOptions>(builder.Configuration.GetSection(RuntimeImageAcquisitionOptions.SectionName));
 builder.Services.Configure<ProvisioningExecutorOptions>(builder.Configuration.GetSection(ProvisioningExecutorOptions.SectionName));
-builder.Services.Configure<GamesHud.Api.Authentication.AuthenticationOptions>(
-    builder.Configuration.GetSection(GamesHud.Api.Authentication.AuthenticationOptions.SectionName));
+builder.Services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<GamesHud.Api.Authentication.AuthenticationOptions>,
+    PrivateHttpAuthenticationOptionsValidator>();
+builder.Services.AddOptions<GamesHud.Api.Authentication.AuthenticationOptions>()
+    .Bind(builder.Configuration.GetSection(GamesHud.Api.Authentication.AuthenticationOptions.SectionName))
+    .ValidateOnStart();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<PalworldGameDefinition>();
 builder.Services.AddSingleton<MinecraftGameDefinition>();
@@ -80,37 +83,47 @@ builder.Services.AddGamesHudIdentityPersistence(builder.Configuration)
     .AddSignInManager()
     .AddDefaultTokenProviders();
 builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme).AddIdentityCookies();
-builder.Services.Configure<CookieAuthenticationOptions>(IdentityConstants.ApplicationScheme, options =>
-{
-    options.Cookie.Name = builder.Environment.IsDevelopment() ? "GamesHud.Auth" : "__Host-GamesHud.Auth";
-    options.Cookie.HttpOnly = true;
-    options.Cookie.SameSite = SameSiteMode.Strict;
-    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
-        ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
-    options.Cookie.Path = "/";
-    options.Events.OnRedirectToLogin = context =>
-    {
-        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-        return Task.CompletedTask;
-    };
-    options.Events.OnRedirectToAccessDenied = context =>
-    {
-        context.Response.StatusCode = StatusCodes.Status403Forbidden;
-        return Task.CompletedTask;
-    };
-});
+builder.Services.AddOptions<CookieAuthenticationOptions>(IdentityConstants.ApplicationScheme)
+    .Configure<Microsoft.Extensions.Options.IOptions<GamesHud.Api.Authentication.AuthenticationOptions>, IHostEnvironment>(
+        (options, configuredAuthentication, environment) =>
+        {
+            var allowPrivateHttp = configuredAuthentication.Value.PrivateHttpEnabled;
+            options.Cookie.Name = allowPrivateHttp || environment.IsDevelopment()
+                ? "GamesHud.Auth" : "__Host-GamesHud.Auth";
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SameSite = SameSiteMode.Strict;
+            options.Cookie.SecurePolicy = allowPrivateHttp || environment.IsDevelopment()
+                ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
+            options.Cookie.Path = "/";
+            options.Events.OnRedirectToLogin = context =>
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return Task.CompletedTask;
+            };
+            options.Events.OnRedirectToAccessDenied = context =>
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                return Task.CompletedTask;
+            };
+        });
 builder.Services.AddAuthorization();
 builder.Services.AddAntiforgery(options =>
 {
     options.HeaderName = "X-CSRF-TOKEN";
-    options.Cookie.Name = builder.Environment.IsDevelopment()
-        ? "GamesHud.Antiforgery" : "__Host-GamesHud.Antiforgery";
     options.Cookie.HttpOnly = true;
     options.Cookie.SameSite = SameSiteMode.Strict;
-    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
-        ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
     options.Cookie.Path = "/";
 });
+builder.Services.AddOptions<Microsoft.AspNetCore.Antiforgery.AntiforgeryOptions>()
+    .Configure<Microsoft.Extensions.Options.IOptions<GamesHud.Api.Authentication.AuthenticationOptions>, IHostEnvironment>(
+        (options, configuredAuthentication, environment) =>
+        {
+            var allowPrivateHttp = configuredAuthentication.Value.PrivateHttpEnabled;
+            options.Cookie.Name = allowPrivateHttp || environment.IsDevelopment()
+                ? "GamesHud.Antiforgery" : "__Host-GamesHud.Antiforgery";
+            options.Cookie.SecurePolicy = allowPrivateHttp || environment.IsDevelopment()
+                ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
+        });
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 builder.Services.AddScoped<IPersistenceHealthService, PersistenceHealthService>();
@@ -249,6 +262,10 @@ if (builder.Environment.IsDevelopment())
 
 var app = builder.Build();
 
+_ = app.Services
+    .GetRequiredService<Microsoft.Extensions.Options.IOptions<GamesHud.Api.Authentication.AuthenticationOptions>>()
+    .Value;
+
 await using (var scope = app.Services.CreateAsyncScope())
 {
     await scope.ServiceProvider.GetRequiredService<IPersistenceInitializer>().InitializeAsync();
@@ -258,6 +275,21 @@ if (app.Environment.IsDevelopment())
 {
     app.UseCors("LocalVite");
 }
+
+app.Use(async (context, next) =>
+{
+    var configuredAuthentication = context.RequestServices
+        .GetRequiredService<Microsoft.Extensions.Options.IOptions<GamesHud.Api.Authentication.AuthenticationOptions>>()
+        .Value;
+    if (configuredAuthentication.PrivateHttpEnabled
+        && !PrivateHttpAccessPolicy.IsLoopbackHost(context.Request.Host.Host))
+    {
+        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+        return;
+    }
+
+    await next(context);
+});
 
 app.UseAuthentication();
 app.UseAuthorization();

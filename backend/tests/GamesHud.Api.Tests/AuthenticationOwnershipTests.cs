@@ -8,6 +8,7 @@ using GamesHud.Api.GameServers.Storage;
 using GamesHud.Api.Persistence;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -116,9 +117,82 @@ public sealed class AuthenticationOwnershipTests
         Assert.True(options.Cookie.HttpOnly);
         Assert.Equal(Microsoft.AspNetCore.Http.CookieSecurePolicy.Always, options.Cookie.SecurePolicy);
         Assert.Equal(Microsoft.AspNetCore.Http.SameSiteMode.Strict, options.Cookie.SameSite);
+        var antiforgery = factory.Services.GetRequiredService<IOptions<AntiforgeryOptions>>().Value;
+        Assert.Equal("__Host-GamesHud.Antiforgery", antiforgery.Cookie.Name);
+        Assert.Equal(Microsoft.AspNetCore.Http.CookieSecurePolicy.Always, antiforgery.Cookie.SecurePolicy);
         Assert.Equal(Path.Combine(directory.Path, "configured-keys"),
             factory.Services.GetRequiredService<IOptions<GamesHud.Api.Authentication.AuthenticationOptions>>()
                 .Value.DataProtectionKeysPath);
+    }
+
+    [Fact]
+    public async Task ExplicitPrivateHttpModeSupportsFullCsrfAuthenticatedFlowOnLoopback()
+    {
+        using var directory = TemporaryDirectory.Create();
+        await using var factory = CreateFactory(
+            directory.Path, "Production", privateHttpEnabled: true, allowedHosts: "localhost;127.0.0.1");
+        await CreateUser(factory, "private@example.test", "Private-Password-123!");
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("http://localhost"),
+            HandleCookies = true
+        });
+
+        using var csrfResponse = await client.GetAsync("/api/auth/csrf");
+        Assert.Equal(HttpStatusCode.OK, csrfResponse.StatusCode);
+        var csrf = (await csrfResponse.Content.ReadFromJsonAsync<AntiforgeryTokenResponse>())!.RequestToken;
+        var antiforgeryCookie = Assert.Single(csrfResponse.Headers.GetValues("Set-Cookie"),
+            value => value.Contains("GamesHud.Antiforgery", StringComparison.Ordinal));
+        Assert.DoesNotContain("secure", antiforgeryCookie, StringComparison.OrdinalIgnoreCase);
+
+        using var loginRequest = CreateLogin("private@example.test", "Private-Password-123!", csrf);
+        using var login = await client.SendAsync(loginRequest);
+        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+        var authCookie = Assert.Single(login.Headers.GetValues("Set-Cookie"),
+            value => value.Contains("GamesHud.Auth", StringComparison.Ordinal));
+        Assert.DoesNotContain("secure", authCookie, StringComparison.OrdinalIgnoreCase);
+        Assert.True((await client.GetFromJsonAsync<CurrentSessionResponse>("/api/auth/me"))?.Authenticated);
+
+        using var missing = await client.PostAsync("/api/auth/logout", null);
+        Assert.Equal(HttpStatusCode.BadRequest, missing.StatusCode);
+        using var invalidRequest = new HttpRequestMessage(HttpMethod.Post, "/api/auth/logout");
+        invalidRequest.AddCsrf("invalid-token");
+        using var invalid = await client.SendAsync(invalidRequest);
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+
+        var logoutCsrf = await client.GetCsrfTokenAsync();
+        using var logoutRequest = new HttpRequestMessage(HttpMethod.Post, "/api/auth/logout");
+        logoutRequest.AddCsrf(logoutCsrf);
+        using var logout = await client.SendAsync(logoutRequest);
+        Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
+    }
+
+    [Fact]
+    public void PrivateHttpModeRejectsPublicHostConfigurationAtStartup()
+    {
+        using var directory = TemporaryDirectory.Create();
+        using var factory = CreateFactory(
+            directory.Path, "Production", privateHttpEnabled: true, allowedHosts: "*");
+
+        var exception = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
+
+        Assert.Contains("only explicit loopback hosts", exception.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PrivateHttpModeRejectsRequestsWithPublicHost()
+    {
+        using var directory = TemporaryDirectory.Create();
+        await using var factory = CreateFactory(
+            directory.Path, "Production", privateHttpEnabled: true, allowedHosts: "localhost");
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("http://public.example")
+        });
+
+        using var response = await client.GetAsync("/api/auth/csrf");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
@@ -138,7 +212,11 @@ public sealed class AuthenticationOwnershipTests
         return request;
     }
 
-    private static WebApplicationFactory<Program> CreateFactory(string root, string environment = "Development") =>
+    private static WebApplicationFactory<Program> CreateFactory(
+        string root,
+        string environment = "Development",
+        bool privateHttpEnabled = false,
+        string allowedHosts = "*") =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment(environment);
@@ -148,7 +226,9 @@ public sealed class AuthenticationOwnershipTests
                     ["Storage:DataRoot"] = root,
                     ["Storage:ManagedApiRoot"] = root,
                     ["Storage:ManagedHostRoot"] = root,
-                    ["Authentication:DataProtectionKeysPath"] = Path.Combine(root, "configured-keys")
+                    ["Authentication:DataProtectionKeysPath"] = Path.Combine(root, "configured-keys"),
+                    ["Authentication:PrivateHttpEnabled"] = privateHttpEnabled.ToString(),
+                    ["AllowedHosts"] = allowedHosts
                 }));
         });
 

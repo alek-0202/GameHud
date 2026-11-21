@@ -64,6 +64,8 @@ Identity cookies depend on stable ASP.NET Core Data Protection keys. `Authentica
 
 HTTPS is required before public exposure because production cookies are always Secure. SEC-04A provides only first-account bootstrap; it does not complete SEC-06 deployment hardening, rate limiting, security headers, recovery, role administration or general account lifecycle management.
 
+Private SSH-tunnel homologation is the sole exception. `Authentication:PrivateHttpEnabled=true` changes Identity and antiforgery cookies to `SameAsRequest` only after startup verifies that `AllowedHosts` contains exclusively explicit loopback hosts. Requests with a non-loopback `Host` are rejected, and the deployment must keep nginx published only on host loopback. The mode is disabled by default and is not inferred from forwarded headers. Public HTTPS deployments must disable it and retain `SecurePolicy=Always` with `__Host-` cookie names.
+
 SEC-04 protects only `POST /api/game-servers` and the two Managed reads. The legacy administrative surface remains anonymous and powerful. It must not be publicly exposed in a multi-user deployment. SEC-05 must isolate container lifecycle, logs, backups, Palworld administration, scheduler, update, persistence, and system operations, and add an actor-aware audit trail.
 
 GH-16B remains opt-in. Its real Docker validation must pass before Managed provisioning is activated outside isolated development, and the default test suite does not execute Docker.

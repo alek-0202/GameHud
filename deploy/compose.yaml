@@ -7,6 +7,8 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
+      Authentication__PrivateHttpEnabled: ${GAMESHUD_PRIVATE_HTTP_ENABLED:-false}
+      AllowedHosts: ${GAMESHUD_ALLOWED_HOSTS:-*}
       Docker__Endpoint: ${GAMESHUD_DOCKER_ENDPOINT:-unix:///var/run/docker.sock}
       RuntimeImageAcquisition__TimeoutSeconds: ${GAMESHUD_IMAGE_ACQUISITION_TIMEOUT_SECONDS:-900}
       RuntimeImageAcquisition__InspectTimeoutSeconds: ${GAMESHUD_IMAGE_INSPECT_TIMEOUT_SECONDS:-30}

@@ -4,4 +4,5 @@ public sealed class AuthenticationOptions
 {
     public const string SectionName = "Authentication";
     public string DataProtectionKeysPath { get; set; } = string.Empty;
+    public bool PrivateHttpEnabled { get; set; }
 }
